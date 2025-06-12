@@ -1,0 +1,156 @@
+/* Vocus Core Colours */
+:root {
+    --color-navy: #0f1c47; /* Vocus Navy */
+    --color-reflex: #0000ff; /* Vocus Reflex Blue */
+    --color-mid: #007fff; /* Vocus Mid Blue */
+    --color-aqua: #00ffff; /* Vocus Aqua */
+
+    /* Light-mode tokens */
+    --background: #ffffff;
+    --text: var(--color-navy);
+    --surface: #f2f2f2;
+    --example-bg-light: #e0f4ff; /* soft aqua tint */
+    --accent: var(--color-mid);
+
+    /* Dark-mode example text */
+    --example-text-dark: var(--color-aqua);
+}
+
+[data-theme="dark"] {
+    /* Dark-mode tokens */
+    --background: var(--color-navy);
+    --text: #ffffff;
+    --surface: #15264f; /* slightly lighter than pure navy */
+    --accent: var(--color-reflex);
+}
+
+body {
+    background-color: var(--background);
+    color: var(--text);
+    transition:
+        background-color 0.3s,
+        color 0.3s;
+}
+
+.container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    margin-top: 1rem;
+}
+
+/* Empty state + examples */
+.chatEmptyState {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+}
+
+.chatEmptyStateTitle {
+    font-size: 2.75rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+}
+
+.chatEmptyStateSubtitle {
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+/* Example cards */
+.exampleList {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.exampleCard {
+    flex: 1;
+    min-width: 12rem;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background: var(--surface);
+    cursor: pointer;
+    text-align: center;
+    transition: background-color 0.2s;
+}
+
+[data-theme="light"] .exampleCard {
+    background: var(--example-bg-light);
+}
+
+.exampleCard:hover {
+    filter: brightness(0.95);
+}
+
+.exampleText {
+    font-size: 1rem;
+    margin: 0;
+    color: var(--text);
+}
+
+[data-theme="dark"] .exampleText {
+    color: var(--example-text-dark);
+}
+
+/* Chat message stream */
+.chatMessageStream {
+    flex: 1;
+    max-width: 800px;
+    margin: 0 auto;
+    overflow-y: auto;
+    padding: 0 1rem;
+    display: flex;
+    flex-direction: column;
+}
+
+/* GPT response container override */
+.chatMessageGpt,
+.chatMessageGptMinWidth {
+    margin-bottom: 1.25rem;
+    display: flex;
+    justify-content: center;
+    /* ensure dark text on white cards */
+    color: var(--color-navy);
+}
+
+/* force all descendants (e.g. Answer content) to dark text */
+.chatMessageGpt *,
+.chatMessageGptMinWidth * {
+    color: var(--color-navy) !important;
+}
+
+/* Chat input */
+.chatInput {
+    position: fixed;
+    bottom: 64px;
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    padding: 1rem;
+    z-index: 999;
+}
+
+@media (min-width: 992px) {
+    .chatInput {
+        padding: 0.75rem 1.5rem 1.5rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .chatInput {
+        display: none;
+    }
+    .chatInput:focus-within {
+        display: block;
+    }
+    .chatMessageStream {
+        margin-bottom: 0;
+    }
+}

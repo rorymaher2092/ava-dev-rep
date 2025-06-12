@@ -1,0 +1,140 @@
+/* Vocus Core Colours */
+:root {
+    --color-navy: #0f1c47;
+    --color-reflex: #0000ff;
+    --color-mid: #007fff;
+    --color-aqua: #00ffff;
+
+    /* Light-mode tokens */
+    --background: #ffffff;
+    --text: var(--color-navy);
+    --surface: #f2f2f2;
+    --accent: var(--color-mid);
+}
+
+[data-theme="dark"] {
+    /* Dark-mode tokens */
+    --background: var(--color-navy);
+    --text: #ffffff;
+    --surface: #15264f;
+    --accent: var(--color-reflex);
+}
+
+body {
+    background-color: var(--background);
+    color: var(--text);
+    transition:
+        background-color 0.3s,
+        color 0.3s;
+}
+
+.layout {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.header {
+    background-color: var(--surface);
+    color: var(--text);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+}
+
+/* Container to align logo/title and menu on opposite ends */
+.headerContainer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 100%;
+    padding: 0 1.5rem;
+}
+
+.headerCenterContainer {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.headerLogo {
+    height: 2rem;
+    width: auto;
+}
+
+.headerTitle {
+    margin: 0;
+    font-weight: 600;
+    color: var(--text);
+}
+
+/* Right side login, settings, menu */
+.loginMenuContainer {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.themeToggle,
+.menuToggle,
+.settingsToggle {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    color: var(--text);
+}
+
+.dropdownMenu {
+    position: absolute;
+    top: 100%;
+    right: 1.5rem;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--accent);
+    padding: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    z-index: 2000;
+}
+
+.dropdownMenu button {
+    background: none;
+    border: none;
+    text-align: left;
+    padding: 0.25rem 0;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.dropdownMenu button:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.mainContent {
+    flex: 1;
+    margin-top: 64px;
+    margin-bottom: 64px;
+    overflow-y: auto;
+}
+
+.footer {
+    background-color: var(--surface);
+    color: var(--text);
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    text-align: center;
+    padding: 1rem;
+    font-size: 0.875rem;
+    border-top: 2px solid var(--accent);
+    z-index: 1000;
+}
