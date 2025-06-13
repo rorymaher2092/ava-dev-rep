@@ -22,8 +22,8 @@ interface Props {
     onCitationClicked: (filePath: string) => void;
     onThoughtProcessClicked: () => void;
     onSupportingContentClicked: () => void;
-    onFollowupQuestionClicked?: (question: string) => void;
-    showFollowupQuestions?: boolean;
+    //onFollowupQuestionClicked?: (question: string) => void;
+    //showFollowupQuestions?: boolean;
     showSpeechOutputBrowser?: boolean;
     showSpeechOutputAzure?: boolean;
 }
@@ -37,8 +37,8 @@ export const Answer = ({
     onCitationClicked,
     onThoughtProcessClicked,
     onSupportingContentClicked,
-    onFollowupQuestionClicked,
-    showFollowupQuestions,
+    //onFollowupQuestionClicked,
+    //showFollowupQuestions,
     showSpeechOutputAzure,
     showSpeechOutputBrowser
 }: Props) => {
@@ -114,21 +114,6 @@ export const Answer = ({
                             return (
                                 <a key={i} className={styles.citation} title={x} onClick={() => onCitationClicked(path)}>
                                     {`${++i}. ${x}`}
-                                </a>
-                            );
-                        })}
-                    </Stack>
-                </Stack.Item>
-            )}
-
-            {!!followupQuestions?.length && showFollowupQuestions && onFollowupQuestionClicked && (
-                <Stack.Item>
-                    <Stack horizontal wrap className={`${!!parsedAnswer.citations.length ? styles.followupQuestionsList : ""}`} tokens={{ childrenGap: 6 }}>
-                        <span className={styles.followupQuestionLearnMore}>{t("followupQuestions")}</span>
-                        {followupQuestions.map((x, i) => {
-                            return (
-                                <a key={i} className={styles.followupQuestion} title={x} onClick={() => onFollowupQuestionClicked(x)}>
-                                    {`${x}`}
                                 </a>
                             );
                         })}

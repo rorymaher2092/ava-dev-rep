@@ -16,9 +16,21 @@ interface Props {
     placeholder?: string;
     clearOnSend?: boolean;
     showSpeechInput?: boolean;
+    // adding imports for followupQuestions
+    followupQuestions?: string[]; // Array of follow-up questions
+    onFollowupQuestionClicked?: (question: string) => void; // Callback for follow-up question click
 }
 
-export const QuestionInput = ({ onSend, disabled, placeholder, clearOnSend, initQuestion, showSpeechInput }: Props) => {
+export const QuestionInput = ({
+    onSend,
+    disabled,
+    placeholder,
+    clearOnSend,
+    initQuestion,
+    showSpeechInput,
+    followupQuestions,
+    onFollowupQuestionClicked
+}: Props) => {
     const [question, setQuestion] = useState<string>("");
     const { loggedIn } = useContext(LoginContext);
     const { t } = useTranslation();
@@ -72,26 +84,45 @@ export const QuestionInput = ({ onSend, disabled, placeholder, clearOnSend, init
     }
 
     return (
-        <Stack horizontal className={styles.questionInputContainer}>
-            <TextField
-                className={styles.questionInputTextArea}
-                disabled={disableRequiredAccessControl}
-                placeholder={placeholder}
-                multiline
-                resizable={false}
-                borderless
-                value={question}
-                onChange={onQuestionChange}
-                onKeyDown={onEnterPress}
-                onCompositionStart={handleCompositionStart}
-                onCompositionEnd={handleCompositionEnd}
-            />
-            <div className={styles.questionInputButtonsContainer}>
-                <Tooltip content={t("tooltips.submitQuestion")} relationship="label">
-                    <Button size="large" icon={<Send28Filled primaryFill="rgba(115, 118, 225, 1)" />} disabled={sendQuestionDisabled} onClick={sendQuestion} />
-                </Tooltip>
-            </div>
-            {showSpeechInput && <SpeechInput updateQuestion={setQuestion} />}
-        </Stack>
+        <div className={styles.questionInputWrapper}>
+            {/* Follow-up questions above the input box */}
+            {!!followupQuestions?.length && (
+                <Stack horizontal wrap tokens={{ childrenGap: 16 }} className={styles.followupQuestionsWrapper}>
+                    {followupQuestions.map((question, index) => (
+                        <a key={index} className={styles.followupQuestion} title={question} onClick={() => onFollowupQuestionClicked?.(question)}>
+                            {question}
+                        </a>
+                    ))}
+                </Stack>
+            )}
+
+            {/* Input container */}
+            <Stack horizontal className={styles.questionInputContainer}>
+                <TextField
+                    className={styles.questionInputTextArea}
+                    disabled={disableRequiredAccessControl}
+                    placeholder={placeholder}
+                    multiline
+                    resizable={false}
+                    borderless
+                    value={question}
+                    onChange={onQuestionChange}
+                    onKeyDown={onEnterPress}
+                    onCompositionStart={handleCompositionStart}
+                    onCompositionEnd={handleCompositionEnd}
+                />
+                <div className={styles.questionInputButtonsContainer}>
+                    <Tooltip content={t("tooltips.submitQuestion")} relationship="label">
+                        <Button
+                            size="large"
+                            icon={<Send28Filled primaryFill="rgba(115, 118, 225, 1)" />}
+                            disabled={sendQuestionDisabled}
+                            onClick={sendQuestion}
+                        />
+                    </Tooltip>
+                </div>
+                {showSpeechInput && <SpeechInput updateQuestion={setQuestion} />}
+            </Stack>
+        </div>
     );
 };
