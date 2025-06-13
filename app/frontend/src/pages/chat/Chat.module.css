@@ -23,7 +23,7 @@
     --text: #ffffff;
     --surface: #15264f; /* slightly lighter than pure navy */
     --accent: var(--color-reflex);
-    --inputBox-bg:#0f1c47;
+    --inputBox-bg: #0f1c47;
 }
 
 body {
@@ -107,7 +107,7 @@ body {
     padding: 0 1rem;
     display: flex;
     flex-direction: column;
-    margin-bottom: 20px;
+    margin-bottom: 100px;
 }
 
 /* GPT response container override */
@@ -138,6 +138,7 @@ body {
     background: var(--inputBox-bg);
     padding: 1rem;
     z-index: 999;
+    bottom: 50px;
 }
 
 @media (min-width: 992px) {
