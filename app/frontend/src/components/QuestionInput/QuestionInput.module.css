@@ -24,3 +24,36 @@
         height: 5.625rem;
     }
 }
+
+.followupQuestionsWrapper {
+    margin-bottom: 5px;
+}
+
+/* Individual Follow-up Question Box */
+.followupQuestion {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 400;
+    font-size: 14px;
+    padding: 16px;
+    background: white;
+    border: 2px solid #d1dbfa; /* Light gray border */
+    border-radius: 10px;
+    width: 30%;
+    min-height: 80px;
+    max-height: 80px;
+    line-height: 1;
+    text-align: center;
+    cursor: pointer;
+    transition:
+        background 0.3s ease,
+        border 0.3s ease;
+}
+
+/* Hover effect for follow-up questions */
+.followupQuestion:hover {
+    background: #e8ebfa; /* Original blue */
+    color: black;
+    border-color: #e8ebfa;
+}

@@ -63,6 +63,7 @@ const Chat = () => {
     const [useGroupsSecurityFilter, setUseGroupsSecurityFilter] = useState<boolean>(false);
     const [gpt4vInput, setGPT4VInput] = useState<GPT4VInput>(GPT4VInput.TextAndImages);
     const [useGPT4V, setUseGPT4V] = useState<boolean>(false);
+    const [currentFollowupQuestions, setCurrentFollowupQuestions] = useState<string[]>([]);
 
     const lastQuestionRef = useRef<string>("");
     const chatMessageStreamEnd = useRef<HTMLDivElement | null>(null);
@@ -198,6 +199,9 @@ const Chat = () => {
     const makeApiRequest = async (question: string) => {
         lastQuestionRef.current = question;
 
+        // Clear follow-up questions when a new question is asked
+        setCurrentFollowupQuestions([]);
+
         error && setError(undefined);
         setIsLoading(true);
         setActiveCitation(undefined);
@@ -254,6 +258,12 @@ const Chat = () => {
             if (shouldStream) {
                 const parsedResponse: ChatAppResponse = await handleAsyncRequest(question, answers, response.body);
                 setAnswers([...answers, [question, parsedResponse]]);
+
+                // Set follow-up questions if available
+                if (useSuggestFollowupQuestions) {
+                    setCurrentFollowupQuestions(parsedResponse.context?.followup_questions || []);
+                }
+
                 if (typeof parsedResponse.session_state === "string" && parsedResponse.session_state !== "") {
                     const token = client ? await getToken(client) : undefined;
                     historyManager.addItem(parsedResponse.session_state, [...answers, [question, parsedResponse]], token);
@@ -264,6 +274,12 @@ const Chat = () => {
                     throw Error(parsedResponse.error);
                 }
                 setAnswers([...answers, [question, parsedResponse as ChatAppResponse]]);
+
+                // Set follow-up questions if available
+                if (useSuggestFollowupQuestions) {
+                    setCurrentFollowupQuestions((parsedResponse as ChatAppResponse).context?.followup_questions || []);
+                }
+
                 if (typeof parsedResponse.session_state === "string" && parsedResponse.session_state !== "") {
                     const token = client ? await getToken(client) : undefined;
                     historyManager.addItem(parsedResponse.session_state, [...answers, [question, parsedResponse as ChatAppResponse]], token);
@@ -285,6 +301,7 @@ const Chat = () => {
         setAnswers([]);
         setSpeechUrls([]);
         setStreamedAnswers([]);
+        setCurrentFollowupQuestions([]);
         setIsLoading(false);
         setIsStreaming(false);
     };
@@ -441,8 +458,6 @@ const Chat = () => {
                                                 onCitationClicked={c => onShowCitation(c, index)}
                                                 onThoughtProcessClicked={() => onToggleTab(AnalysisPanelTabs.ThoughtProcessTab, index)}
                                                 onSupportingContentClicked={() => onToggleTab(AnalysisPanelTabs.SupportingContentTab, index)}
-                                                onFollowupQuestionClicked={q => makeApiRequest(q)}
-                                                showFollowupQuestions={useSuggestFollowupQuestions && answers.length - 1 === index}
                                                 showSpeechOutputAzure={showSpeechOutputAzure}
                                                 showSpeechOutputBrowser={showSpeechOutputBrowser}
                                             />
@@ -464,8 +479,6 @@ const Chat = () => {
                                                 onCitationClicked={c => onShowCitation(c, index)}
                                                 onThoughtProcessClicked={() => onToggleTab(AnalysisPanelTabs.ThoughtProcessTab, index)}
                                                 onSupportingContentClicked={() => onToggleTab(AnalysisPanelTabs.SupportingContentTab, index)}
-                                                onFollowupQuestionClicked={q => makeApiRequest(q)}
-                                                showFollowupQuestions={useSuggestFollowupQuestions && answers.length - 1 === index}
                                                 showSpeechOutputAzure={showSpeechOutputAzure}
                                                 showSpeechOutputBrowser={showSpeechOutputBrowser}
                                             />
@@ -499,6 +512,11 @@ const Chat = () => {
                             disabled={isLoading}
                             onSend={question => makeApiRequest(question)}
                             showSpeechInput={showSpeechInput}
+                            followupQuestions={currentFollowupQuestions}
+                            onFollowupQuestionClicked={question => {
+                                setCurrentFollowupQuestions([]);
+                                makeApiRequest(question);
+                            }}
                         />
                     </div>
                 </div>

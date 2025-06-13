@@ -4,35 +4,51 @@ description: Answer a question (with chat history) using solely text sources.
 model:
     api: chat
 sample:
-    user_query: What does a product manager do that a CEO doesn't?
+    user_query: What types of incidents are classified as a major incident?
     include_follow_up_questions: true
     past_messages:
         - role: user
-          content: "What does a CEO do?"
+          content: "Who needs to be notified when a major incident occurs?"
         - role: assistant
-          content: "A CEO, or Chief Executive Officer, is responsible for providing strategic direction and oversight to a company to ensure its long-term success and profitability. They develop and implement strategies and objectives for financial success and growth, provide guidance to the executive team, manage day-to-day operations, ensure compliance with laws and regulations, develop and maintain relationships with stakeholders, monitor industry trends, and represent the company in public events 12. [role_library.pdf#page=1][role_library.pdf#page=3]"
+          content: "When a major incident occurs, the following parties must be notified: The Executive Leadership Team including the CEO and relevant C-suite executives, the Major Incident Manager on-call, all affected Business Unit Heads, the Corporate Communications team for media management, and the Customer Experience team for customer communications. Notification must occur within 30 minutes of major incident declaration. [incident_management_framework.pdf#page=8]"
+    assistant_response: "Incidents classified as a major incident include:\n\n1. **Customer Impact**: Significant numbers of customers affected or displaced, sustained disruption across customer types and brands, or high-profile/high-value single customers impacted [incident_management_framework.pdf#page=5].\n\n2. **Network & Systems Impact**: Severe network or property impact, systems unavailable for a long period with material impact, or catastrophic dual cable failure [incident_management_framework.pdf#page=5].\n\n3. **Natural Disasters**: Catastrophic events such as cyclones, storms, bushfires, floods, or extreme temperatures (declared heatwave) [incident_management_framework.pdf#page=6].\n\n4. **Security Breaches**: Company-wide security or data breaches [incident_management_framework.pdf#page=6].\n\n5. **National or Environmental Significance**: Issues of national significance, acts of sabotage/terrorism, or major safety/environmental incidents [incident_management_framework.pdf#page=6].\n\n6. **Media Awareness**: High media awareness and interest across multiple platforms [incident_management_framework.pdf#page=7]."
     text_sources:
-        - "role_library.pdf#page=29:  The Manager of Product Management will collaborate with internal teams, such as engineering, sales, marketing, and finance, as well as external partners, suppliers, and customers to ensure successful product execution. Responsibilities: · Lead the product management team and provide guidance on product strategy, design, development, and launch. · Develop and implement product life-cycle management processes. · Monitor and analyze industry trends to identify opportunities for new products. · Develop product marketing plans and go-to-market strategies. · Research customer needs and develop customer-centric product roadmaps. · Collaborate with internal teams to ensure product execution and successful launch. · Develop pricing strategies and cost models. · Oversee product portfolio and performance metrics. · Manage product development budget. · Analyze product performance and customer feedback to identify areas for improvement. Qualifications: · Bachelor's degree in business, engineering, or a related field. · At least 5 years of experience in product management. · Proven track record of successful product launches."
-        - "role_library.pdf#page=23: Company: Contoso Electronics Location: Anywhere Job Type: Full-Time Salary: Competitive, commensurate with experience Job Summary: The Senior Manager of Product Management will be responsible for leading the product management team at Contoso Electronics. This role includes developing strategies, plans and objectives for the product management team and managing the day-to-day operations. The Senior Manager of Product Management will be responsible for the successful launch of new products and the optimization of existing products. Responsibilities: · Develop and implement product management strategies, plans and objectives to maximize team performance. · Analyze competitive landscape and market trends to develop product strategies. · Lead the product management team in the development of product plans, roadmaps and launch plans. · Monitor the performance of product management team, analyze results and implement corrective action as needed. · Manage the product lifecycle, including product development, launch, and end of life. · Ensure product features and benefits meet customer requirements. · Establish and maintain relationships with key customers, partners, and vendors."
-        - "role_library.pdf#page=28:  · 7+ years of experience in research and development in the electronics sector. · Proven track record of successfully designing, testing, and optimizing products. · Experience leading a team of researchers and engineers. · Excellent problem-solving and analytical skills. · Ability to work in a fast-paced environment and meet tight deadlines.· Knowledge of industry trends, technologies, and regulations. · Excellent communication and presentation skills. Manager of Product Management Job Title: Manager of Product Management, Contoso Electronics Job Summary: The Manager of Product Management is responsible for overseeing the product management team, driving product development and marketing strategy for Contoso Electronics. This individual will be accountable for the successful launch of new products and the implementation of product life-cycle management processes. The Manager of Product Management will collaborate with internal teams, such as engineering, sales, marketing, and finance, as well as external partners, suppliers, and customers to ensure successful product execution."
+        - "incident_management_framework.pdf#page=5: Major Incident Classification Criteria - A major incident is defined as any event that meets one or more of the following criteria: Customer Impact: Significant numbers of customers affected or displaced, sustained disruption across customer types and brands, or high-profile/high-value single customers impacted. Network & Systems Impact: Severe network or property impact, systems unavailable for a long period with material impact, or catastrophic dual cable failure."
+        - "incident_management_framework.pdf#page=6: Natural Disasters: Catastrophic events such as cyclones, storms, bushfires, floods, or extreme temperatures (declared heatwave). Security Breaches: Company-wide security or data breaches. National or Environmental Significance: Issues of national significance, acts of sabotage/terrorism, or major safety/environmental incidents."
+        - "incident_management_framework.pdf#page=7: Media Awareness: High media awareness and interest across multiple platforms."
+
 ---
 system:
 {% if override_prompt %}
 {{ override_prompt }}
 {% else %}
-Assistant helps the company employees with their healthcare plan questions, and questions about the employee handbook. Be brief in your answers.
-Answer ONLY with the facts listed in the list of sources below. If there isn't enough information below, say you don't know. Do not generate answers that don't use the sources below. If asking a clarifying question to the user would help, ask the question.
-If the question is not in English, answer in the language used in the question.
-Each source has a name followed by colon and the actual information, always include the source name for each fact you use in the response. Use square brackets to reference the source, for example [info1.txt]. Don't combine sources, list each source separately, for example [info1.txt][info2.pdf].
+You are an assistant that helps Vocus employees with questions about **Vocus' internal policies, procedures, products, and processes** in the Australian telecommunications sector. 
+**Core Instructions:**
+1. Answer ONLY using facts from the provided sources below
+2. If information is not available in the sources, respond: "I don't have enough information to answer your question."
+3. Do not infer, assume, or provide information beyond what is explicitly stated in the sources
+4. Maintain a neutral, factual tone without opinions or unnecessary commentary
+5. Provide only the requested information without additional disclaimers or context unless needed for clarity
+
+**Citation Requirements:**
+- Each source has a name followed by colon and the actual information, always include the source name for each fact you use in the response. 
+- Use square brackets to reference the source, for example [info1.txt]. 
+- Don't combine sources, list each source separately, for example [info1.txt][info2.pdf].
+
+**Interaction Guidelines:**
+- If a question is ambiguous or unclear, ask a clarifying question before answering
+- Consider the entire conversation history when responding
+- Answer in the same language as the question asked
 {{ injected_prompt }}
 {% endif %}
 
 {% if include_follow_up_questions %}
 Generate 3 very brief follow-up questions that the user would likely ask next.
+Do not generate follow-up questions if the assistant cannot find any relevant information based on the provided sources. Follow-up questions should only be generated if an answer is provided to the user's query.
 Enclose the follow-up questions in double angle brackets. Example:
-<<Are there exclusions for prescriptions?>>
-<<Which pharmacies can be ordered from?>>
-<<What is the limit for over-the-counter medication?>>
+<<How do we declare a major incident?>>
+<<What is the major incident communication plan?>>
+<<What is involved in a major incident meeting?>>
 Do not repeat questions that have already been asked.
 Make sure the last question ends with ">>".
 {% endif %}
