@@ -40,6 +40,7 @@ import { Settings } from "../../components/Settings/Settings";
 
 const Chat = () => {
     const [searchParams] = useSearchParams();
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
     const [isConfigPanelOpen, setIsConfigPanelOpen] = useState(false);
     const [isHistoryPanelOpen, setIsHistoryPanelOpen] = useState(searchParams.get('history') === 'true');
     const [promptTemplate, setPromptTemplate] = useState<string>("");
@@ -319,7 +320,7 @@ const Chat = () => {
         }
     }, [searchParams]);
     
-    // Listen for custom events
+    // Listen for custom events and window resize
     useEffect(() => {
         const handleOpenChatHistory = () => {
             setIsHistoryPanelOpen(true);
@@ -329,14 +330,30 @@ const Chat = () => {
             clearChat();
         };
         
+        const handleResize = () => {
+            setIsMobile(window.innerWidth <= 768);
+            
+            // Close panels on mobile when resizing to mobile
+            if (window.innerWidth <= 768) {
+                if (activeAnalysisPanelTab) {
+                    setActiveAnalysisPanelTab(undefined);
+                }
+                if (isHistoryPanelOpen) {
+                    setIsHistoryPanelOpen(false);
+                }
+            }
+        };
+        
         window.addEventListener('openChatHistory', handleOpenChatHistory);
         window.addEventListener('clearChat', handleClearChat);
+        window.addEventListener('resize', handleResize);
         
         return () => {
             window.removeEventListener('openChatHistory', handleOpenChatHistory);
             window.removeEventListener('clearChat', handleClearChat);
+            window.removeEventListener('resize', handleResize);
         };
-    }, []);
+    }, [activeAnalysisPanelTab, isHistoryPanelOpen]);
 
     const handleSettingsChange = (field: string, value: any) => {
         switch (field) {
@@ -451,7 +468,7 @@ const Chat = () => {
                 </div>
             </div>
             <div className={styles.chatRoot} style={{ 
-                marginRight: activeAnalysisPanelTab ? "40%" : "0"
+                marginRight: activeAnalysisPanelTab && !isMobile ? "40%" : "0"
             }}>
                 <div className={styles.chatContainer}>
                     {!lastQuestionRef.current ? (
@@ -462,7 +479,8 @@ const Chat = () => {
                             <h2 className={styles.chatEmptyStateSubtitle}>{t("chatEmptyStateSubtitle")}</h2>
                             {showLanguagePicker && <LanguagePicker onLanguageChange={newLang => i18n.changeLanguage(newLang)} />}
 
-                            <ExampleList onExampleClicked={onExampleClicked} useGPT4V={useGPT4V} />
+                            {/* Only show examples on non-mobile */}
+                            {!isMobile && <ExampleList onExampleClicked={onExampleClicked} useGPT4V={useGPT4V} />}
                         </div>
                     ) : (
                         <div className={styles.chatMessageStream}>
@@ -529,8 +547,8 @@ const Chat = () => {
                     )}
 
                     <div className={styles.chatInput} style={{ 
-                        right: activeAnalysisPanelTab ? "40%" : "0",
-                        width: isHistoryPanelOpen ? "calc(100% - 300px)" : "100%"
+                        right: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
+                        width: isHistoryPanelOpen && !isMobile ? "calc(100% - 300px)" : "100%"
                     }}>
                         <QuestionInput
                             clearOnSend

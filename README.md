@@ -1,20 +1,60 @@
-# Introduction 
-TODO: Give a short introduction of your project. Let this section explain the objectives or the motivation behind this project. 
+# Ava - Advanced Vocus Assistant
 
-# Getting Started
-TODO: Guide users through getting your code up and running on their own system. In this section you can talk about:
-1.	Installation process
-2.	Software dependencies
-3.	Latest releases
-4.	API references
+Ava is an AI-powered chat assistant built for Vocus that provides intelligent responses to user queries.
 
-# Build and Test
-TODO: Describe and show how to build your code and run the tests. 
+## Features
 
-# Contribute
-TODO: Explain how other users and developers can contribute to make your code better. 
+- **Conversational AI**: Engage in natural language conversations with the assistant
+- **Dark/Light Mode**: Toggle between dark and light themes for comfortable viewing
+- **Mobile Responsive**: Optimized interface for both desktop and mobile devices
+- **Citation Support**: View sources and supporting content for AI responses
+- **Chat History**: Access and restore previous conversations
+- **Thought Process Visualization**: See how the AI arrives at its answers
 
-If you want to learn more about creating good readme files then refer the following [guidelines](https://docs.microsoft.com/en-us/azure/devops/repos/git/create-a-readme?view=azure-devops). You can also seek inspiration from the below readme files:
-- [ASP.NET Core](https://github.com/aspnet/Home)
-- [Visual Studio Code](https://github.com/Microsoft/vscode)
-- [Chakra Core](https://github.com/Microsoft/ChakraCore)
+## Technical Stack
+
+- **Frontend**: React, TypeScript, Fluent UI
+- **Authentication**: Microsoft Authentication Library (MSAL)
+- **Internationalization**: i18next for multi-language support
+- **Styling**: CSS Modules for component-scoped styling
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v14 or higher)
+- npm or yarn
+
+### Installation
+
+1. Clone the repository
+2. Navigate to the frontend directory:
+   ```
+   cd app/frontend
+   ```
+3. Install dependencies:
+   ```
+   npm install
+   ```
+4. Start the development server:
+   ```
+   npm start
+   ```
+
+## Usage
+
+- Type your questions in the chat input at the bottom of the screen
+- Click on citations to view source documents
+- Use the hamburger menu to access settings, clear chat, or view history
+- Toggle between dark and light modes in the settings menu
+
+## Mobile Usage
+
+The application is fully responsive and optimized for mobile devices with:
+- Streamlined interface with reduced padding and font sizes
+- Full-width panels for better readability
+- Touch-friendly interaction targets
+
+## License
+
+Copyright © Vocus Group. All rights reserved.

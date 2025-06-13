@@ -58,6 +58,16 @@
     color: var(--text);
 }
 
+@media (max-width: 768px) {
+    .followupQuestion {
+        width: 100%;
+        min-height: 60px;
+        max-height: 60px;
+        padding: 10px;
+        margin-bottom: 8px;
+    }
+}
+
 /* Hover effect for follow-up questions */
 .followupQuestion:hover {
     background: var(--accent);
