@@ -12,6 +12,7 @@
     --example-bg-light: #e0f4ff; /* soft aqua tint */
     --accent: var(--color-mid);
     --inputBox-bg: white;
+    --logo-filter: none; /* Default logo filter */
 
     /* Dark-mode example text */
     --example-text-dark: var(--color-aqua);
@@ -24,6 +25,7 @@
     --surface: #15264f; /* slightly lighter than pure navy */
     --accent: var(--color-reflex);
     --inputBox-bg: #0f1c47;
+    --logo-filter: brightness(0) invert(1); /* Make dark logos visible in dark mode */
 }
 
 body {
@@ -108,6 +110,7 @@ body {
     display: flex;
     flex-direction: column;
     margin-bottom: 180px;
+    transition: width 0.3s ease;
 }
 
 /* GPT response container override */
@@ -116,14 +119,39 @@ body {
     margin-bottom: 1.25rem;
     display: flex;
     justify-content: center;
-    /* ensure dark text on white cards */
-    color: var(--color-navy);
+    width: 100%;
 }
 
-/* force all descendants (e.g. Answer content) to dark text */
-.chatMessageGpt *,
-.chatMessageGptMinWidth * {
+/* force all descendants (e.g. Answer content) to appropriate text color */
+[data-theme="light"] .chatMessageGpt *,
+[data-theme="light"] .chatMessageGptMinWidth * {
     color: var(--color-navy) !important;
+}
+
+[data-theme="dark"] .chatMessageGpt *,
+[data-theme="dark"] .chatMessageGptMinWidth *,
+[data-theme="dark"] .chatAnalysisPanel * {
+    color: var(--text) !important;
+}
+
+/* Ensure analysis panel text is readable */
+.chatAnalysisPanel * {
+    color: var(--text) !important;
+}
+
+/* Dark mode specific overrides for analysis panel */
+[data-theme="dark"] .chatAnalysisPanel pre,
+[data-theme="dark"] .chatAnalysisPanel code {
+    background-color: #1e2d4a !important;
+    color: #e0e0e0 !important;
+}
+
+/* Override hover styles for icons */
+.chatAnalysisPanel button:hover,
+.chatMessageGpt button:hover,
+.chatMessageGptMinWidth button:hover {
+    background-color: var(--accent) !important;
+    color: white !important;
 }
 
 /* Chat input */
@@ -139,6 +167,23 @@ body {
     padding: 1rem;
     z-index: 999;
     bottom: 50px;
+    transition: right 0.3s ease;
+}
+
+/* Analysis panel styling */
+.chatAnalysisPanel {
+    position: fixed;
+    top: 64px;
+    right: 0;
+    width: 40%;
+    height: calc(100vh - 128px);
+    overflow-y: auto;
+    background: var(--background);
+    border-left: 1px solid var(--accent);
+    z-index: 900;
+    box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+    padding: 0 10px;
 }
 
 @media (min-width: 992px) {
@@ -149,12 +194,14 @@ body {
 
 @media (max-width: 768px) {
     .chatInput {
-        display: none;
-    }
-    .chatInput:focus-within {
-        display: block;
+        position: fixed;
+        bottom: 64px;
+        padding: 0.5rem;
+        width: 100%;
+        left: 0;
+        right: 0;
     }
     .chatMessageStream {
-        margin-bottom: 0;
+        margin-bottom: 120px;
     }
 }

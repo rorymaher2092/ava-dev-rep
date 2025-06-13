@@ -5,7 +5,7 @@
         0px 0px 0.125rem rgba(0, 0, 0, 0.12);
     width: 100%;
     padding: 0.8rem;
-    background: white;
+    background: var(--inputBox-bg);
 }
 
 .questionInputTextArea {
@@ -19,9 +19,15 @@
     justify-content: flex-end;
 }
 
+.questionInputWrapper {
+    width: 100%;
+}
+
 @media (min-width: 992px) {
     .questionInputContainer {
-        height: 5.625rem;
+        min-height: 5.625rem;
+        max-height: 12rem;
+        overflow-y: auto;
     }
 }
 
@@ -37,8 +43,8 @@
     font-weight: 400;
     font-size: 14px;
     padding: 16px;
-    background: white;
-    border: 2px solid #d1dbfa; /* Light gray border */
+    background: var(--surface);
+    border: 2px solid var(--accent);
     border-radius: 10px;
     width: 30%;
     min-height: 80px;
@@ -49,11 +55,12 @@
     transition:
         background 0.3s ease,
         border 0.3s ease;
+    color: var(--text);
 }
 
 /* Hover effect for follow-up questions */
 .followupQuestion:hover {
-    background: #e8ebfa; /* Original blue */
-    color: black;
-    border-color: #e8ebfa;
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
 }

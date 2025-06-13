@@ -66,17 +66,17 @@ export const Answer = ({
             <Stack.Item>
                 <Stack horizontal horizontalAlign="space-between">
                     {/* Replace the AnswerIcon with Ava logo */}
-                    <img src={avaLogo} alt="Ava Logo" style={{ width: "30px", height: "30px", marginRight: "10px" }} />
+                    <img src={avaLogo} alt="Ava Logo" style={{ width: "30px", height: "30px", marginRight: "10px", filter: "var(--logo-filter, none)" }} />
                     <div>
                         <IconButton
-                            style={{ color: "black" }}
+                            style={{ color: "var(--text)" }}
                             iconProps={{ iconName: copied ? "CheckMark" : "Copy" }}
                             title={copied ? t("tooltips.copied") : t("tooltips.copy")}
                             ariaLabel={copied ? t("tooltips.copied") : t("tooltips.copy")}
                             onClick={handleCopy}
                         />
                         <IconButton
-                            style={{ color: "black" }}
+                            style={{ color: "var(--text)" }}
                             iconProps={{ iconName: "Lightbulb" }}
                             title={t("tooltips.showThoughtProcess")}
                             ariaLabel={t("tooltips.showThoughtProcess")}
@@ -84,7 +84,7 @@ export const Answer = ({
                             disabled={!answer.context.thoughts?.length || isStreaming}
                         />
                         <IconButton
-                            style={{ color: "black" }}
+                            style={{ color: "var(--text)" }}
                             iconProps={{ iconName: "ClipboardList" }}
                             title={t("tooltips.showSupportingContent")}
                             ariaLabel={t("tooltips.showSupportingContent")}

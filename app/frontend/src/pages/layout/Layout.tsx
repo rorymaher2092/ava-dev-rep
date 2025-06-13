@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, RefObject } from "react";
-import { Outlet, Link } from "react-router-dom";
+import { Outlet, Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import styles from "./Layout.module.css";
 
@@ -8,9 +8,11 @@ import vocuslogo from "../../assets/vocus.png";
 import vocuslogodark from "../../assets/vocusdark.png";
 import { LoginButton } from "../../components/LoginButton";
 import { IconButton } from "@fluentui/react";
+import { List24Regular } from "@fluentui/react-icons";
 
 const Layout = () => {
     const { t } = useTranslation();
+    const navigate = useNavigate();
     const [menuOpen, setMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -27,10 +29,25 @@ const Layout = () => {
     };
 
     useEffect(() => {
+        // Check for user's preferred color scheme
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
         const stored = localStorage.getItem("theme") as "light" | "dark" | null;
-        const preferred = stored || "light";
+        const preferred = stored || (prefersDark ? "dark" : "light");
         document.body.dataset.theme = preferred;
         setTheme(preferred);
+        
+        // Listen for changes in system preference
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const handleChange = (e: MediaQueryListEvent) => {
+            if (!localStorage.getItem("theme")) {
+                const newTheme = e.matches ? "dark" : "light";
+                document.body.dataset.theme = newTheme;
+                setTheme(newTheme);
+            }
+        };
+        
+        mediaQuery.addEventListener('change', handleChange);
+        return () => mediaQuery.removeEventListener('change', handleChange);
     }, []);
 
     const handleClickOutside = (e: MouseEvent) => {
@@ -59,13 +76,28 @@ const Layout = () => {
                     </div>
                     <div className={styles.loginMenuContainer}>
                         {useLogin && <LoginButton />}
-                        <button onClick={toggleSettings} className={styles.settingsToggle}>
-                            ⚙️
+                        <button 
+                            onClick={toggleSettings} 
+                            className={styles.settingsToggle}
+                            aria-label="Menu"
+                            aria-expanded={settingsOpen}
+                        >
+                            <List24Regular />
                         </button>
                         {settingsOpen && (
-                            <div className={styles.dropdownMenu}>
-                                <button onClick={toggleTheme}>{theme === "dark" ? "🌞 Light Mode" : "🌙 Dark Mode"}</button>
-                                <button onClick={() => alert("Coming soon!")}>Feedback</button>
+                            <div className={styles.dropdownMenu} role="menu">
+                                <button onClick={toggleTheme} role="menuitem">{theme === "dark" ? "🌞 Light Mode" : "🌙 Dark Mode"}</button>
+                                <button onClick={() => {
+                                    const clearChatEvent = new CustomEvent('clearChat');
+                                    window.dispatchEvent(clearChatEvent);
+                                    setSettingsOpen(false);
+                                }} role="menuitem">🧹 Clear Chat</button>
+                                <button onClick={() => {
+                                    const chatHistoryEvent = new CustomEvent('openChatHistory');
+                                    window.dispatchEvent(chatHistoryEvent);
+                                    setSettingsOpen(false);
+                                }} role="menuitem">📜 Chat History</button>
+                                <button onClick={() => alert("Coming soon!")} role="menuitem">📣 Feedback</button>
                             </div>
                         )}
                     </div>

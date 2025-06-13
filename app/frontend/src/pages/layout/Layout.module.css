@@ -71,12 +71,9 @@ body {
 }
 
 .headerLogo {
-    height: 2rem;
     width: auto;
-    /*adding changes to center the heading*/
-    height: 80px;
+    height: 40px;
     margin-right: 10px;
-    margin-top: 10px;
     align-items: center;
 }
 
