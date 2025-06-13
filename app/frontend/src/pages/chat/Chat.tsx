@@ -37,6 +37,8 @@ import { LoginContext } from "../../loginContext";
 import { LanguagePicker } from "../../i18n/LanguagePicker";
 import { Settings } from "../../components/Settings/Settings";
 
+import { downloadCitation } from "../../utils/downloadCitations";
+
 const Chat = () => {
     const [isConfigPanelOpen, setIsConfigPanelOpen] = useState(false);
     const [isHistoryPanelOpen, setIsHistoryPanelOpen] = useState(false);
@@ -104,6 +106,11 @@ const Chat = () => {
         audio,
         isPlaying,
         setIsPlaying
+    };
+
+    /* adding in the code to deal with citations*/
+    const handleCitationDownload = (path: string) => {
+        downloadCitation(path);
     };
 
     const getConfig = async () => {
@@ -455,7 +462,7 @@ const Chat = () => {
                                                 index={index}
                                                 speechConfig={speechConfig}
                                                 isSelected={false}
-                                                onCitationClicked={c => onShowCitation(c, index)}
+                                                onCitationClicked={handleCitationDownload}
                                                 onThoughtProcessClicked={() => onToggleTab(AnalysisPanelTabs.ThoughtProcessTab, index)}
                                                 onSupportingContentClicked={() => onToggleTab(AnalysisPanelTabs.SupportingContentTab, index)}
                                                 showSpeechOutputAzure={showSpeechOutputAzure}
