@@ -9,7 +9,7 @@ import rehypeRaw from "rehype-raw";
 import styles from "./Answer.module.css";
 import { ChatAppResponse, getCitationFilePath, SpeechConfig } from "../../api";
 import { parseAnswerToHtml } from "./AnswerParser";
-import { AnswerIcon } from "./AnswerIcon";
+import avaLogo from "../../assets/ava.svg"; // Ava logo import
 import { SpeechOutputBrowser } from "./SpeechOutputBrowser";
 import { SpeechOutputAzure } from "./SpeechOutputAzure";
 
@@ -65,7 +65,8 @@ export const Answer = ({
         <Stack className={`${styles.answerContainer} ${isSelected && styles.selected}`} verticalAlign="space-between">
             <Stack.Item>
                 <Stack horizontal horizontalAlign="space-between">
-                    <AnswerIcon />
+                    {/* Replace the AnswerIcon with Ava logo */}
+                    <img src={avaLogo} alt="Ava Logo" style={{ width: "30px", height: "30px", marginRight: "10px" }} />
                     <div>
                         <IconButton
                             style={{ color: "black" }}

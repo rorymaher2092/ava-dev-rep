@@ -68,12 +68,6 @@ const Layout = () => {
                                 <button onClick={() => alert("Coming soon!")}>Feedback</button>
                             </div>
                         )}
-                        <IconButton
-                            iconProps={{ iconName: "GlobalNavButton" }}
-                            className={styles.menuToggle}
-                            onClick={toggleMenu}
-                            ariaLabel={t("labels.toggleMenu")}
-                        />
                     </div>
                 </div>
             </header>

@@ -11,6 +11,7 @@
     --surface: #f2f2f2;
     --example-bg-light: #e0f4ff; /* soft aqua tint */
     --accent: var(--color-mid);
+    --inputBox-bg: white;
 
     /* Dark-mode example text */
     --example-text-dark: var(--color-aqua);
@@ -22,6 +23,7 @@
     --text: #ffffff;
     --surface: #15264f; /* slightly lighter than pure navy */
     --accent: var(--color-reflex);
+    --inputBox-bg: #0f1c47;
 }
 
 body {
@@ -105,6 +107,7 @@ body {
     padding: 0 1rem;
     display: flex;
     flex-direction: column;
+    margin-bottom: 100px;
 }
 
 /* GPT response container override */
@@ -126,15 +129,16 @@ body {
 /* Chat input */
 .chatInput {
     position: fixed;
-    bottom: 64px;
+    bottom: 0px;
     width: 100%;
     max-width: 800px;
     margin: 0 auto;
     left: 0;
     right: 0;
-    background: var(--surface);
+    background: var(--inputBox-bg);
     padding: 1rem;
     z-index: 999;
+    bottom: 50px;
 }
 
 @media (min-width: 992px) {
