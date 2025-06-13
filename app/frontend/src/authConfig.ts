@@ -220,12 +220,14 @@ export const getToken = async (client: IPublicClientApplication): Promise<string
 export const getUsername = async (client: IPublicClientApplication): Promise<string | null> => {
     const activeAccount = client.getActiveAccount();
     if (activeAccount) {
-        return activeAccount.username;
+        // Return name instead of username/UPN
+        return activeAccount.name || activeAccount.username;
     }
 
     const appServicesToken = await getAppServicesToken();
     if (appServicesToken?.user_claims) {
-        return appServicesToken.user_claims.preferred_username;
+        // Return name instead of preferred_username
+        return appServicesToken.user_claims.name || appServicesToken.user_claims.preferred_username;
     }
 
     return null;

@@ -319,14 +319,23 @@ const Chat = () => {
         }
     }, [searchParams]);
     
-    // Listen for custom event to open chat history
+    // Listen for custom events
     useEffect(() => {
         const handleOpenChatHistory = () => {
             setIsHistoryPanelOpen(true);
         };
         
+        const handleClearChat = () => {
+            clearChat();
+        };
+        
         window.addEventListener('openChatHistory', handleOpenChatHistory);
-        return () => window.removeEventListener('openChatHistory', handleOpenChatHistory);
+        window.addEventListener('clearChat', handleClearChat);
+        
+        return () => {
+            window.removeEventListener('openChatHistory', handleOpenChatHistory);
+            window.removeEventListener('clearChat', handleClearChat);
+        };
     }, []);
 
     const handleSettingsChange = (field: string, value: any) => {
@@ -442,7 +451,6 @@ const Chat = () => {
                 </div>
             </div>
             <div className={styles.chatRoot} style={{ 
-                marginLeft: isHistoryPanelOpen ? "300px" : "0",
                 marginRight: activeAnalysisPanelTab ? "40%" : "0"
             }}>
                 <div className={styles.chatContainer}>
@@ -521,7 +529,8 @@ const Chat = () => {
                     )}
 
                     <div className={styles.chatInput} style={{ 
-                        right: activeAnalysisPanelTab ? "40%" : "0" 
+                        right: activeAnalysisPanelTab ? "40%" : "0",
+                        width: isHistoryPanelOpen ? "calc(100% - 300px)" : "100%"
                     }}>
                         <QuestionInput
                             clearOnSend
@@ -550,17 +559,27 @@ const Chat = () => {
                 )}
 
                 {((useLogin && showChatHistoryCosmos) || showChatHistoryBrowser) && (
-                    <HistoryPanel
-                        provider={historyProvider}
-                        isOpen={isHistoryPanelOpen}
-                        notify={!isStreaming && !isLoading}
-                        onClose={() => setIsHistoryPanelOpen(false)}
-                        onChatSelected={answers => {
-                            if (answers.length === 0) return;
-                            setAnswers(answers);
-                            lastQuestionRef.current = answers[answers.length - 1][0];
-                        }}
-                    />
+                    <div style={{ 
+                        position: "fixed", 
+                        top: "64px", 
+                        left: "0", 
+                        width: "300px", 
+                        height: "calc(100vh - 128px)",
+                        zIndex: 900,
+                        display: isHistoryPanelOpen ? "block" : "none"
+                    }}>
+                        <HistoryPanel
+                            provider={historyProvider}
+                            isOpen={isHistoryPanelOpen}
+                            notify={!isStreaming && !isLoading}
+                            onClose={() => setIsHistoryPanelOpen(false)}
+                            onChatSelected={answers => {
+                                if (answers.length === 0) return;
+                                setAnswers(answers);
+                                lastQuestionRef.current = answers[answers.length - 1][0];
+                            }}
+                        />
+                    </div>
                 )}
 
                 <Panel

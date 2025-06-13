@@ -20,7 +20,31 @@ export const LoginButton = () => {
         };
 
         fetchUsername();
-    }, []);
+        
+        // Check login status and username on component mount and every 2 seconds
+        const checkLoginStatus = async () => {
+            const isLoggedIn = await checkLoggedIn(instance);
+            if (isLoggedIn !== loggedIn) {
+                setLoggedIn(isLoggedIn);
+            }
+            
+            if (isLoggedIn) {
+                const currentUsername = await getUsername(instance);
+                if (currentUsername && currentUsername !== username) {
+                    setUsername(currentUsername);
+                }
+            }
+        };
+        
+        // Initial check
+        checkLoginStatus();
+        
+        // Set up interval for periodic checks
+        const intervalId = setInterval(checkLoginStatus, 2000);
+        
+        // Clean up interval on unmount
+        return () => clearInterval(intervalId);
+    }, [instance, loggedIn, username]);
 
     const handleLoginPopup = () => {
         /**
@@ -57,7 +81,7 @@ export const LoginButton = () => {
     };
     return (
         <DefaultButton
-            text={loggedIn ? `${t("logout")}\n${username}` : `${t("login")}`}
+            text={loggedIn ? `${username || t("loading")}` : `${t("login")}`}
             className={styles.loginButton}
             onClick={loggedIn ? handleLogoutPopup : handleLoginPopup}
         ></DefaultButton>

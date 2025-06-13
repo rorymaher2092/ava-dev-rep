@@ -88,7 +88,8 @@ const Layout = () => {
                             <div className={styles.dropdownMenu} role="menu">
                                 <button onClick={toggleTheme} role="menuitem">{theme === "dark" ? "🌞 Light Mode" : "🌙 Dark Mode"}</button>
                                 <button onClick={() => {
-                                    window.location.href = "/?clear=true";
+                                    const clearChatEvent = new CustomEvent('clearChat');
+                                    window.dispatchEvent(clearChatEvent);
                                     setSettingsOpen(false);
                                 }} role="menuitem">🧹 Clear Chat</button>
                                 <button onClick={() => {
