@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";
+import { useSearchParams } from "react-router-dom";
 import { Panel, DefaultButton } from "@fluentui/react";
 import readNDJSONStream from "ndjson-readablestream";
 
@@ -38,8 +39,9 @@ import { LanguagePicker } from "../../i18n/LanguagePicker";
 import { Settings } from "../../components/Settings/Settings";
 
 const Chat = () => {
+    const [searchParams] = useSearchParams();
     const [isConfigPanelOpen, setIsConfigPanelOpen] = useState(false);
-    const [isHistoryPanelOpen, setIsHistoryPanelOpen] = useState(false);
+    const [isHistoryPanelOpen, setIsHistoryPanelOpen] = useState(searchParams.get('history') === 'true');
     const [promptTemplate, setPromptTemplate] = useState<string>("");
     const [temperature, setTemperature] = useState<number>(0.3);
     const [seed, setSeed] = useState<number | null>(null);
@@ -310,6 +312,21 @@ const Chat = () => {
     useEffect(() => chatMessageStreamEnd.current?.scrollIntoView({ behavior: "auto" }), [streamedAnswers]);
     useEffect(() => {
         getConfig();
+        
+        // Check URL parameters for actions
+        if (searchParams.get('clear') === 'true') {
+            clearChat();
+        }
+    }, [searchParams]);
+    
+    // Listen for custom event to open chat history
+    useEffect(() => {
+        const handleOpenChatHistory = () => {
+            setIsHistoryPanelOpen(true);
+        };
+        
+        window.addEventListener('openChatHistory', handleOpenChatHistory);
+        return () => window.removeEventListener('openChatHistory', handleOpenChatHistory);
     }, []);
 
     const handleSettingsChange = (field: string, value: any) => {
@@ -418,18 +435,16 @@ const Chat = () => {
             <Helmet>
                 <title>{t("pageTitle")}</title>
             </Helmet>
+            {/* Removed command buttons as they're now in the header menu */}
             <div className={styles.commandsSplitContainer}>
                 <div className={styles.commandsContainer}>
-                    {((useLogin && showChatHistoryCosmos) || showChatHistoryBrowser) && (
-                        <HistoryButton className={styles.commandButton} onClick={() => setIsHistoryPanelOpen(!isHistoryPanelOpen)} />
-                    )}
-                </div>
-                <div className={styles.commandsContainer}>
-                    <ClearChatButton className={styles.commandButton} onClick={clearChat} disabled={!lastQuestionRef.current || isLoading} />
                     {showUserUpload && <UploadFile className={styles.commandButton} disabled={!loggedIn} />}
                 </div>
             </div>
-            <div className={styles.chatRoot} style={{ marginLeft: isHistoryPanelOpen ? "300px" : "0" }}>
+            <div className={styles.chatRoot} style={{ 
+                marginLeft: isHistoryPanelOpen ? "300px" : "0",
+                marginRight: activeAnalysisPanelTab ? "40%" : "0"
+            }}>
                 <div className={styles.chatContainer}>
                     {!lastQuestionRef.current ? (
                         <div className={styles.chatEmptyState}>
@@ -505,7 +520,9 @@ const Chat = () => {
                         </div>
                     )}
 
-                    <div className={styles.chatInput}>
+                    <div className={styles.chatInput} style={{ 
+                        right: activeAnalysisPanelTab ? "40%" : "0" 
+                    }}>
                         <QuestionInput
                             clearOnSend
                             placeholder={t("defaultExamples.placeholder")}

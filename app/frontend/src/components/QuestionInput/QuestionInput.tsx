@@ -89,9 +89,15 @@ export const QuestionInput = ({
             {!!followupQuestions?.length && (
                 <Stack horizontal wrap tokens={{ childrenGap: 16 }} className={styles.followupQuestionsWrapper}>
                     {followupQuestions.map((question, index) => (
-                        <a key={index} className={styles.followupQuestion} title={question} onClick={() => onFollowupQuestionClicked?.(question)}>
+                        <button 
+                            key={index} 
+                            className={styles.followupQuestion} 
+                            title={question} 
+                            onClick={() => onFollowupQuestionClicked?.(question)}
+                            type="button"
+                        >
                             {question}
-                        </a>
+                        </button>
                     ))}
                 </Stack>
             )}
@@ -110,6 +116,8 @@ export const QuestionInput = ({
                     onKeyDown={onEnterPress}
                     onCompositionStart={handleCompositionStart}
                     onCompositionEnd={handleCompositionEnd}
+                    aria-label={placeholder || "Ask a question"}
+                    maxLength={1000}
                 />
                 <div className={styles.questionInputButtonsContainer}>
                     <Tooltip content={t("tooltips.submitQuestion")} relationship="label">

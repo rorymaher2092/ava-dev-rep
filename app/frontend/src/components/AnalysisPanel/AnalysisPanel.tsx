@@ -1,4 +1,4 @@
-import { Stack, Pivot, PivotItem } from "@fluentui/react";
+import { Stack, Pivot, PivotItem, IconButton } from "@fluentui/react";
 import { useTranslation } from "react-i18next";
 import styles from "./AnalysisPanel.module.css";
 
@@ -24,6 +24,10 @@ interface Props {
 const pivotItemDisabledStyle = { disabled: true, style: { color: "grey" } };
 
 export const AnalysisPanel = ({ answer, activeTab, activeCitation, citationHeight, className, onActiveTabChanged }: Props) => {
+    const handleClose = () => {
+        // Force undefined to close the panel
+        onActiveTabChanged(undefined as any);
+    }
     const isDisabledThoughtProcessTab: boolean = !answer.context.thoughts;
     const isDisabledSupportingContentTab: boolean = !answer.context.data_points;
     const isDisabledCitationTab: boolean = !activeCitation;
@@ -72,11 +76,17 @@ export const AnalysisPanel = ({ answer, activeTab, activeCitation, citationHeigh
     };
 
     return (
-        <Pivot
-            className={className}
-            selectedKey={activeTab}
-            onLinkClick={pivotItem => pivotItem && onActiveTabChanged(pivotItem.props.itemKey! as AnalysisPanelTabs)}
-        >
+        <div className={className}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 10px" }}>
+                <h3>{activeTab === AnalysisPanelTabs.ThoughtProcessTab ? "Thought Process" : 
+                     activeTab === AnalysisPanelTabs.SupportingContentTab ? "Supporting Content" : 
+                     "Citation"}</h3>
+                <IconButton iconProps={{ iconName: "Cancel" }} onClick={handleClose} ariaLabel="Close panel" />
+            </div>
+            <Pivot
+                selectedKey={activeTab}
+                onLinkClick={pivotItem => pivotItem && onActiveTabChanged(pivotItem.props.itemKey! as AnalysisPanelTabs)}
+            >
             <PivotItem
                 itemKey={AnalysisPanelTabs.ThoughtProcessTab}
                 headerText={t("headerTexts.thoughtProcess")}
@@ -99,5 +109,6 @@ export const AnalysisPanel = ({ answer, activeTab, activeCitation, citationHeigh
                 {renderFileViewer()}
             </PivotItem>
         </Pivot>
+        </div>
     );
 };
