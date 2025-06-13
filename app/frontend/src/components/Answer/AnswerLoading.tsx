@@ -3,7 +3,7 @@ import { animated, useSpring } from "@react-spring/web";
 import { useTranslation } from "react-i18next";
 
 import styles from "./Answer.module.css";
-import { AnswerIcon } from "./AnswerIcon";
+import avaLogo from "../../assets/ava.svg"; // Ava logo import
 
 export const AnswerLoading = () => {
     const { t, i18n } = useTranslation();
@@ -15,7 +15,7 @@ export const AnswerLoading = () => {
     return (
         <animated.div style={{ ...animatedStyles }}>
             <Stack className={styles.answerContainer} verticalAlign="space-between">
-                <AnswerIcon />
+                <img src={avaLogo} alt="Ava Logo" style={{ width: "30px", height: "30px", marginRight: "10px" }} />
                 <Stack.Item grow>
                     <p className={styles.answerText}>
                         {t("generatingAnswer")}
