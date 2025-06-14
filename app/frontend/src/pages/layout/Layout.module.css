@@ -106,6 +106,14 @@ body {
     font-size: 30px;
 }
 
+.fullTitle {
+    display: block;
+}
+
+.shortTitle {
+    display: none;
+}
+
 @media (max-width: 768px) {
     .headerTitle {
         font-size: 16px;
@@ -113,6 +121,14 @@ body {
         overflow: hidden;
         text-overflow: ellipsis;
         max-width: 200px;
+    }
+    
+    .fullTitle {
+        display: none;
+    }
+    
+    .shortTitle {
+        display: block;
     }
 }
 

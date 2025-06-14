@@ -72,7 +72,10 @@ const Layout = () => {
                         <Link to="/" className={styles.logoLink}>
                             <img src={logoSrc} className={styles.headerLogo} alt="Vocus logo" />
                         </Link>
-                        <h3 className={styles.headerTitle}>Ava</h3>
+                        <h3 className={styles.headerTitle}>
+                            <span className={styles.fullTitle}>Advanced Vocus Assistant (Ava)</span>
+                            <span className={styles.shortTitle}>Ava</span>
+                        </h3>
                     </div>
                     <div className={styles.loginMenuContainer}>
                         {useLogin && <LoginButton />}
