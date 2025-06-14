@@ -45,6 +45,7 @@ fi
 # Refresh and load environment variables
 echo "🔄 Refreshing azd environment: $AZD_ENV"
 azd env refresh -e "$AZD_ENV"
+azd env select "$AZD_ENV"
 
 echo "📦 Loading environment variables from $ENV_PATH"
 set -a

@@ -35,6 +35,7 @@ fi
 # === Refresh azd environment ===
 echo "🔄 Refreshing azd environment: $AZD_ENV"
 azd env refresh -e "$AZD_ENV"
+azd env select "$AZD_ENV"
 
 # === Load variables ===
 echo "📦 Loading environment variables from $ENV_PATH"
