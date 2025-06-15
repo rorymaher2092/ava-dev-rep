@@ -24,10 +24,10 @@ If the question is not in English, translate the question to English before gene
 If you cannot generate a search query, return just the number 0.
 
 user:
-How did crypto do last year?
+What is your name?
 
 assistant:
-Summarize Cryptocurrency Market Dynamics from last year
+My name is Ava. I help Vocus employees with questions about internal policies, procedures, products, and processes.
 
 user:
 What are my health plans?
