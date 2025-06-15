@@ -1,6 +1,7 @@
 import { DefaultButton } from "@fluentui/react";
 import { useMsal } from "@azure/msal-react";
 import { useTranslation } from "react-i18next";
+import * as microsoftTeams from "@microsoft/teams-js";
 
 import styles from "./LoginButton.module.css";
 import { getRedirectUri, loginRequest, appServicesLogout, getUsername, checkLoggedIn } from "../../authConfig";
@@ -12,9 +13,22 @@ export const LoginButton = () => {
     const { loggedIn, setLoggedIn } = useContext(LoginContext);
     const activeAccount = instance.getActiveAccount();
     const [username, setUsername] = useState("");
+    const [isInTeams, setIsInTeams] = useState(false);
     const { t } = useTranslation();
 
     useEffect(() => {
+        // Check if running in Teams
+        try {
+            microsoftTeams.app.initialize().then(() => {
+                microsoftTeams.app.getContext().then(() => {
+                    setIsInTeams(true);
+                    console.log("Teams context detected in LoginButton");
+                });
+            });
+        } catch (error) {
+            console.log("Not in Teams context");
+        }
+
         const fetchUsername = async () => {
             setUsername((await getUsername(instance)) ?? "");
         };
@@ -46,7 +60,28 @@ export const LoginButton = () => {
         return () => clearInterval(intervalId);
     }, [instance, loggedIn, username]);
 
+    const handleTeamsLogin = async () => {
+        try {
+            await microsoftTeams.authentication.authenticate({
+                url: window.location.origin + "/auth-start.html",
+                width: 600,
+                height: 535
+            });
+            console.log("Teams authentication successful");
+            setLoggedIn(await checkLoggedIn(instance));
+            setUsername((await getUsername(instance)) ?? "");
+        } catch (error) {
+            console.error("Teams authentication failed:", error);
+        }
+    };
+
     const handleLoginPopup = () => {
+        // If in Teams, use Teams authentication
+        if (isInTeams) {
+            handleTeamsLogin();
+            return;
+        }
+
         /**
          * When using popup and silent APIs, we recommend setting the redirectUri to a blank page or a page
          * that does not implement MSAL. Keep in mind that all redirect routes must be registered with the application
@@ -63,7 +98,24 @@ export const LoginButton = () => {
                 setUsername((await getUsername(instance)) ?? "");
             });
     };
+
+    const handleTeamsLogout = async () => {
+        try {
+            await microsoftTeams.authentication.notifySuccess("logout");
+            setLoggedIn(false);
+            setUsername("");
+        } catch (error) {
+            console.error("Teams logout failed:", error);
+        }
+    };
+
     const handleLogoutPopup = () => {
+        // If in Teams, use Teams logout
+        if (isInTeams) {
+            handleTeamsLogout();
+            return;
+        }
+
         if (activeAccount) {
             instance
                 .logoutPopup({

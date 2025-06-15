@@ -4,6 +4,7 @@ import { createHashRouter, RouterProvider } from "react-router-dom";
 import { I18nextProvider } from "react-i18next";
 import { HelmetProvider } from "react-helmet-async";
 import { initializeIcons } from "@fluentui/react";
+import * as microsoftTeams from "@microsoft/teams-js";
 
 import "./index.css";
 
@@ -11,6 +12,12 @@ import Chat from "./pages/chat/Chat";
 import LayoutWrapper from "./layoutWrapper";
 import i18next from "./i18n/config";
 
+// Initialize Teams SDK
+try {
+  microsoftTeams.app.initialize();
+} catch (error) {
+  console.log("Teams initialization failed or not in Teams context");
+}
 initializeIcons();
 
 const router = createHashRouter([
