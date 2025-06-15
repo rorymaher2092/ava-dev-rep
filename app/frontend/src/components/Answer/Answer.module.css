@@ -27,6 +27,14 @@
     padding-bottom: 1em;
 }
 
+.answerText blockquote {
+    background-color: var(--surface);
+    color: var(--text);
+    border-left: 4px solid var(--accent);
+    padding: 0.5em 1em;
+    margin: 1em 0;
+}
+
 @media (max-width: 768px) {
     .answerText {
         font-size: 0.9rem;

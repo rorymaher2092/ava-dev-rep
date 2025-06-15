@@ -7,14 +7,9 @@
     <script src="https://res.cdn.office.net/teams-js/2.0.0/js/MicrosoftTeams.min.js"></script>
     <script type="text/javascript">
         microsoftTeams.app.initialize().then(() => {
-            // Get authentication token from Teams
             microsoftTeams.authentication.getAuthToken().then((token) => {
-                // Store the token in sessionStorage for the main app to use
-                sessionStorage.setItem('teamsAuthToken', token);
-                // Notify the parent that authentication succeeded
                 microsoftTeams.authentication.notifySuccess(token);
             }).catch((error) => {
-                // Notify the parent that authentication failed
                 microsoftTeams.authentication.notifyFailure(error);
             });
         });

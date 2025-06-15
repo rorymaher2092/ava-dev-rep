@@ -29,8 +29,25 @@ export const LoginButton = () => {
             console.log("Not in Teams context");
         }
 
+        // Try to auto-login if there's an active account
+        const autoLogin = async () => {
+            if (instance.getAllAccounts().length > 0) {
+                // We have accounts, make sure one is active
+                if (!instance.getActiveAccount()) {
+                    instance.setActiveAccount(instance.getAllAccounts()[0]);
+                }
+                setLoggedIn(true);
+            }
+        };
+        
+        autoLogin();
+
         const fetchUsername = async () => {
-            setUsername((await getUsername(instance)) ?? "");
+            const name = await getUsername(instance);
+            if (name) {
+                setUsername(name);
+                setLoggedIn(true);
+            }
         };
 
         fetchUsername();
@@ -62,20 +79,28 @@ export const LoginButton = () => {
 
     const handleTeamsLogin = async () => {
         try {
-            await microsoftTeams.authentication.authenticate({
-                url: window.location.origin + "/auth-start.html",
-                width: 600,
-                height: 535
-            });
+            // Direct SSO token acquisition for Teams desktop client
+            const token = await microsoftTeams.authentication.getAuthToken();
             console.log("Teams authentication successful");
-            setLoggedIn(await checkLoggedIn(instance));
-            setUsername((await getUsername(instance)) ?? "");
+            sessionStorage.setItem('teamsAuthToken', token);
+            setLoggedIn(true);
+            const context = await microsoftTeams.app.getContext();
+            setUsername(context.user?.userPrincipalName || "");
         } catch (error) {
             console.error("Teams authentication failed:", error);
         }
     };
 
     const handleLoginPopup = () => {
+        // Check if we already have accounts but just need to set one active
+        const allAccounts = instance.getAllAccounts();
+        if (allAccounts.length > 0) {
+            instance.setActiveAccount(allAccounts[0]);
+            setLoggedIn(true);
+            setUsername(allAccounts[0].name || allAccounts[0].username || "");
+            return;
+        }
+        
         // If in Teams, use Teams authentication
         if (isInTeams) {
             handleTeamsLogin();
