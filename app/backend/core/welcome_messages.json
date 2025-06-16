@@ -9,7 +9,10 @@
     "analyst": "Welcome Analyst {{name}}. The data is waiting for your insights."
   },
   "usernames": {
-    "admin.jamieg": "Hello {{name}}, how can I assist my favourite CIO?",
+    "admin.jamieg": "Hello {{name}}, how can I assist my favourite Admin?",
+    "rob.ison": "Hello {{name}}, how can I assist my favourite CIO?",
+    "rory.maher": "Hello {{name}}, how can I assist my favourite AI dude?",
+    "cal.mayhook": "Hello {{name}}, how can I assist my favourite AI dude?",
     "jamie.gray": "Hello {{name}}, how can I assist my supreme overlord?"
     
   },
