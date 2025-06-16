@@ -316,6 +316,46 @@ def config():
     )
 
 
+@bp.route("/welcome", methods=["POST"])
+@authenticated
+async def welcome(auth_claims: dict[str, Any]):
+    if not request.is_json:
+        return jsonify({"error": "request must be json"}), 415
+    
+    request_json = await request.get_json()
+    user_details = request_json.get("userDetails", {})
+    
+    # Add auth claims to user details
+    user_details.update(auth_claims)
+    
+    # Extract additional user info from claims if available
+    if "name" in auth_claims:
+        user_details["name"] = auth_claims["name"]
+    if "preferred_username" in auth_claims:
+        user_details["username"] = auth_claims["preferred_username"]
+    if "jobTitle" in auth_claims:
+        user_details["title"] = auth_claims["jobTitle"]
+    if "department" in auth_claims:
+        user_details["department"] = auth_claims["department"]
+        
+    # Debug: Print auth claims and user details
+    current_app.logger.info("DEBUG - Auth claims: %s", auth_claims)
+    current_app.logger.info("DEBUG - User details: %s", user_details)
+    
+    # Import the function here to avoid circular imports
+    from core.userhelper import get_welcome_message
+    
+    # Get custom welcome message
+    welcome_message = get_welcome_message(user_details)
+    
+    # If no custom message, use default
+    if not welcome_message:
+        name = user_details.get("name", "there")
+        welcome_message = f"Hello {name}!"
+    
+    return jsonify({"welcomeMessage": welcome_message})
+
+
 @bp.route("/speech", methods=["POST"])
 async def speech():
     if not request.is_json:

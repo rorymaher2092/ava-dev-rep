@@ -27,6 +27,6 @@
     "postCreateCommand": "",
     "remoteUser": "vscode",
     "hostRequirements": {
-        "memory": "8gb"
+        "memory": "4gb"
     }
 }

@@ -1,0 +1,16 @@
+{
+  "departments": {
+    "technology & security": "Hello {{name}}! Ready to build something amazing?",
+    "marketing": "Hello {{name}}! Let's create some buzz today."
+  },
+  "titles": {
+    "manager": "Welcome, Manager {{name}}. Your team is ready for your leadership.",
+    "developer": "Hello Developer {{name}}! Ready to code?",
+    "analyst": "Welcome Analyst {{name}}. The data is waiting for your insights."
+  },
+  "usernames": {
+    "rob.ison@vocus.com.au": "Hello {{name}}, how can I assist my favourite CIO?"
+    
+  },
+  "default": "Hello {{name}}!"
+}
