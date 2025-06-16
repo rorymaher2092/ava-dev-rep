@@ -7,6 +7,12 @@
     width: fit-content;
 }
 
+@media (max-width: 768px) {
+    .container {
+        max-width: 90%;
+    }
+}
+
 .message {
     padding: 1.25em;
     background: var(--accent);
@@ -17,4 +23,11 @@
         0px 0px 0.125em rgba(0, 0, 0, 0.12);
     outline: transparent solid 0.0625em;
     word-break: break-word;
+}
+
+@media (max-width: 768px) {
+    .message {
+        padding: 0.75em;
+        font-size: 0.9em;
+    }
 }

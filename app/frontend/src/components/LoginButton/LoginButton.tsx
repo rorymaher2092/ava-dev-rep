@@ -1,6 +1,7 @@
 import { DefaultButton } from "@fluentui/react";
 import { useMsal } from "@azure/msal-react";
 import { useTranslation } from "react-i18next";
+import * as microsoftTeams from "@microsoft/teams-js";
 
 import styles from "./LoginButton.module.css";
 import { getRedirectUri, loginRequest, appServicesLogout, getUsername, checkLoggedIn } from "../../authConfig";
@@ -12,11 +13,41 @@ export const LoginButton = () => {
     const { loggedIn, setLoggedIn } = useContext(LoginContext);
     const activeAccount = instance.getActiveAccount();
     const [username, setUsername] = useState("");
+    const [isInTeams, setIsInTeams] = useState(false);
     const { t } = useTranslation();
 
     useEffect(() => {
+        // Check if running in Teams
+        try {
+            microsoftTeams.app.initialize().then(() => {
+                microsoftTeams.app.getContext().then(() => {
+                    setIsInTeams(true);
+                    console.log("Teams context detected in LoginButton");
+                });
+            });
+        } catch (error) {
+            console.log("Not in Teams context");
+        }
+
+        // Try to auto-login if there's an active account
+        const autoLogin = async () => {
+            if (instance.getAllAccounts().length > 0) {
+                // We have accounts, make sure one is active
+                if (!instance.getActiveAccount()) {
+                    instance.setActiveAccount(instance.getAllAccounts()[0]);
+                }
+                setLoggedIn(true);
+            }
+        };
+        
+        autoLogin();
+
         const fetchUsername = async () => {
-            setUsername((await getUsername(instance)) ?? "");
+            const name = await getUsername(instance);
+            if (name) {
+                setUsername(name);
+                setLoggedIn(true);
+            }
         };
 
         fetchUsername();
@@ -46,7 +77,36 @@ export const LoginButton = () => {
         return () => clearInterval(intervalId);
     }, [instance, loggedIn, username]);
 
+    const handleTeamsLogin = async () => {
+        try {
+            // Direct SSO token acquisition for Teams desktop client
+            const token = await microsoftTeams.authentication.getAuthToken();
+            console.log("Teams authentication successful");
+            sessionStorage.setItem('teamsAuthToken', token);
+            setLoggedIn(true);
+            const context = await microsoftTeams.app.getContext();
+            setUsername(context.user?.userPrincipalName || "");
+        } catch (error) {
+            console.error("Teams authentication failed:", error);
+        }
+    };
+
     const handleLoginPopup = () => {
+        // Check if we already have accounts but just need to set one active
+        const allAccounts = instance.getAllAccounts();
+        if (allAccounts.length > 0) {
+            instance.setActiveAccount(allAccounts[0]);
+            setLoggedIn(true);
+            setUsername(allAccounts[0].name || allAccounts[0].username || "");
+            return;
+        }
+        
+        // If in Teams, use Teams authentication
+        if (isInTeams) {
+            handleTeamsLogin();
+            return;
+        }
+
         /**
          * When using popup and silent APIs, we recommend setting the redirectUri to a blank page or a page
          * that does not implement MSAL. Keep in mind that all redirect routes must be registered with the application
@@ -63,7 +123,24 @@ export const LoginButton = () => {
                 setUsername((await getUsername(instance)) ?? "");
             });
     };
+
+    const handleTeamsLogout = async () => {
+        try {
+            await microsoftTeams.authentication.notifySuccess("logout");
+            setLoggedIn(false);
+            setUsername("");
+        } catch (error) {
+            console.error("Teams logout failed:", error);
+        }
+    };
+
     const handleLogoutPopup = () => {
+        // If in Teams, use Teams logout
+        if (isInTeams) {
+            handleTeamsLogout();
+            return;
+        }
+
         if (activeAccount) {
             instance
                 .logoutPopup({

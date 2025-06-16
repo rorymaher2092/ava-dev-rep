@@ -8,19 +8,22 @@
     box-shadow:
         #0000000d 0 0 0 0.0625em,
         #0000001a 0 0.125em 0.1875em;
-    background-color: white;
+    background-color: var(--background, white);
+    color: var(--text, #000000);
     margin: 1.25em 0;
 }
 
 .loading {
     padding: 6.25em;
     height: 100vh;
-    background-color: white;
+    background-color: var(--background, white);
+    color: var(--text, #000000);
 }
 
 .error {
     height: 100vh;
-    background-color: white;
+    background-color: var(--background, white);
+    color: var(--text, #000000);
 }
 
 .markdown {
@@ -38,12 +41,14 @@ td {
 }
 
 tr:nth-child(even) {
-    background-color: #f6f8fa;
+    background-color: var(--surface, #f6f8fa);
+    color: var(--text, #000000);
 }
 
 code {
     display: block;
     font-family: monospace;
     padding: 0.625em;
-    background-color: #f6f8fa;
+    background-color: var(--surface, #f6f8fa);
+    color: var(--text, #000000);
 }

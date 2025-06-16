@@ -77,7 +77,17 @@ export const AnalysisPanel = ({ answer, activeTab, activeCitation, citationHeigh
 
     return (
         <div className={className}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 10px" }}>
+            <div style={{ 
+                display: "flex", 
+                justifyContent: "space-between", 
+                alignItems: "center", 
+                padding: "0 10px",
+                position: "sticky",
+                top: 0,
+                background: "var(--background)",
+                zIndex: 10,
+                borderBottom: "1px solid var(--accent)"
+            }}>
                 <h3>{activeTab === AnalysisPanelTabs.ThoughtProcessTab ? "Thought Process" : 
                      activeTab === AnalysisPanelTabs.SupportingContentTab ? "Supporting Content" : 
                      "Citation"}</h3>

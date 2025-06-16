@@ -12,8 +12,8 @@ const LayoutWrapper = () => {
 
         // Default to using the first account if no account is active on page load
         if (!msalInstance.getActiveAccount() && msalInstance.getAllAccounts().length > 0) {
-            // Account selection logic is app dependent. Adjust as needed for different use cases.
-            msalInstance.setActiveAccount(msalInstance.getActiveAccount());
+            // Set the first account as active
+            msalInstance.setActiveAccount(msalInstance.getAllAccounts()[0]);
         }
 
         // Listen for sign-in event and set active account
@@ -26,7 +26,12 @@ const LayoutWrapper = () => {
 
         useEffect(() => {
             const fetchLoggedIn = async () => {
-                setLoggedIn(await checkLoggedIn(msalInstance));
+                // Check if we have accounts and set logged in state
+                if (msalInstance.getAllAccounts().length > 0) {
+                    setLoggedIn(true);
+                } else {
+                    setLoggedIn(await checkLoggedIn(msalInstance));
+                }
             };
 
             fetchLoggedIn();

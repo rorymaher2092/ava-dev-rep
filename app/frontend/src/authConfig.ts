@@ -1,10 +1,26 @@
 // Refactored from https://github.com/Azure-Samples/ms-identity-javascript-react-tutorial/blob/main/1-Authentication/1-sign-in/SPA/src/authConfig.js
 
 import { IPublicClientApplication } from "@azure/msal-browser";
+import * as microsoftTeams from "@microsoft/teams-js";
 
 const appServicesAuthTokenUrl = ".auth/me";
 const appServicesAuthTokenRefreshUrl = ".auth/refresh";
 const appServicesAuthLogoutUrl = ".auth/logout?post_logout_redirect_uri=/";
+
+// Flag to track if we're running in Teams
+let isRunningInTeams = false;
+
+// Check if we're running in Teams
+try {
+    microsoftTeams.app.initialize().then(() => {
+        microsoftTeams.app.getContext().then((context) => {
+            isRunningInTeams = true;
+            console.log("Running in Teams context:", context);
+        });
+    });
+} catch (error) {
+    console.log("Not running in Teams context");
+}
 
 interface AppServicesToken {
     id_token: string;
@@ -175,25 +191,78 @@ export const appServicesLogout = () => {
  * @returns {Promise<boolean>} A promise that resolves to true if the user is logged in, false otherwise.
  */
 export const checkLoggedIn = async (client: IPublicClientApplication | undefined): Promise<boolean> => {
-    if (client) {
-        const activeAccount = client.getActiveAccount();
-        if (activeAccount) {
-            return true;
+    // If running in Teams, check Teams authentication
+    if (isRunningInTeams) {
+        try {
+            // First check if we have a cached token
+            const cachedToken = sessionStorage.getItem('teamsAuthToken');
+            if (cachedToken) {
+                return true;
+            }
+            
+            // Otherwise try to get a fresh token silently
+            try {
+                const token = await microsoftTeams.authentication.getAuthToken();
+                if (token) {
+                    sessionStorage.setItem('teamsAuthToken', token);
+                    return true;
+                }
+            } catch (e) {
+                // Silent token acquisition might fail, but that's ok
+                console.log("Silent token acquisition failed");
+            }
+            
+            return false;
+        } catch (error) {
+            console.error("Error checking Teams login:", error);
+            // Fall back to regular auth check
+            return checkRegularAuth();
         }
     }
 
-    const appServicesToken = await getAppServicesToken();
-    if (appServicesToken) {
-        return true;
-    }
+    // Regular auth check
+    return checkRegularAuth();
 
-    return false;
+    async function checkRegularAuth(): Promise<boolean> {
+        if (client) {
+            const activeAccount = client.getActiveAccount();
+            if (activeAccount) {
+                return true;
+            }
+        }
+
+        const appServicesToken = await getAppServicesToken();
+        if (appServicesToken) {
+            return true;
+        }
+
+        return false;
+    }
 };
 
 // Get an access token for use with the API server.
 // ID token received when logging in may not be used for this purpose because it has the incorrect audience
 // Use the access token from app services login if available
 export const getToken = async (client: IPublicClientApplication): Promise<string | undefined> => {
+    // If running in Teams, use Teams SSO
+    if (isRunningInTeams) {
+        try {
+            // First check if we have a cached token from the login process
+            const cachedToken = sessionStorage.getItem('teamsAuthToken');
+            if (cachedToken) {
+                return cachedToken;
+            }
+            
+            // Otherwise get a fresh token
+            const token = await microsoftTeams.authentication.getAuthToken();
+            console.log("Got Teams token");
+            return token;
+        } catch (error) {
+            console.error("Error getting Teams token:", error);
+            // Fall back to regular auth if Teams auth fails
+        }
+    }
+
     const appServicesToken = await getAppServicesToken();
     if (appServicesToken) {
         return Promise.resolve(appServicesToken.access_token);
@@ -218,19 +287,49 @@ export const getToken = async (client: IPublicClientApplication): Promise<string
  * @returns {Promise<string | null>} The username of the active account, or null if no username is found.
  */
 export const getUsername = async (client: IPublicClientApplication): Promise<string | null> => {
-    const activeAccount = client.getActiveAccount();
-    if (activeAccount) {
-        // Return name instead of username/UPN
-        return activeAccount.name || activeAccount.username;
+    // If running in Teams, get username from Teams context
+    if (isRunningInTeams) {
+        try {
+            const context = await microsoftTeams.app.getContext();
+            if (context.user?.id && context.user?.userPrincipalName) {
+                // Use user principal name since displayName might not be available
+                return context.user.userPrincipalName;
+            }
+            // Fall back to regular auth if Teams context doesn't have user info
+            return await checkRegularAuth();
+        } catch (error) {
+            console.error("Error getting Teams username:", error);
+            // Fall back to regular auth
+            return await checkRegularAuth();
+        }
     }
 
-    const appServicesToken = await getAppServicesToken();
-    if (appServicesToken?.user_claims) {
-        // Return name instead of preferred_username
-        return appServicesToken.user_claims.name || appServicesToken.user_claims.preferred_username;
-    }
+    return checkRegularAuth();
 
-    return null;
+    async function checkRegularAuth(): Promise<string | null> {
+        // First check if there's an active account
+        const activeAccount = client.getActiveAccount();
+        if (activeAccount) {
+            // Return name instead of username/UPN
+            return activeAccount.name || activeAccount.username;
+        }
+        
+        // If no active account but we have accounts, set the first one as active
+        const allAccounts = client.getAllAccounts();
+        if (allAccounts.length > 0) {
+            client.setActiveAccount(allAccounts[0]);
+            return allAccounts[0].name || allAccounts[0].username;
+        }
+
+        // Try app services token as last resort
+        const appServicesToken = await getAppServicesToken();
+        if (appServicesToken?.user_claims) {
+            // Return name instead of preferred_username
+            return appServicesToken.user_claims.name || appServicesToken.user_claims.preferred_username;
+        }
+
+        return null;
+    }
 };
 
 /**

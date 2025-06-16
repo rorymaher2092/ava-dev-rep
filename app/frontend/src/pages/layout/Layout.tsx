@@ -4,11 +4,14 @@ import { useTranslation } from "react-i18next";
 import styles from "./Layout.module.css";
 
 import { useLogin } from "../../authConfig";
-import vocuslogo from "../../assets/vocus.png";
-import vocuslogodark from "../../assets/vocusdark.png";
+import vocusLogoWhite from "../../assets/vocus-logo-white.png";
+import vocusLogoNavy from "../../assets/vocus-logo-navy.png";
+import vocusdark from "../../assets/vocusdark.png";
+import vocus from "../../assets/vocus.png";
 import { LoginButton } from "../../components/LoginButton";
 import { IconButton } from "@fluentui/react";
 import { List24Regular } from "@fluentui/react-icons";
+import { BUILD_VERSION, BUILD_TIME } from "../../buildInfo";
 
 const Layout = () => {
     const { t } = useTranslation();
@@ -62,17 +65,21 @@ const Layout = () => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const logoSrc = theme === "light" ? vocuslogodark : vocuslogo;
+    const logoSrc = theme === "light" ? vocusLogoNavy : vocusLogoWhite;
 
     return (
         <div className={styles.layout}>
             <header className={styles.header} role="banner">
                 <div className={styles.headerContainer} ref={menuRef}>
+                    <Link to="/" className={styles.logoLink}>
+                        <img src={logoSrc} className={styles.headerLogo} alt="Vocus logo" />
+                    </Link>
                     <div className={styles.headerCenterContainer}>
-                        <Link to="/" className={styles.logoLink}>
-                            <img src={logoSrc} className={styles.headerLogo} alt="Vocus logo" />
-                        </Link>
-                        <h3 className={styles.headerTitle}>Advanced Vocus Assistant (Ava)</h3>
+                        <img src={theme === "light" ? vocusdark : vocus} className={styles.appLogo} alt="Ava logo" />
+                        <h3 className={styles.headerTitle}>
+                            <span className={styles.fullTitle}>Advanced Vocus Assistant (Ava)</span>
+                            <span className={styles.shortTitle}>Ava</span>
+                        </h3>
                     </div>
                     <div className={styles.loginMenuContainer}>
                         {useLogin && <LoginButton />}
@@ -109,7 +116,7 @@ const Layout = () => {
             </main>
 
             <footer className={styles.footer}>
-                <p>&copy; {new Date().getFullYear()} Vocus Group. All rights reserved.</p>
+                <p>&copy; {new Date().getFullYear()} Vocus Group. All rights reserved. | v{BUILD_VERSION} ({new Date(BUILD_TIME).toLocaleDateString()})</p>
             </footer>
         </div>
     );

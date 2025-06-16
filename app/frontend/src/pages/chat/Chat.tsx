@@ -31,7 +31,7 @@ import { HistoryButton } from "../../components/HistoryButton";
 // import { SettingsButton } from "../../components/SettingsButton";
 import { ClearChatButton } from "../../components/ClearChatButton";
 import { UploadFile } from "../../components/UploadFile";
-import { useLogin, getToken, requireAccessControl } from "../../authConfig";
+import { useLogin, getToken, requireAccessControl, getUsername } from "../../authConfig";
 import { useMsal } from "@azure/msal-react";
 import { TokenClaimsDisplay } from "../../components/TokenClaimsDisplay";
 import { LoginContext } from "../../loginContext";
@@ -40,6 +40,7 @@ import { Settings } from "../../components/Settings/Settings";
 
 const Chat = () => {
     const [searchParams] = useSearchParams();
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
     const [isConfigPanelOpen, setIsConfigPanelOpen] = useState(false);
     const [isHistoryPanelOpen, setIsHistoryPanelOpen] = useState(searchParams.get('history') === 'true');
     const [promptTemplate, setPromptTemplate] = useState<string>("");
@@ -190,6 +191,7 @@ const Chat = () => {
 
     const client = useLogin ? useMsal().instance : undefined;
     const { loggedIn } = useContext(LoginContext);
+    const [userName, setUserName] = useState<string>("there");
 
     const historyProvider: HistoryProviderOptions = (() => {
         if (useLogin && showChatHistoryCosmos) return HistoryProviderOptions.CosmosDB;
@@ -319,7 +321,23 @@ const Chat = () => {
         }
     }, [searchParams]);
     
-    // Listen for custom events
+    // Get the user's name when logged in
+    useEffect(() => {
+        const fetchUserName = async () => {
+            if (client && loggedIn) {
+                const name = await getUsername(client);
+                if (name) {
+                    // Extract first name if possible
+                    const firstName = name.split(' ')[0];
+                    setUserName(firstName);
+                }
+            }
+        };
+        
+        fetchUserName();
+    }, [client, loggedIn]);
+    
+    // Listen for custom events and window resize
     useEffect(() => {
         const handleOpenChatHistory = () => {
             setIsHistoryPanelOpen(true);
@@ -329,14 +347,30 @@ const Chat = () => {
             clearChat();
         };
         
+        const handleResize = () => {
+            setIsMobile(window.innerWidth <= 768);
+            
+            // Close panels on mobile when resizing to mobile
+            if (window.innerWidth <= 768) {
+                if (activeAnalysisPanelTab) {
+                    setActiveAnalysisPanelTab(undefined);
+                }
+                if (isHistoryPanelOpen) {
+                    setIsHistoryPanelOpen(false);
+                }
+            }
+        };
+        
         window.addEventListener('openChatHistory', handleOpenChatHistory);
         window.addEventListener('clearChat', handleClearChat);
+        window.addEventListener('resize', handleResize);
         
         return () => {
             window.removeEventListener('openChatHistory', handleOpenChatHistory);
             window.removeEventListener('clearChat', handleClearChat);
+            window.removeEventListener('resize', handleResize);
         };
-    }, []);
+    }, [activeAnalysisPanelTab, isHistoryPanelOpen]);
 
     const handleSettingsChange = (field: string, value: any) => {
         switch (field) {
@@ -451,18 +485,19 @@ const Chat = () => {
                 </div>
             </div>
             <div className={styles.chatRoot} style={{ 
-                marginRight: activeAnalysisPanelTab ? "40%" : "0"
+                marginRight: activeAnalysisPanelTab && !isMobile ? "40%" : "0"
             }}>
                 <div className={styles.chatContainer}>
                     {!lastQuestionRef.current ? (
                         <div className={styles.chatEmptyState}>
                             <img src={appLogo} alt="App logo" width="120" height="120" />
 
-                            <h1 className={styles.chatEmptyStateTitle}>{t("chatEmptyStateTitle")}</h1>
+                            <h1 className={styles.chatEmptyStateTitle}>{t("chatEmptyStateTitle", { name: userName })}</h1>
                             <h2 className={styles.chatEmptyStateSubtitle}>{t("chatEmptyStateSubtitle")}</h2>
                             {showLanguagePicker && <LanguagePicker onLanguageChange={newLang => i18n.changeLanguage(newLang)} />}
 
-                            <ExampleList onExampleClicked={onExampleClicked} useGPT4V={useGPT4V} />
+                            {/* Only show examples on non-mobile */}
+                            {!isMobile && <ExampleList onExampleClicked={onExampleClicked} useGPT4V={useGPT4V} />}
                         </div>
                     ) : (
                         <div className={styles.chatMessageStream}>
@@ -529,8 +564,8 @@ const Chat = () => {
                     )}
 
                     <div className={styles.chatInput} style={{ 
-                        right: activeAnalysisPanelTab ? "40%" : "0",
-                        width: isHistoryPanelOpen ? "calc(100% - 300px)" : "100%"
+                        right: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
+                        width: isHistoryPanelOpen && !isMobile ? "calc(100% - 300px)" : "100%"
                     }}>
                         <QuestionInput
                             clearOnSend

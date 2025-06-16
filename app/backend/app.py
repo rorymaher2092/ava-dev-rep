@@ -807,6 +807,13 @@ def create_app():
     app.register_blueprint(bp)
     app.register_blueprint(chat_history_cosmosdb_bp)
 
+    # Add headers for Teams integration
+    @app.after_request
+    def add_teams_headers(response):
+        response.headers["X-Frame-Options"] = "ALLOW-FROM https://teams.microsoft.com"
+        response.headers["Content-Security-Policy"] = "frame-ancestors https://teams.microsoft.com;"
+        return response
+
     if os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):
         app.logger.info("APPLICATIONINSIGHTS_CONNECTION_STRING is set, enabling Azure Monitor")
         configure_azure_monitor()

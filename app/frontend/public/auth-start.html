@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication</title>
+    <script src="https://res.cdn.office.net/teams-js/2.0.0/js/MicrosoftTeams.min.js"></script>
+    <script type="text/javascript">
+        microsoftTeams.app.initialize().then(() => {
+            microsoftTeams.authentication.getAuthToken().then((token) => {
+                microsoftTeams.authentication.notifySuccess(token);
+            }).catch((error) => {
+                microsoftTeams.authentication.notifyFailure(error);
+            });
+        });
+    </script>
+</head>
+<body>
+    <h2>Authenticating...</h2>
+</body>
+</html>

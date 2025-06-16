@@ -34,7 +34,7 @@
     },
     "developerSettings": "Developer settings",
 
-    "chatEmptyStateTitle": "Ask Ava a question",
+    "chatEmptyStateTitle": "Hello {{name}}!",
     "chatEmptyStateSubtitle": "Ask anything or try an example",
     "defaultExamples": {
         "1": "What is the Vocus Password Policy?",

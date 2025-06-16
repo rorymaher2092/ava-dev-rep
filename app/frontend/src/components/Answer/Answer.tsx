@@ -76,7 +76,10 @@ export const Answer = ({
                             onClick={handleCopy}
                         />
                         <IconButton
-                            style={{ color: "var(--text)" }}
+                            style={{ 
+                                color: "var(--text)",
+                                backgroundColor: isStreaming ? "transparent" : undefined
+                            }}
                             iconProps={{ iconName: "Lightbulb" }}
                             title={t("tooltips.showThoughtProcess")}
                             ariaLabel={t("tooltips.showThoughtProcess")}
@@ -84,7 +87,10 @@ export const Answer = ({
                             disabled={!answer.context.thoughts?.length || isStreaming}
                         />
                         <IconButton
-                            style={{ color: "var(--text)" }}
+                            style={{ 
+                                color: "var(--text)",
+                                backgroundColor: isStreaming ? "transparent" : undefined
+                            }}
                             iconProps={{ iconName: "ClipboardList" }}
                             title={t("tooltips.showSupportingContent")}
                             ariaLabel={t("tooltips.showSupportingContent")}
