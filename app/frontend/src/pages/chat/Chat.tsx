@@ -4,6 +4,7 @@ import { Helmet } from "react-helmet-async";
 import { useSearchParams } from "react-router-dom";
 import { Panel, DefaultButton } from "@fluentui/react";
 import readNDJSONStream from "ndjson-readablestream";
+import { customMessages } from "./customMessages"; // Importing custom messages
 
 import appLogo from "../../assets/ava.svg";
 import styles from "./Chat.module.css";
@@ -42,7 +43,7 @@ const Chat = () => {
     const [searchParams] = useSearchParams();
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
     const [isConfigPanelOpen, setIsConfigPanelOpen] = useState(false);
-    const [isHistoryPanelOpen, setIsHistoryPanelOpen] = useState(searchParams.get('history') === 'true');
+    const [isHistoryPanelOpen, setIsHistoryPanelOpen] = useState(searchParams.get("history") === "true");
     const [promptTemplate, setPromptTemplate] = useState<string>("");
     const [temperature, setTemperature] = useState<number>(0.3);
     const [seed, setSeed] = useState<number | null>(null);
@@ -193,6 +194,9 @@ const Chat = () => {
     const { loggedIn } = useContext(LoginContext);
     const [userName, setUserName] = useState<string>("there");
 
+    const [userMessage, setUserMessage] = useState<string>("");
+    const [userEmail, setUserEmail] = useState<string>("");
+
     const historyProvider: HistoryProviderOptions = (() => {
         if (useLogin && showChatHistoryCosmos) return HistoryProviderOptions.CosmosDB;
         if (showChatHistoryBrowser) return HistoryProviderOptions.IndexedDB;
@@ -314,13 +318,13 @@ const Chat = () => {
     useEffect(() => chatMessageStreamEnd.current?.scrollIntoView({ behavior: "auto" }), [streamedAnswers]);
     useEffect(() => {
         getConfig();
-        
+
         // Check URL parameters for actions
-        if (searchParams.get('clear') === 'true') {
+        if (searchParams.get("clear") === "true") {
             clearChat();
         }
     }, [searchParams]);
-    
+
     // Get the user's name when logged in
     useEffect(() => {
         const fetchUserName = async () => {
@@ -328,28 +332,54 @@ const Chat = () => {
                 const name = await getUsername(client);
                 if (name) {
                     // Extract first name if possible
-                    const firstName = name.split(' ')[0];
+                    const firstName = name.split(" ")[0];
                     setUserName(firstName);
                 }
             }
         };
-        
+
         fetchUserName();
     }, [client, loggedIn]);
-    
+
+    const { t, i18n } = useTranslation();
+
+    // get a special message for the user
+    useEffect(() => {
+        const fetchUserEmail = () => {
+            if (client && loggedIn) {
+                const account = client.getAllAccounts()[0]; // Get the first account (assuming single account)
+                if (account) {
+                    // Extract email from the account (could also be in the `account.username` or `account.idTokenClaims`)
+                    const email = account.username || account.idTokenClaims?.preferred_username;
+                    if (email) {
+                        setUserEmail(email);
+                        const customMessage = customMessages[email] || null;
+                        if (customMessage) {
+                            setUserMessage(customMessage);
+                        } else {
+                            setUserMessage(t("chatEmptyStateSubtitle")); // Default message
+                        }
+                    }
+                }
+            }
+        };
+
+        fetchUserEmail();
+    }, [client, loggedIn, t]);
+
     // Listen for custom events and window resize
     useEffect(() => {
         const handleOpenChatHistory = () => {
             setIsHistoryPanelOpen(true);
         };
-        
+
         const handleClearChat = () => {
             clearChat();
         };
-        
+
         const handleResize = () => {
             setIsMobile(window.innerWidth <= 768);
-            
+
             // Close panels on mobile when resizing to mobile
             if (window.innerWidth <= 768) {
                 if (activeAnalysisPanelTab) {
@@ -360,15 +390,15 @@ const Chat = () => {
                 }
             }
         };
-        
-        window.addEventListener('openChatHistory', handleOpenChatHistory);
-        window.addEventListener('clearChat', handleClearChat);
-        window.addEventListener('resize', handleResize);
-        
+
+        window.addEventListener("openChatHistory", handleOpenChatHistory);
+        window.addEventListener("clearChat", handleClearChat);
+        window.addEventListener("resize", handleResize);
+
         return () => {
-            window.removeEventListener('openChatHistory', handleOpenChatHistory);
-            window.removeEventListener('clearChat', handleClearChat);
-            window.removeEventListener('resize', handleResize);
+            window.removeEventListener("openChatHistory", handleOpenChatHistory);
+            window.removeEventListener("clearChat", handleClearChat);
+            window.removeEventListener("resize", handleResize);
         };
     }, [activeAnalysisPanelTab, isHistoryPanelOpen]);
 
@@ -470,8 +500,6 @@ const Chat = () => {
         setSelectedAnswer(index);
     };
 
-    const { t, i18n } = useTranslation();
-
     return (
         <div className={styles.container}>
             {/* Setting the page title using react-helmet-async */}
@@ -480,13 +508,14 @@ const Chat = () => {
             </Helmet>
             {/* Removed command buttons as they're now in the header menu */}
             <div className={styles.commandsSplitContainer}>
-                <div className={styles.commandsContainer}>
-                    {showUserUpload && <UploadFile className={styles.commandButton} disabled={!loggedIn} />}
-                </div>
+                <div className={styles.commandsContainer}>{showUserUpload && <UploadFile className={styles.commandButton} disabled={!loggedIn} />}</div>
             </div>
-            <div className={styles.chatRoot} style={{ 
-                marginRight: activeAnalysisPanelTab && !isMobile ? "40%" : "0"
-            }}>
+            <div
+                className={styles.chatRoot}
+                style={{
+                    marginRight: activeAnalysisPanelTab && !isMobile ? "40%" : "0"
+                }}
+            >
                 <div className={styles.chatContainer}>
                     {!lastQuestionRef.current ? (
                         <div className={styles.chatEmptyState}>
@@ -563,10 +592,13 @@ const Chat = () => {
                         </div>
                     )}
 
-                    <div className={styles.chatInput} style={{ 
-                        right: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
-                        width: isHistoryPanelOpen && !isMobile ? "calc(100% - 300px)" : "100%"
-                    }}>
+                    <div
+                        className={styles.chatInput}
+                        style={{
+                            right: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
+                            width: isHistoryPanelOpen && !isMobile ? "calc(100% - 300px)" : "100%"
+                        }}
+                    >
                         <QuestionInput
                             clearOnSend
                             placeholder={t("defaultExamples.placeholder")}
@@ -594,15 +626,17 @@ const Chat = () => {
                 )}
 
                 {((useLogin && showChatHistoryCosmos) || showChatHistoryBrowser) && (
-                    <div style={{ 
-                        position: "fixed", 
-                        top: "64px", 
-                        left: "0", 
-                        width: "300px", 
-                        height: "calc(100vh - 128px)",
-                        zIndex: 900,
-                        display: isHistoryPanelOpen ? "block" : "none"
-                    }}>
+                    <div
+                        style={{
+                            position: "fixed",
+                            top: "64px",
+                            left: "0",
+                            width: "300px",
+                            height: "calc(100vh - 128px)",
+                            zIndex: 900,
+                            display: isHistoryPanelOpen ? "block" : "none"
+                        }}
+                    >
                         <HistoryPanel
                             provider={historyProvider}
                             isOpen={isHistoryPanelOpen}
