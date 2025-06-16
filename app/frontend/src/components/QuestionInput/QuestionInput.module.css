@@ -6,17 +6,57 @@
     width: 100%;
     padding: 0.8rem;
     background: var(--inputBox-bg);
+    overflow: visible;
 }
 
 .questionInputTextArea {
     width: 100%;
     line-height: 2.5rem;
+    max-height: 10rem;
+    overflow-y: auto;
 }
 
 .questionInputButtonsContainer {
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
+    position: relative;
+    z-index: 10;
+}
+
+/* Custom tooltip styles */
+.customTooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--accent);
+    color: white !important;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    white-space: nowrap;
+    margin-bottom: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 9999;
+}
+
+.customTooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -6px;
+    border-width: 6px;
+    border-style: solid;
+    border-color: var(--accent) transparent transparent transparent;
+}
+
+.questionInputButtonsContainer:hover .customTooltip {
+    opacity: 1;
 }
 
 .questionInputWrapper {
@@ -27,7 +67,7 @@
     .questionInputContainer {
         min-height: 5.625rem;
         max-height: 12rem;
-        overflow-y: auto;
+        overflow: visible;
     }
 }
 

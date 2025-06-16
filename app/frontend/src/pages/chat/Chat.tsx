@@ -31,7 +31,7 @@ import { HistoryButton } from "../../components/HistoryButton";
 // import { SettingsButton } from "../../components/SettingsButton";
 import { ClearChatButton } from "../../components/ClearChatButton";
 import { UploadFile } from "../../components/UploadFile";
-import { useLogin, getToken, requireAccessControl } from "../../authConfig";
+import { useLogin, getToken, requireAccessControl, getUsername } from "../../authConfig";
 import { useMsal } from "@azure/msal-react";
 import { TokenClaimsDisplay } from "../../components/TokenClaimsDisplay";
 import { LoginContext } from "../../loginContext";
@@ -191,6 +191,7 @@ const Chat = () => {
 
     const client = useLogin ? useMsal().instance : undefined;
     const { loggedIn } = useContext(LoginContext);
+    const [userName, setUserName] = useState<string>("there");
 
     const historyProvider: HistoryProviderOptions = (() => {
         if (useLogin && showChatHistoryCosmos) return HistoryProviderOptions.CosmosDB;
@@ -319,6 +320,22 @@ const Chat = () => {
             clearChat();
         }
     }, [searchParams]);
+    
+    // Get the user's name when logged in
+    useEffect(() => {
+        const fetchUserName = async () => {
+            if (client && loggedIn) {
+                const name = await getUsername(client);
+                if (name) {
+                    // Extract first name if possible
+                    const firstName = name.split(' ')[0];
+                    setUserName(firstName);
+                }
+            }
+        };
+        
+        fetchUserName();
+    }, [client, loggedIn]);
     
     // Listen for custom events and window resize
     useEffect(() => {
@@ -475,7 +492,7 @@ const Chat = () => {
                         <div className={styles.chatEmptyState}>
                             <img src={appLogo} alt="App logo" width="120" height="120" />
 
-                            <h1 className={styles.chatEmptyStateTitle}>{t("chatEmptyStateTitle")}</h1>
+                            <h1 className={styles.chatEmptyStateTitle}>{t("chatEmptyStateTitle", { name: userName })}</h1>
                             <h2 className={styles.chatEmptyStateSubtitle}>{t("chatEmptyStateSubtitle")}</h2>
                             {showLanguagePicker && <LanguagePicker onLanguageChange={newLang => i18n.changeLanguage(newLang)} />}
 

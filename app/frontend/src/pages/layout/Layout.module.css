@@ -62,7 +62,6 @@ body {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    /*adding changes to center the heading*/
     justify-content: center; /* Center content horizontally */
     flex-grow: 1; /* Take up all available space */
     position: absolute; /* Absolutely position this in the middle */
@@ -85,11 +84,22 @@ body {
     }
 }
 
+.logoLink {
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
 .headerLogo {
     width: auto;
     height: 40px;
     margin-right: 10px;
-    align-items: center;
+}
+
+.appLogo {
+    width: auto;
+    height: 30px;
+    margin-right: 10px;
 }
 
 @media (max-width: 768px) {
@@ -200,8 +210,9 @@ body {
     left: 0;
     right: 0;
     height: 64px;
-    text-align: center;
-    padding: 1rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     font-size: 0.875rem;
     border-top: 2px solid var(--accent);
     z-index: 1000;

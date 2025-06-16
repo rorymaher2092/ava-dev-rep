@@ -120,14 +120,14 @@ export const QuestionInput = ({
                     maxLength={1000}
                 />
                 <div className={styles.questionInputButtonsContainer}>
-                    <Tooltip content={t("tooltips.submitQuestion")} relationship="label">
-                        <Button
-                            size="large"
-                            icon={<Send28Filled primaryFill="rgba(115, 118, 225, 1)" />}
-                            disabled={sendQuestionDisabled}
-                            onClick={sendQuestion}
-                        />
-                    </Tooltip>
+                    <div className={styles.customTooltip}>{t("tooltips.submitQuestion")}</div>
+                    <Button
+                        size="large"
+                        icon={<Send28Filled primaryFill="rgba(115, 118, 225, 1)" />}
+                        disabled={sendQuestionDisabled}
+                        onClick={sendQuestion}
+                        aria-label={t("tooltips.submitQuestion")}
+                    />
                 </div>
                 {showSpeechInput && <SpeechInput updateQuestion={setQuestion} />}
             </Stack>
