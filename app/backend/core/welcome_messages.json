@@ -1,0 +1,20 @@
+{
+  "departments": {
+    "technology & security": "Hello {{name}}! Ready to build something amazing?",
+    "marketing": "Hello {{name}}! Let's create some buzz today."
+  },
+  "titles": {
+    "manager": "Welcome, Manager {{name}}. Your team is ready for your leadership.",
+    "developer": "Hello Developer {{name}}! Ready to code?",
+    "analyst": "Welcome Analyst {{name}}. The data is waiting for your insights."
+  },
+  "usernames": {
+    "admin.jamieg": "Hello {{name}}, how can I assist my favourite Admin?",
+    "rob.ison": "Hello {{name}}, how can I assist my favourite CIO?",
+    "rory.maher": "Hello {{name}}, how can I assist my favourite AI dude?",
+    "cal.mayhook": "Hello {{name}}, how can I assist my favourite AI dude?",
+    "jamie.gray": "Hello {{name}}, how can I assist my supreme overlord?"
+    
+  },
+  "default": "Hello {{name}}!"
+}

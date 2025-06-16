@@ -34,7 +34,7 @@
     },
     "developerSettings": "Developer settings",
 
-    "chatEmptyStateTitle": "Hello {{name}}!",
+    "chatEmptyStateTitle": "{{welcomeMessage}}",
     "chatEmptyStateSubtitle": "Ask anything or try an example",
     "defaultExamples": {
         "1": "What is the Vocus Password Policy?",
