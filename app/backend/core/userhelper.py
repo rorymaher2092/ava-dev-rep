@@ -30,9 +30,14 @@ def get_welcome_message(user_details: Dict) -> Optional[str]:
     name = user_details.get('name', '')
     message = None
     
+    # Extract username from email if it's an email address
+    username = user_details.get('username', '')
+    if '@' in username:
+        username = username.split('@')[0]  # Extract part before @
+    
     # Check for username-specific message
-    if 'username' in user_details and user_details['username'] in config.get('usernames', {}):
-        message = config['usernames'][user_details['username']]
+    if username and username.lower() in config.get('usernames', {}):
+        message = config['usernames'][username.lower()]
     
     # Check for title-specific message
     elif 'title' in user_details and user_details['title'] in config.get('titles', {}):

@@ -347,9 +347,7 @@ const Chat = () => {
                         // Prepare user details with available information
                         const userDetails = {
                             name: firstName,
-                            username: claims.preferred_username,
-                            title: claims.jobTitle,
-                            department: claims.department
+                            username: claims.preferred_username
                         };
                         
                         // Debug: Log user details being sent

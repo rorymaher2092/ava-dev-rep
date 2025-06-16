@@ -9,7 +9,8 @@
     "analyst": "Welcome Analyst {{name}}. The data is waiting for your insights."
   },
   "usernames": {
-    "rob.ison@vocus.com.au": "Hello {{name}}, how can I assist my favourite CIO?"
+    "admin.jamieg": "Hello {{name}}, how can I assist my favourite CIO?",
+    "jamie.gray": "Hello {{name}}, how can I assist my supreme overlord?"
     
   },
   "default": "Hello {{name}}!"
