@@ -1,5 +1,5 @@
 import { AccountInfo, EventType, PublicClientApplication } from "@azure/msal-browser";
-import { checkLoggedIn, msalConfig, useLogin } from "./authConfig";
+import { checkLoggedIn, msalConfig, useLogin, loginRequest } from "./authConfig";
 import { useEffect, useState } from "react";
 import { MsalProvider } from "@azure/msal-react";
 import { LoginContext } from "./loginContext";
@@ -33,7 +33,7 @@ const LayoutWrapper = () => {
                     // Try to authenticate automatically
                     try {
                         await msalInstance.ssoSilent({
-                            ...msalConfig.loginRequest,
+                            ...loginRequest,
                             redirectUri: window.location.origin + "/redirect"
                         });
                         setLoggedIn(true);
