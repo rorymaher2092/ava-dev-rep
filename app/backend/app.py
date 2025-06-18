@@ -460,6 +460,56 @@ async def list_uploaded(auth_claims: dict[str, Any]):
     return jsonify(files), 200
 
 
+@bp.route("/feedback", methods=["POST"])
+@authenticated
+async def submit_feedback(auth_claims: dict[str, Any]):
+    """
+    Endpoint to collect user feedback on responses.
+    Stores feedback with user information for later analysis.
+    """
+    if not request.is_json:
+        return jsonify({"error": "request must be json"}), 415
+    
+    request_json = await request.get_json()
+    response_id = request_json.get("responseId")
+    feedback_type = request_json.get("feedback")
+    comments = request_json.get("comments", "")
+    
+    if not response_id or not feedback_type:
+        return jsonify({"error": "responseId and feedback are required"}), 400
+    
+    if feedback_type not in ["positive", "negative"]:
+        return jsonify({"error": "feedback must be either 'positive' or 'negative'"}), 400
+    
+    # Add user information from auth claims
+    feedback_data = {
+        "responseId": response_id,
+        "feedback": feedback_type,
+        "comments": comments,
+        "timestamp": time.time(),
+        "userId": auth_claims.get("oid", ""),
+        "username": auth_claims.get("username", ""),
+        "name": auth_claims.get("name", "")
+    }
+    
+    # Log the feedback
+    current_app.logger.info("Feedback received: %s", json.dumps(feedback_data))
+    
+    # Store feedback in Cosmos DB if enabled
+    if os.getenv("USE_CHAT_HISTORY_COSMOS", "").lower() == "true":
+        try:
+            from chat_history.feedback import FeedbackCosmosDB
+            feedback_db = FeedbackCosmosDB()
+            await feedback_db.initialize()
+            await feedback_db.add_feedback(feedback_data)
+            await feedback_db.close()
+            current_app.logger.info("Feedback stored in Cosmos DB")
+        except Exception as e:
+            current_app.logger.error(f"Error storing feedback in Cosmos DB: {str(e)}")
+    
+    return jsonify({"message": "Feedback submitted successfully"}), 200
+
+
 @bp.before_app_serving
 async def setup_clients():
     # Replace these with your own values, either in environment variables or directly here

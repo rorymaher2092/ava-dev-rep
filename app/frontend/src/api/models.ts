@@ -108,6 +108,14 @@ export type SimpleAPIResponse = {
     message?: string;
 };
 
+export type FeedbackType = "positive" | "negative";
+
+export type FeedbackRequest = {
+    responseId: string;
+    feedback: FeedbackType;
+    comments?: string;
+};
+
 export interface SpeechConfig {
     speechUrls: (string | null)[];
     setSpeechUrls: (urls: (string | null)[]) => void;

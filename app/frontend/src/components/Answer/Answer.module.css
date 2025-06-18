@@ -143,6 +143,34 @@ sup {
     width: fit-content;
 }
 
+.feedbackContainer {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.feedbackButton {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    padding: 5px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.feedbackButton:hover {
+    background-color: var(--hover-background);
+}
+
+.feedbackMessage {
+    margin-top: 10px;
+    color: var(--accent);
+    font-weight: 500;
+}
+
 @keyframes loading {
     0% {
         content: "";
