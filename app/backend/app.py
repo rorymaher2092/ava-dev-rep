@@ -896,6 +896,11 @@ def create_app():
     app = Quart(__name__)
     app.register_blueprint(bp)
     app.register_blueprint(chat_history_cosmosdb_bp)
+    
+    # Register feedback blueprint if feedback storage is enabled
+    if os.getenv("USE_FEEDBACK_STORAGE", "").lower() == "true":
+        from chat_history.feedback_api import feedback_bp
+        app.register_blueprint(feedback_bp)
 
     # Add headers for Teams integration
     @app.after_request

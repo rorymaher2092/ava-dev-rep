@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, RefObject } from "react";
 import { Outlet, Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import styles from "./Layout.module.css";
+import { useMsal } from "@azure/msal-react";
+import { getTokenClaims } from "../../authConfig";
 
 import { useLogin } from "../../authConfig";
 import vocusLogoWhite from "../../assets/vocus-logo-white.png";
@@ -19,7 +21,9 @@ const Layout = () => {
     const [menuOpen, setMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [theme, setTheme] = useState<"light" | "dark">("light");
+    const [isAdmin, setIsAdmin] = useState(false);
     const menuRef: RefObject<HTMLDivElement> = useRef(null);
+    const { instance } = useMsal();
 
     const toggleMenu = () => setMenuOpen(!menuOpen);
     const toggleSettings = () => setSettingsOpen(!settingsOpen);
@@ -31,6 +35,22 @@ const Layout = () => {
         setTheme(newTheme);
     };
 
+    useEffect(() => {
+        // Check if user is an admin
+        const checkAdminRole = async () => {
+            try {
+                const claims = await getTokenClaims(instance);
+                const roles = claims?.roles as string[] || [];
+                setIsAdmin(roles.includes('admin'));
+            } catch (error) {
+                console.error('Error checking admin role:', error);
+                setIsAdmin(false);
+            }
+        };
+        
+        checkAdminRole();
+    }, [instance]);
+    
     useEffect(() => {
         // Check for user's preferred color scheme
         const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -104,7 +124,12 @@ const Layout = () => {
                                     window.dispatchEvent(chatHistoryEvent);
                                     setSettingsOpen(false);
                                 }} role="menuitem">📜 Chat History</button>
-                                <button onClick={() => alert("Coming soon!")} role="menuitem">📣 Feedback</button>
+                                {isAdmin && (
+                                    <button onClick={() => {
+                                        navigate('/feedback');
+                                        setSettingsOpen(false);
+                                    }} role="menuitem">📊 Feedback Dashboard</button>
+                                )}
                             </div>
                         )}
                     </div>

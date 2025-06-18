@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from azure.cosmos.aio import CosmosClient
 from azure.cosmos.exceptions import CosmosResourceNotFoundError
@@ -52,6 +52,21 @@ class FeedbackCosmosDB:
         # Store the feedback
         response = await container_client.create_item(body=feedback_data)
         return response["id"]
+    
+    async def query_feedback(self, query: str, params: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Query feedback from the database."""
+        database_client = self.client.get_database_client(self.database_name)
+        container_client = database_client.get_container_client(self.container_name)
+        
+        items = []
+        async for item in container_client.query_items(
+            query=query,
+            parameters=params,
+            enable_cross_partition_query=True
+        ):
+            items.append(item)
+        
+        return items
 
     async def close(self):
         """Close the client connection."""
