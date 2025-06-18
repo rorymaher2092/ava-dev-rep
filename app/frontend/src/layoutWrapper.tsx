@@ -30,11 +30,28 @@ const LayoutWrapper = () => {
                 if (msalInstance.getAllAccounts().length > 0) {
                     setLoggedIn(true);
                 } else {
-                    setLoggedIn(await checkLoggedIn(msalInstance));
+                    // Try to authenticate automatically
+                    try {
+                        await msalInstance.ssoSilent({
+                            ...msalConfig.loginRequest,
+                            redirectUri: window.location.origin + "/redirect"
+                        });
+                        setLoggedIn(true);
+                    } catch (error) {
+                        console.log("Silent SSO failed, checking login state:", error);
+                        setLoggedIn(await checkLoggedIn(msalInstance));
+                    }
                 }
             };
 
             fetchLoggedIn();
+            
+            // Set up a refresh interval to ensure authentication is current
+            const refreshInterval = setInterval(async () => {
+                await fetchLoggedIn();
+            }, 5 * 60 * 1000); // Refresh every 5 minutes
+            
+            return () => clearInterval(refreshInterval);
         }, []);
 
         return (

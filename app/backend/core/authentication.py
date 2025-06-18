@@ -229,7 +229,13 @@ class AuthenticationHelper:
             # Read the claims from the response. The oid and groups claims are used for security filtering
             # https://learn.microsoft.com/entra/identity-platform/id-token-claims-reference
             id_token_claims = graph_resource_access_token["id_token_claims"]
-            auth_claims = {"oid": id_token_claims["oid"], "groups": id_token_claims.get("groups", [])}
+            # Capture username, name and groups for proper authentication
+            auth_claims = {
+                "oid": id_token_claims["oid"],
+                "username": id_token_claims.get("preferred_username", ""),
+                "name": id_token_claims.get("name", ""),
+                "groups": id_token_claims.get("groups", [])
+            }
 
             # A groups claim may have been omitted either because it was not added in the application manifest for the API application,
             # or a groups overage claim may have been emitted.

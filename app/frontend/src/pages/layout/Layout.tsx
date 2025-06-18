@@ -82,7 +82,7 @@ const Layout = () => {
                         </h3>
                     </div>
                     <div className={styles.loginMenuContainer}>
-                        {useLogin && <LoginButton />}
+                        {/* Login button removed as staff should automatically sign in */}
                         <button 
                             onClick={toggleSettings} 
                             className={styles.settingsToggle}
