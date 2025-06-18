@@ -496,7 +496,7 @@ async def submit_feedback(auth_claims: dict[str, Any]):
     current_app.logger.info("Feedback received: %s", json.dumps(feedback_data))
     
     # Store feedback in Cosmos DB if enabled
-    if os.getenv("USE_CHAT_HISTORY_COSMOS", "").lower() == "true":
+    if os.getenv("USE_CHAT_HISTORY_COSMOS", "").lower() == "true" and os.getenv("USE_FEEDBACK_STORAGE", "").lower() == "true":
         try:
             from chat_history.feedback import FeedbackCosmosDB
             feedback_db = FeedbackCosmosDB()

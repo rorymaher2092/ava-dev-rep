@@ -916,6 +916,36 @@ module cosmosDb 'br/public:avm/res/document-db/database-account:0.6.1' = if (use
               ]
             }
           }
+          {
+            name: 'feedback'
+            kind: 'Hash'
+            paths: [
+              '/responseId'
+            ]
+            indexingPolicy: {
+              indexingMode: 'consistent'
+              automatic: true
+              includedPaths: [
+                {
+                  path: '/responseId/?'
+                }
+                {
+                  path: '/feedback/?'
+                }
+                {
+                  path: '/timestamp/?'
+                }
+                {
+                  path: '/userId/?'
+                }
+              ]
+              excludedPaths: [
+                {
+                  path: '/*'
+                }
+              ]
+            }
+          }
         ]
       }
     ]
