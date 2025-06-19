@@ -325,47 +325,48 @@ const Chat = () => {
     // Get the user's name and welcome message when logged in
     useEffect(() => {
         const fetchUserDetails = async () => {
-            if (client && loggedIn) {
-                const name = await getUsername(client);
-                if (name) {
-                    // Extract first name if possible
-                    const firstName = name.split(' ')[0];
-                    setUserName(firstName);
-                    
-                    // Import the getUserWelcomeMessage function
-                    const { getUserWelcomeMessage } = await import('../../api');
-                    
-                    try {
-                        // Get user claims from the token
-                        const accounts = client.getAllAccounts();
-                        const account = accounts[0];
-                        const claims = account?.idTokenClaims || {};
+            if (client) {
+                // Check if user is authenticated
+                const accounts = client.getAllAccounts();
+                if (accounts.length > 0) {
+                    const name = await getUsername(client);
+                    if (name) {
+                        // Extract first name if possible
+                        const firstName = name.split(' ')[0];
+                        setUserName(firstName);
                         
-                        // Debug: Log claims to console
-                        console.log("DEBUG - Token claims:", claims);
+                        // Import the getUserWelcomeMessage function
+                        const { getUserWelcomeMessage } = await import('../../api');
                         
-                        // Prepare user details with available information
-                        const userDetails = {
-                            name: firstName,
-                            username: claims.preferred_username
-                        };
-                        
-                        // Debug: Log user details being sent
-                        console.log("DEBUG - User details being sent:", userDetails);
-                        
-                        // Fetch custom welcome message
-                        const message = await getUserWelcomeMessage(userDetails);
-                        setWelcomeMessage(message);
-                    } catch (error) {
-                        console.error("Error fetching user details:", error);
-                        setWelcomeMessage(`Hello ${firstName}!`);
+                        try {
+                            // Get user claims from the token
+                            const account = accounts[0];
+                            const claims = account?.idTokenClaims || {};
+                            
+                            // Prepare user details with available information
+                            const userDetails = {
+                                name: firstName,
+                                username: claims.preferred_username
+                            };
+                            
+                            // Fetch custom welcome message
+                            const message = await getUserWelcomeMessage(userDetails);
+                            setWelcomeMessage(message);
+                        } catch (error) {
+                            console.error("Error fetching user details:", error);
+                            setWelcomeMessage(`Hello ${firstName}!`);
+                        }
                     }
+                } else {
+                    // User not authenticated, use default
+                    setUserName("there");
+                    setWelcomeMessage("Hello there!");
                 }
             }
         };
         
         fetchUserDetails();
-    }, [client, loggedIn]);
+    }, [client]);
     
     // Listen for custom events and window resize
     useEffect(() => {
