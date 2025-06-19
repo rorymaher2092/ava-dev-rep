@@ -325,7 +325,7 @@ const Chat = () => {
     // Get the user's name and welcome message when logged in
     useEffect(() => {
         const fetchUserDetails = async () => {
-            if (client && (loggedIn || client.getAllAccounts().length > 0)) {
+            if (client && loggedIn) {
                 const name = await getUsername(client);
                 if (name) {
                     // Extract first name if possible
@@ -341,11 +341,17 @@ const Chat = () => {
                         const account = accounts[0];
                         const claims = account?.idTokenClaims || {};
                         
+                        // Debug: Log claims to console
+                        console.log("DEBUG - Token claims:", claims);
+                        
                         // Prepare user details with available information
                         const userDetails = {
                             name: firstName,
                             username: claims.preferred_username
                         };
+                        
+                        // Debug: Log user details being sent
+                        console.log("DEBUG - User details being sent:", userDetails);
                         
                         // Fetch custom welcome message
                         const message = await getUserWelcomeMessage(userDetails);

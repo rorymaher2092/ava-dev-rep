@@ -36,22 +36,8 @@ const Layout = () => {
     };
 
     useEffect(() => {
-        // Check authentication and set admin status
-        const checkAuth = async () => {
-            try {
-                const accounts = instance.getAllAccounts();
-                if (accounts.length > 0) {
-                    setIsAdmin(true);
-                } else {
-                    setIsAdmin(false);
-                }
-            } catch (error) {
-                console.error('Error checking authentication:', error);
-                setIsAdmin(false);
-            }
-        };
-        
-        checkAuth();
+        // Set admin to true for all authenticated users
+        setIsAdmin(true);
     }, [instance]);
     
     useEffect(() => {
