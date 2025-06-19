@@ -520,33 +520,36 @@ const Chat = () => {
                 <div className={styles.chatContainer}>
                     {!lastQuestionRef.current ? (
                         <div className={styles.chatEmptyState}>
-                            <div style={{
-                                background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
-                                borderRadius: '50%',
-                                padding: '20px',
-                                marginBottom: '24px',
-                                boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
-                            }}>
-                                <img src={appLogo} alt="App logo" width="120" height="120" style={{ filter: 'brightness(0) invert(1)' }} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginBottom: '24px' }}>
+                                <div style={{
+                                    background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
+                                    borderRadius: '50%',
+                                    padding: '20px',
+                                    boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
+                                }}>
+                                    <img src={appLogo} alt="App logo" width="80" height="80" />
+                                </div>
+                                <h1 style={{ 
+                                    fontSize: '2.5rem',
+                                    fontWeight: '700',
+                                    color: 'var(--text)',
+                                    margin: 0
+                                }}>
+                                    Hello {userName}!
+                                </h1>
                             </div>
 
-                            <h1 className={styles.chatEmptyStateTitle} style={{ 
-                                background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                                backgroundClip: 'text',
-                                marginBottom: '12px'
+                            <h2 style={{ 
+                                color: 'var(--text)',
+                                marginBottom: '16px',
+                                fontSize: '20px',
+                                fontWeight: '500',
+                                textAlign: 'center'
                             }}>
-                                {welcomeMessage}
-                            </h1>
-                            <h2 className={styles.chatEmptyStateSubtitle} style={{ 
-                                color: 'var(--text-secondary)',
-                                marginBottom: '32px',
-                                fontSize: '18px',
-                                fontWeight: '400'
-                            }}>
-                                {t("chatEmptyStateSubtitle")}
+                                {welcomeMessage !== `Hello ${userName}!` ? welcomeMessage : ''}
                             </h2>
+                            
+
                             
                             {/* Quick stats or tips */}
                             <div style={{
@@ -594,10 +597,18 @@ const Chat = () => {
                                 </div>
                             </div>
 
-                            {showLanguagePicker && <LanguagePicker onLanguageChange={newLang => i18n.changeLanguage(newLang)} />}
+                            {showLanguagePicker && (
+                                <div style={{ marginBottom: '32px' }}>
+                                    <LanguagePicker onLanguageChange={newLang => i18n.changeLanguage(newLang)} />
+                                </div>
+                            )}
 
                             {/* Only show examples on non-mobile */}
-                            {!isMobile && <ExampleList onExampleClicked={onExampleClicked} useGPT4V={useGPT4V} />}
+                            {!isMobile && (
+                                <div style={{ marginTop: '40px', marginBottom: '120px' }}>
+                                    <ExampleList onExampleClicked={onExampleClicked} useGPT4V={useGPT4V} />
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className={styles.chatMessageStream}>

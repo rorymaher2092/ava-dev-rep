@@ -18,15 +18,13 @@ import { BUILD_VERSION, BUILD_TIME } from "../../buildInfo";
 const Layout = () => {
     const { t } = useTranslation();
     const navigate = useNavigate();
-    const [menuOpen, setMenuOpen] = useState(false);
-    const [settingsOpen, setSettingsOpen] = useState(false);
+
     const [theme, setTheme] = useState<"light" | "dark">("light");
     const [isAdmin, setIsAdmin] = useState(false);
     const menuRef: RefObject<HTMLDivElement> = useRef(null);
     const { instance } = useMsal();
 
-    const toggleMenu = () => setMenuOpen(!menuOpen);
-    const toggleSettings = () => setSettingsOpen(!settingsOpen);
+
 
     const toggleTheme = () => {
         const newTheme = theme === "light" ? "dark" : "light";
@@ -62,17 +60,7 @@ const Layout = () => {
         return () => mediaQuery.removeEventListener('change', handleChange);
     }, []);
 
-    const handleClickOutside = (e: MouseEvent) => {
-        if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-            setMenuOpen(false);
-            setSettingsOpen(false);
-        }
-    };
 
-    useEffect(() => {
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
 
     const logoSrc = theme === "light" ? vocusLogoNavy : vocusLogoWhite;
 
@@ -91,40 +79,117 @@ const Layout = () => {
                         </h3>
                     </div>
 
-                    <div className={styles.loginMenuContainer}>
-                        {/* Login button removed as staff should automatically sign in */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <button 
-                            onClick={toggleSettings} 
-                            className={styles.settingsToggle}
-                            aria-label="Menu"
-                            aria-expanded={settingsOpen}
-                            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                            onClick={toggleTheme}
+                            style={{
+                                backgroundColor: 'var(--surface)',
+                                border: '1px solid var(--border)',
+                                borderRadius: '8px',
+                                padding: '8px 12px',
+                                color: 'var(--text)',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                fontSize: '14px',
+                                transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--surface-hover)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--surface)';
+                            }}
                         >
-                            <List24Regular />
-                            <span>Menu</span>
+                            <span>{theme === "dark" ? "🌞" : "🌙"}</span>
+                            <span>{theme === "dark" ? "Light" : "Dark"}</span>
                         </button>
-                        {settingsOpen && (
-                            <div className={styles.dropdownMenu} role="menu">
-                                <button onClick={toggleTheme} role="menuitem">{theme === "dark" ? "🌞 Light Mode" : "🌙 Dark Mode"}</button>
-                                <button onClick={() => {
-                                    const clearChatEvent = new CustomEvent('clearChat');
-                                    window.dispatchEvent(clearChatEvent);
-                                    setSettingsOpen(false);
-                                }} role="menuitem">🧹 Clear Chat</button>
-                                <button onClick={() => {
-                                    const chatHistoryEvent = new CustomEvent('openChatHistory');
-                                    window.dispatchEvent(chatHistoryEvent);
-                                    setSettingsOpen(false);
-                                }} role="menuitem">📜 Chat History</button>
-                                {isAdmin && (
-                                    <>
-                                        <button onClick={() => {
-                                            navigate('/feedback');
-                                            setSettingsOpen(false);
-                                        }} role="menuitem">📊 Feedback</button>
-                                    </>
-                                )}
-                            </div>
+                        
+                        <button 
+                            onClick={() => {
+                                const clearChatEvent = new CustomEvent('clearChat');
+                                window.dispatchEvent(clearChatEvent);
+                            }}
+                            style={{
+                                backgroundColor: 'var(--surface)',
+                                border: '1px solid var(--border)',
+                                borderRadius: '8px',
+                                padding: '8px 12px',
+                                color: 'var(--text)',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                fontSize: '14px',
+                                transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--surface-hover)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--surface)';
+                            }}
+                        >
+                            <span>🧹</span>
+                            <span>Clear</span>
+                        </button>
+                        
+                        <button 
+                            onClick={() => {
+                                const chatHistoryEvent = new CustomEvent('openChatHistory');
+                                window.dispatchEvent(chatHistoryEvent);
+                            }}
+                            style={{
+                                backgroundColor: 'var(--surface)',
+                                border: '1px solid var(--border)',
+                                borderRadius: '8px',
+                                padding: '8px 12px',
+                                color: 'var(--text)',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                fontSize: '14px',
+                                transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--surface-hover)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--surface)';
+                            }}
+                        >
+                            <span>📜</span>
+                            <span>History</span>
+                        </button>
+                        
+                        {isAdmin && (
+                            <button 
+                                onClick={() => navigate('/feedback')}
+                                style={{
+                                    backgroundColor: 'var(--surface)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '8px',
+                                    padding: '8px 12px',
+                                    color: 'var(--text)',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    fontSize: '14px',
+                                    transition: 'all 0.2s ease'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'var(--surface-hover)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'var(--surface)';
+                                }}
+                            >
+                                <span>📊</span>
+                                <span>Feedback</span>
+                            </button>
                         )}
                     </div>
                 </div>

@@ -24,30 +24,14 @@ const FeedbackPage: React.FC = () => {
     const columns: IColumn[] = [
         { key: 'timestamp', name: 'Date', fieldName: 'timestamp', minWidth: 120, maxWidth: 150, 
           onRender: (item: FeedbackItem) => (
-            <Text style={{ color: 'var(--text)' }}>
+            <Text style={{ color: '#e2e8f0' }}>
                 {new Date(item.timestamp * 1000).toLocaleDateString()} {new Date(item.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
             </Text>
           )
         },
         { key: 'name', name: 'User', fieldName: 'name', minWidth: 120, maxWidth: 180,
           onRender: (item: FeedbackItem) => (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ 
-                width: '32px', 
-                height: '32px', 
-                borderRadius: '50%', 
-                backgroundColor: 'var(--primary)', 
-                color: 'white', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                fontSize: '14px',
-                fontWeight: 'bold'
-              }}>
-                {item.name ? item.name.charAt(0).toUpperCase() : 'U'}
-              </div>
-              <Text style={{ color: 'var(--text)' }}>{item.name || 'Unknown'}</Text>
-            </div>
+            <Text style={{ color: '#e2e8f0' }}>{item.name || 'Unknown'}</Text>
           )
         },
         { key: 'feedback', name: 'Feedback', fieldName: 'feedback', minWidth: 120, maxWidth: 120,
@@ -72,14 +56,14 @@ const FeedbackPage: React.FC = () => {
         },
         { key: 'comments', name: 'Comments', fieldName: 'comments', minWidth: 250,
           onRender: (item: FeedbackItem) => (
-            <Text style={{ color: 'var(--text)' }} title={item.comments}>
-              {item.comments || <em style={{ color: 'var(--text-secondary)' }}>No comments</em>}
+            <Text style={{ color: '#e2e8f0' }} title={item.comments}>
+              {item.comments || <em style={{ color: '#94a3b8' }}>No comments</em>}
             </Text>
           )
         },
         { key: 'responseId', name: 'Response ID', fieldName: 'responseId', minWidth: 120,
           onRender: (item: FeedbackItem) => (
-            <Text style={{ color: 'var(--text-secondary)', fontFamily: 'monospace', fontSize: '12px' }}>
+            <Text style={{ color: '#94a3b8', fontFamily: 'monospace', fontSize: '12px' }}>
               {item.responseId.substring(0, 8)}...
             </Text>
           )
@@ -165,10 +149,6 @@ const FeedbackPage: React.FC = () => {
                                 },
                                 dropdownItem: { 
                                     backgroundColor: 'var(--surface)', 
-                                    color: 'var(--text)' 
-                                },
-                                dropdownItemHovered: { 
-                                    backgroundColor: 'var(--surface-hover)', 
                                     color: 'var(--text)' 
                                 }
                             }}
@@ -285,26 +265,34 @@ const FeedbackPage: React.FC = () => {
                             </div>
                         )}
 
-                        <DetailsList
-                            items={feedback}
-                            columns={columns}
-                            layoutMode={DetailsListLayoutMode.justified}
-                            selectionMode={SelectionMode.none}
-                            isHeaderVisible={true}
-                            styles={{
-                                root: { 
-                                    backgroundColor: 'var(--surface)', 
-                                    border: '1px solid var(--border)',
-                                    borderRadius: '8px',
-                                    overflow: 'hidden'
-                                },
-                                headerWrapper: { 
-                                    backgroundColor: 'var(--surface-hover)', 
-                                    borderBottom: '1px solid var(--border)'
-                                },
-                                contentWrapper: { backgroundColor: 'var(--surface)' }
-                            }}
-                        />
+                        <div style={{ 
+                            backgroundColor: '#1e293b', 
+                            border: '1px solid #334155',
+                            borderRadius: '8px',
+                            overflow: 'hidden'
+                        }}>
+                            <DetailsList
+                                items={feedback}
+                                columns={columns}
+                                layoutMode={DetailsListLayoutMode.justified}
+                                selectionMode={SelectionMode.none}
+                                isHeaderVisible={true}
+                                styles={{
+                                    root: { 
+                                        backgroundColor: '#1e293b',
+                                        color: '#e2e8f0'
+                                    },
+                                    headerWrapper: { 
+                                        backgroundColor: '#334155',
+                                        borderBottom: '1px solid #475569',
+                                        color: '#f1f5f9'
+                                    },
+                                    contentWrapper: { 
+                                        backgroundColor: '#1e293b'
+                                    }
+                                }}
+                            />
+                        </div>
                         
                         {feedback.length === 0 && (
                             <div style={{ 
