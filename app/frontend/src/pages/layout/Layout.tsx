@@ -36,36 +36,8 @@ const Layout = () => {
     };
 
     useEffect(() => {
-        // Check if user is an admin
-        const checkAdminRole = async () => {
-            try {
-                // Check for admin role in claims
-                const claims = await getTokenClaims(instance);
-                const roles = claims?.roles as string[] || [];
-                if (roles.includes('admin')) {
-                    setIsAdmin(true);
-                    return;
-                }
-                
-                // Check with backend for admin status (email-based)
-                const token = await getToken(instance);
-                const response = await fetch('/admin/check', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    setIsAdmin(data.isAdmin);
-                }
-            } catch (error) {
-                console.error('Error checking admin role:', error);
-                setIsAdmin(false);
-            }
-        };
-        
-        checkAdminRole();
+        // Set admin to true for now (simplified)
+        setIsAdmin(true);
     }, [instance]);
     
     useEffect(() => {
@@ -118,12 +90,7 @@ const Layout = () => {
                             <span className={styles.shortTitle}>Ava</span>
                         </h3>
                     </div>
-                    {/* Direct links for debugging */}
-                    <div style={{ marginRight: '20px' }}>
-                        <Link to="/admin" style={{ marginRight: '10px', color: 'var(--text)' }}>Admin</Link>
-                        <Link to="/feedback" style={{ marginRight: '10px', color: 'var(--text)' }}>Feedback</Link>
-                        <Link to="/admin-check" style={{ color: 'var(--text)' }}>Admin Check</Link>
-                    </div>
+
                     <div className={styles.loginMenuContainer}>
                         {/* Login button removed as staff should automatically sign in */}
                         <button 
@@ -131,8 +98,10 @@ const Layout = () => {
                             className={styles.settingsToggle}
                             aria-label="Menu"
                             aria-expanded={settingsOpen}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                         >
                             <List24Regular />
+                            <span>Menu</span>
                         </button>
                         {settingsOpen && (
                             <div className={styles.dropdownMenu} role="menu">
@@ -152,11 +121,7 @@ const Layout = () => {
                                         <button onClick={() => {
                                             navigate('/feedback');
                                             setSettingsOpen(false);
-                                        }} role="menuitem">📊 Feedback Dashboard</button>
-                                        <button onClick={() => {
-                                            navigate('/admin');
-                                            setSettingsOpen(false);
-                                        }} role="menuitem">👥 Admin Management</button>
+                                        }} role="menuitem">📊 Feedback</button>
                                     </>
                                 )}
                             </div>

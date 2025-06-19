@@ -908,10 +908,6 @@ def create_app():
     # Register feedback blueprint
     from chat_history.feedback_api import feedback_bp
     app.register_blueprint(feedback_bp)
-    
-    # Register admin blueprint
-    from admin_api import admin_bp
-    app.register_blueprint(admin_bp)
 
     # Add headers for Teams integration
     @app.after_request

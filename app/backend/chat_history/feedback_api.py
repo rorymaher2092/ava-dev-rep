@@ -46,28 +46,7 @@ async def add_test_feedback(auth_claims: Dict[str, Any]):
         current_app.logger.error(f"Error adding test feedback: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@feedback_bp.route('/debug-list', methods=['GET'])
-async def debug_list_feedback():
-    """Debug endpoint to test feedback retrieval without authentication."""
-    try:
-        feedback_db = FeedbackCosmosDB()
-        await feedback_db.initialize()
-        
-        # Simple query to get all feedback
-        query = "SELECT * FROM c"
-        items = await feedback_db.query_feedback(query, [])
-        await feedback_db.close()
-        
-        return jsonify({
-            "message": "Debug feedback list",
-            "items": items,
-            "count": len(items),
-            "cosmos_account": os.getenv("AZURE_COSMOSDB_ACCOUNT"),
-            "database": os.getenv("AZURE_CHAT_HISTORY_DATABASE", "chat-database")
-        })
-    except Exception as e:
-        current_app.logger.error(f"Error in debug list: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+
 
 @feedback_bp.route('/list', methods=['GET'])
 @authenticated
