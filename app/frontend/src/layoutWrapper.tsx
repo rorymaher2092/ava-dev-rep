@@ -25,44 +25,35 @@ const LayoutWrapper = () => {
         });
 
         useEffect(() => {
-            const fetchLoggedIn = async () => {
-                // Check if we have accounts and set logged in state immediately
+            const initializeAuth = async () => {
+                // Always check for existing accounts first
                 const accounts = msalInstance.getAllAccounts();
+                console.log("Accounts found:", accounts.length);
+                
                 if (accounts.length > 0) {
-                    console.log("Found existing accounts, setting logged in to true");
+                    console.log("Setting logged in to true - accounts exist");
                     setLoggedIn(true);
                     return;
                 }
                 
-                // Try to authenticate automatically
+                // If no accounts, try silent authentication
                 try {
-                    await msalInstance.ssoSilent({
+                    const response = await msalInstance.ssoSilent({
                         ...loginRequest,
                         redirectUri: window.location.origin + "/redirect"
                     });
-                    console.log("Silent SSO successful, setting logged in to true");
+                    console.log("Silent SSO successful");
                     setLoggedIn(true);
                 } catch (error) {
-                    console.log("Silent SSO failed, checking login state:", error);
+                    console.log("Silent SSO failed:", error);
+                    // Check if user is actually logged in via other means
                     const isLoggedIn = await checkLoggedIn(msalInstance);
-                    console.log("checkLoggedIn result:", isLoggedIn);
+                    console.log("Final login state:", isLoggedIn);
                     setLoggedIn(isLoggedIn);
                 }
             };
 
-            // Set initial state immediately if accounts exist
-            if (msalInstance.getAllAccounts().length > 0) {
-                setLoggedIn(true);
-            }
-            
-            fetchLoggedIn();
-            
-            // Set up a refresh interval to ensure authentication is current
-            const refreshInterval = setInterval(async () => {
-                await fetchLoggedIn();
-            }, 5 * 60 * 1000); // Refresh every 5 minutes
-            
-            return () => clearInterval(refreshInterval);
+            initializeAuth();
         }, []);
 
         return (

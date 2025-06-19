@@ -1,0 +1,53 @@
+.feedbackTable {
+    background-color: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+}
+
+.feedbackTable :global(.ms-DetailsHeader) {
+    background-color: var(--surface-hover) !important;
+    border-bottom: 1px solid var(--border) !important;
+}
+
+.feedbackTable :global(.ms-DetailsHeader-cell) {
+    color: var(--text) !important;
+    background-color: var(--surface-hover) !important;
+    font-weight: 600 !important;
+}
+
+.feedbackTable :global(.ms-DetailsHeader-cell:hover) {
+    background-color: var(--surface-hover) !important;
+    color: var(--text) !important;
+}
+
+.feedbackTable :global(.ms-DetailsRow) {
+    background-color: var(--surface) !important;
+    border-bottom: 1px solid var(--border-light) !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.feedbackTable :global(.ms-DetailsRow:hover) {
+    background-color: var(--surface-hover) !important;
+    transform: translateY(-1px) !important;
+}
+
+.feedbackTable :global(.ms-DetailsRow-cell) {
+    color: var(--text) !important;
+    background-color: var(--surface) !important;
+    padding: 16px 12px !important;
+}
+
+.feedbackTable :global(.ms-DetailsRow:hover .ms-DetailsRow-cell) {
+    background-color: var(--surface-hover) !important;
+    color: var(--text) !important;
+}
+
+.feedbackTable :global(.ms-DetailsRow-cell *) {
+    color: var(--text) !important;
+}
+
+.feedbackTable :global(.ms-DetailsHeader-cell *) {
+    color: var(--text) !important;
+}

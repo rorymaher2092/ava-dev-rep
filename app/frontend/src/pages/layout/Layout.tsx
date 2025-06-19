@@ -24,8 +24,6 @@ const Layout = () => {
     const menuRef: RefObject<HTMLDivElement> = useRef(null);
     const { instance } = useMsal();
 
-
-
     const toggleTheme = () => {
         const newTheme = theme === "light" ? "dark" : "light";
         document.body.dataset.theme = newTheme;
@@ -34,20 +32,20 @@ const Layout = () => {
     };
 
     useEffect(() => {
-        // Set admin to true for all authenticated users
+        // Always show admin features - simplified approach
         setIsAdmin(true);
-    }, [instance]);
-    
+    }, []);
+
     useEffect(() => {
         // Check for user's preferred color scheme
-        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
         const stored = localStorage.getItem("theme") as "light" | "dark" | null;
         const preferred = stored || (prefersDark ? "dark" : "light");
         document.body.dataset.theme = preferred;
         setTheme(preferred);
-        
+
         // Listen for changes in system preference
-        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
         const handleChange = (e: MediaQueryListEvent) => {
             if (!localStorage.getItem("theme")) {
                 const newTheme = e.matches ? "dark" : "light";
@@ -55,12 +53,10 @@ const Layout = () => {
                 setTheme(newTheme);
             }
         };
-        
-        mediaQuery.addEventListener('change', handleChange);
-        return () => mediaQuery.removeEventListener('change', handleChange);
+
+        mediaQuery.addEventListener("change", handleChange);
+        return () => mediaQuery.removeEventListener("change", handleChange);
     }, []);
-
-
 
     const logoSrc = theme === "light" ? vocusLogoNavy : vocusLogoWhite;
 
@@ -74,117 +70,117 @@ const Layout = () => {
                     <div className={styles.headerCenterContainer}>
                         <img src={theme === "light" ? vocusdark : vocus} className={styles.appLogo} alt="Ava logo" />
                         <h3 className={styles.headerTitle}>
-                            <span className={styles.fullTitle}>Advanced Vocus Assistant (Ava)</span>
+                            <span className={styles.fullTitle}>Advanced Vocus Assistant</span>
                             <span className={styles.shortTitle}>Ava</span>
                         </h3>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <button 
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <button
                             onClick={toggleTheme}
                             style={{
-                                backgroundColor: 'var(--surface)',
-                                border: '1px solid var(--border)',
-                                borderRadius: '8px',
-                                padding: '8px 12px',
-                                color: 'var(--text)',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                fontSize: '14px',
-                                transition: 'all 0.2s ease'
+                                backgroundColor: "var(--surface)",
+                                border: "1px solid var(--border)",
+                                borderRadius: "8px",
+                                padding: "8px 12px",
+                                color: "var(--text)",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                fontSize: "14px",
+                                transition: "all 0.2s ease"
                             }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--surface-hover)';
+                            onMouseEnter={e => {
+                                e.currentTarget.style.backgroundColor = "var(--surface-hover)";
                             }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--surface)';
+                            onMouseLeave={e => {
+                                e.currentTarget.style.backgroundColor = "var(--surface)";
                             }}
                         >
                             <span>{theme === "dark" ? "🌞" : "🌙"}</span>
                             <span>{theme === "dark" ? "Light" : "Dark"}</span>
                         </button>
-                        
-                        <button 
+
+                        <button
                             onClick={() => {
-                                const clearChatEvent = new CustomEvent('clearChat');
+                                const clearChatEvent = new CustomEvent("clearChat");
                                 window.dispatchEvent(clearChatEvent);
                             }}
                             style={{
-                                backgroundColor: 'var(--surface)',
-                                border: '1px solid var(--border)',
-                                borderRadius: '8px',
-                                padding: '8px 12px',
-                                color: 'var(--text)',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                fontSize: '14px',
-                                transition: 'all 0.2s ease'
+                                backgroundColor: "var(--surface)",
+                                border: "1px solid var(--border)",
+                                borderRadius: "8px",
+                                padding: "8px 12px",
+                                color: "var(--text)",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                fontSize: "14px",
+                                transition: "all 0.2s ease"
                             }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--surface-hover)';
+                            onMouseEnter={e => {
+                                e.currentTarget.style.backgroundColor = "var(--surface-hover)";
                             }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--surface)';
+                            onMouseLeave={e => {
+                                e.currentTarget.style.backgroundColor = "var(--surface)";
                             }}
                         >
                             <span>🧹</span>
                             <span>Clear</span>
                         </button>
-                        
-                        <button 
+
+                        <button
                             onClick={() => {
-                                const chatHistoryEvent = new CustomEvent('openChatHistory');
+                                const chatHistoryEvent = new CustomEvent("openChatHistory");
                                 window.dispatchEvent(chatHistoryEvent);
                             }}
                             style={{
-                                backgroundColor: 'var(--surface)',
-                                border: '1px solid var(--border)',
-                                borderRadius: '8px',
-                                padding: '8px 12px',
-                                color: 'var(--text)',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                fontSize: '14px',
-                                transition: 'all 0.2s ease'
+                                backgroundColor: "var(--surface)",
+                                border: "1px solid var(--border)",
+                                borderRadius: "8px",
+                                padding: "8px 12px",
+                                color: "var(--text)",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                fontSize: "14px",
+                                transition: "all 0.2s ease"
                             }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--surface-hover)';
+                            onMouseEnter={e => {
+                                e.currentTarget.style.backgroundColor = "var(--surface-hover)";
                             }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--surface)';
+                            onMouseLeave={e => {
+                                e.currentTarget.style.backgroundColor = "var(--surface)";
                             }}
                         >
                             <span>📜</span>
                             <span>History</span>
                         </button>
-                        
+
                         {isAdmin && (
-                            <button 
-                                onClick={() => navigate('/feedback')}
+                            <button
+                                onClick={() => navigate("/feedback")}
                                 style={{
-                                    backgroundColor: 'var(--surface)',
-                                    border: '1px solid var(--border)',
-                                    borderRadius: '8px',
-                                    padding: '8px 12px',
-                                    color: 'var(--text)',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    fontSize: '14px',
-                                    transition: 'all 0.2s ease'
+                                    backgroundColor: "var(--surface)",
+                                    border: "1px solid var(--border)",
+                                    borderRadius: "8px",
+                                    padding: "8px 12px",
+                                    color: "var(--text)",
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    fontSize: "14px",
+                                    transition: "all 0.2s ease"
                                 }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--surface-hover)';
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.backgroundColor = "var(--surface-hover)";
                                 }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--surface)';
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.backgroundColor = "var(--surface)";
                                 }}
                             >
                                 <span>📊</span>
@@ -200,7 +196,9 @@ const Layout = () => {
             </main>
 
             <footer className={styles.footer}>
-                <p>&copy; {new Date().getFullYear()} Vocus Group. All rights reserved. | v{BUILD_VERSION} ({new Date(BUILD_TIME).toLocaleDateString()})</p>
+                <p>
+                    &copy; {new Date().getFullYear()} Vocus Group. All rights reserved. | v{BUILD_VERSION} ({new Date(BUILD_TIME).toLocaleDateString()})
+                </p>
             </footer>
         </div>
     );

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Stack, Text, DetailsList, DetailsListLayoutMode, IColumn, SelectionMode, Spinner, SpinnerSize, MessageBar, MessageBarType, DefaultButton, Dropdown, IDropdownOption, ProgressIndicator } from '@fluentui/react';
 import { getToken } from '../../authConfig';
 import { useMsal } from '@azure/msal-react';
+import styles from './FeedbackPage.module.css';
 
 interface FeedbackItem {
     id: string;
@@ -265,32 +266,13 @@ const FeedbackPage: React.FC = () => {
                             </div>
                         )}
 
-                        <div style={{ 
-                            backgroundColor: '#1e293b', 
-                            border: '1px solid #334155',
-                            borderRadius: '8px',
-                            overflow: 'hidden'
-                        }}>
+                        <div className={styles.feedbackTable}>
                             <DetailsList
                                 items={feedback}
                                 columns={columns}
                                 layoutMode={DetailsListLayoutMode.justified}
                                 selectionMode={SelectionMode.none}
                                 isHeaderVisible={true}
-                                styles={{
-                                    root: { 
-                                        backgroundColor: '#1e293b',
-                                        color: '#e2e8f0'
-                                    },
-                                    headerWrapper: { 
-                                        backgroundColor: '#334155',
-                                        borderBottom: '1px solid #475569',
-                                        color: '#f1f5f9'
-                                    },
-                                    contentWrapper: { 
-                                        backgroundColor: '#1e293b'
-                                    }
-                                }}
                             />
                         </div>
                         

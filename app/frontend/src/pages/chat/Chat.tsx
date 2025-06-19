@@ -637,13 +637,7 @@ const Chat = () => {
                                 answers.map((answer, index) => (
                                     <div key={index}>
                                         <UserChatMessage message={answer[0]} />
-                                        <div className={styles.chatMessageGpt} style={{
-                                            backgroundColor: 'var(--surface)',
-                                            border: '1px solid var(--border)',
-                                            borderRadius: '12px',
-                                            margin: '8px 0',
-                                            boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-                                        }}>
+                                        <div className={styles.chatMessageGpt}>
                                             <Answer
                                                 isStreaming={false}
                                                 key={index}
