@@ -520,10 +520,80 @@ const Chat = () => {
                 <div className={styles.chatContainer}>
                     {!lastQuestionRef.current ? (
                         <div className={styles.chatEmptyState}>
-                            <img src={appLogo} alt="App logo" width="120" height="120" />
+                            <div style={{
+                                background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
+                                borderRadius: '50%',
+                                padding: '20px',
+                                marginBottom: '24px',
+                                boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
+                            }}>
+                                <img src={appLogo} alt="App logo" width="120" height="120" style={{ filter: 'brightness(0) invert(1)' }} />
+                            </div>
 
-                            <h1 className={styles.chatEmptyStateTitle}>{t("chatEmptyStateTitle", { welcomeMessage: welcomeMessage })}</h1>
-                            <h2 className={styles.chatEmptyStateSubtitle}>{t("chatEmptyStateSubtitle")}</h2>
+                            <h1 className={styles.chatEmptyStateTitle} style={{ 
+                                background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                backgroundClip: 'text',
+                                marginBottom: '12px'
+                            }}>
+                                {welcomeMessage}
+                            </h1>
+                            <h2 className={styles.chatEmptyStateSubtitle} style={{ 
+                                color: 'var(--text-secondary)',
+                                marginBottom: '32px',
+                                fontSize: '18px',
+                                fontWeight: '400'
+                            }}>
+                                {t("chatEmptyStateSubtitle")}
+                            </h2>
+                            
+                            {/* Quick stats or tips */}
+                            <div style={{
+                                display: 'flex',
+                                gap: '24px',
+                                marginBottom: '32px',
+                                flexWrap: 'wrap',
+                                justifyContent: 'center'
+                            }}>
+                                <div style={{
+                                    backgroundColor: 'var(--surface)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '12px',
+                                    padding: '16px 20px',
+                                    textAlign: 'center',
+                                    minWidth: '140px'
+                                }}>
+                                    <div style={{ fontSize: '24px', marginBottom: '8px' }}>💬</div>
+                                    <div style={{ color: 'var(--text)', fontWeight: '600', fontSize: '14px' }}>Ask Anything</div>
+                                    <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Get instant answers</div>
+                                </div>
+                                <div style={{
+                                    backgroundColor: 'var(--surface)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '12px',
+                                    padding: '16px 20px',
+                                    textAlign: 'center',
+                                    minWidth: '140px'
+                                }}>
+                                    <div style={{ fontSize: '24px', marginBottom: '8px' }}>🔍</div>
+                                    <div style={{ color: 'var(--text)', fontWeight: '600', fontSize: '14px' }}>Smart Search</div>
+                                    <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Find information fast</div>
+                                </div>
+                                <div style={{
+                                    backgroundColor: 'var(--surface)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '12px',
+                                    padding: '16px 20px',
+                                    textAlign: 'center',
+                                    minWidth: '140px'
+                                }}>
+                                    <div style={{ fontSize: '24px', marginBottom: '8px' }}>⚡</div>
+                                    <div style={{ color: 'var(--text)', fontWeight: '600', fontSize: '14px' }}>Fast Response</div>
+                                    <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Powered by AI</div>
+                                </div>
+                            </div>
+
                             {showLanguagePicker && <LanguagePicker onLanguageChange={newLang => i18n.changeLanguage(newLang)} />}
 
                             {/* Only show examples on non-mobile */}
