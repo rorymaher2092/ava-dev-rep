@@ -495,17 +495,25 @@ async def submit_feedback(auth_claims: dict[str, Any]):
     # Log the feedback
     current_app.logger.info("Feedback received: %s", json.dumps(feedback_data))
     
-    # Store feedback in Cosmos DB if enabled
-    if os.getenv("USE_CHAT_HISTORY_COSMOS", "").lower() == "true" and os.getenv("USE_FEEDBACK_STORAGE", "").lower() == "true":
+    # Store feedback in Cosmos DB if Cosmos is enabled
+    cosmos_enabled = os.getenv("USE_CHAT_HISTORY_COSMOS", "").lower() == "true"
+    current_app.logger.info(f"Cosmos enabled: {cosmos_enabled}")
+    
+    if cosmos_enabled:
         try:
+            current_app.logger.info("Attempting to store feedback in Cosmos DB")
             from chat_history.feedback import FeedbackCosmosDB
             feedback_db = FeedbackCosmosDB()
             await feedback_db.initialize()
-            await feedback_db.add_feedback(feedback_data)
+            feedback_id = await feedback_db.add_feedback(feedback_data)
             await feedback_db.close()
-            current_app.logger.info("Feedback stored in Cosmos DB")
+            current_app.logger.info(f"Feedback stored in Cosmos DB with ID: {feedback_id}")
+            return jsonify({"message": "Feedback submitted and stored successfully", "id": feedback_id}), 200
         except Exception as e:
             current_app.logger.error(f"Error storing feedback in Cosmos DB: {str(e)}")
+            return jsonify({"message": "Feedback logged but not stored", "error": str(e)}), 200
+    else:
+        current_app.logger.info("Cosmos DB not enabled, feedback only logged")
     
     return jsonify({"message": "Feedback submitted successfully"}), 200
 
@@ -897,10 +905,13 @@ def create_app():
     app.register_blueprint(bp)
     app.register_blueprint(chat_history_cosmosdb_bp)
     
-    # Register feedback blueprint if feedback storage is enabled
-    if os.getenv("USE_FEEDBACK_STORAGE", "").lower() == "true":
-        from chat_history.feedback_api import feedback_bp
-        app.register_blueprint(feedback_bp)
+    # Register feedback blueprint
+    from chat_history.feedback_api import feedback_bp
+    app.register_blueprint(feedback_bp)
+    
+    # Register admin blueprint
+    from admin_api import admin_bp
+    app.register_blueprint(admin_bp)
 
     # Add headers for Teams integration
     @app.after_request

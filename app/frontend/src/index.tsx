@@ -35,6 +35,14 @@ const router = createHashRouter([
                 element: <AdminRoute><React.Suspense fallback={<div>Loading...</div>}>{React.createElement(React.lazy(() => import("./pages/feedback")))}</React.Suspense></AdminRoute>
             },
             {
+                path: "admin",
+                element: <AdminRoute><React.Suspense fallback={<div>Loading...</div>}>{React.createElement(React.lazy(() => import("./pages/admin")))}</React.Suspense></AdminRoute>
+            },
+            {
+                path: "admin-check",
+                element: <React.Suspense fallback={<div>Loading...</div>}>{React.createElement(React.lazy(() => import("./pages/admin-check")))}</React.Suspense>
+            },
+            {
                 path: "*",
                 lazy: () => import("./pages/NoPage")
             }
