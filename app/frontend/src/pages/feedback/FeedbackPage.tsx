@@ -159,10 +159,6 @@ const FeedbackPage: React.FC = () => {
                                     color: 'var(--text)', 
                                     border: '1px solid var(--border)' 
                                 },
-                                titleHovered: { 
-                                    backgroundColor: 'var(--surface-hover)', 
-                                    color: 'var(--text)' 
-                                },
                                 callout: { 
                                     backgroundColor: 'var(--surface)', 
                                     border: '1px solid var(--border)' 

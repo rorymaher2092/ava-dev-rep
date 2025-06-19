@@ -626,7 +626,13 @@ const Chat = () => {
                                 answers.map((answer, index) => (
                                     <div key={index}>
                                         <UserChatMessage message={answer[0]} />
-                                        <div className={styles.chatMessageGpt}>
+                                        <div className={styles.chatMessageGpt} style={{
+                                            backgroundColor: 'var(--surface)',
+                                            border: '1px solid var(--border)',
+                                            borderRadius: '12px',
+                                            margin: '8px 0',
+                                            boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                                        }}>
                                             <Answer
                                                 isStreaming={false}
                                                 key={index}
@@ -665,20 +671,32 @@ const Chat = () => {
 
                     <div className={styles.chatInput} style={{ 
                         right: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
-                        width: isHistoryPanelOpen && !isMobile ? "calc(100% - 300px)" : "100%"
+                        width: isHistoryPanelOpen && !isMobile ? "calc(100% - 300px)" : "100%",
+                        backgroundColor: 'var(--background)',
+                        borderTop: '1px solid var(--border)',
+                        padding: '16px 20px'
                     }}>
-                        <QuestionInput
-                            clearOnSend
-                            placeholder={t("defaultExamples.placeholder")}
-                            disabled={isLoading}
-                            onSend={question => makeApiRequest(question)}
-                            showSpeechInput={showSpeechInput}
-                            followupQuestions={currentFollowupQuestions}
-                            onFollowupQuestionClicked={question => {
-                                setCurrentFollowupQuestions([]);
-                                makeApiRequest(question);
-                            }}
-                        />
+                        <div style={{
+                            backgroundColor: 'var(--surface)',
+                            border: '2px solid var(--border)',
+                            borderRadius: '24px',
+                            padding: '4px',
+                            boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+                            transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
+                        }}>
+                            <QuestionInput
+                                clearOnSend
+                                placeholder={t("defaultExamples.placeholder")}
+                                disabled={isLoading}
+                                onSend={question => makeApiRequest(question)}
+                                showSpeechInput={showSpeechInput}
+                                followupQuestions={currentFollowupQuestions}
+                                onFollowupQuestionClicked={question => {
+                                    setCurrentFollowupQuestions([]);
+                                    makeApiRequest(question);
+                                }}
+                            />
+                        </div>
                     </div>
                 </div>
 
