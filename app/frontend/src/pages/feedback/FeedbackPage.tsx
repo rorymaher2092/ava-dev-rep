@@ -80,42 +80,65 @@ const FeedbackPage: React.FC = () => {
     };
 
     return (
-        <Stack tokens={{ childrenGap: 20 }} style={{ padding: 20 }}>
-            <Stack horizontal horizontalAlign="space-between">
-                <Text variant="xxLarge">Feedback Dashboard</Text>
-                <Stack horizontal tokens={{ childrenGap: 10 }}>
-                    <Dropdown
-                        label="Filter by"
-                        selectedKey={filterType || 'all'}
-                        onChange={handleFilterChange}
-                        options={filterOptions}
-                        styles={{ dropdown: { width: 200 } }}
-                    />
-                    <DefaultButton text="Refresh" onClick={fetchFeedback} />
+        <div style={{ 
+            padding: 20, 
+            backgroundColor: 'var(--background)', 
+            color: 'var(--text)', 
+            minHeight: '100vh' 
+        }}>
+            <Stack tokens={{ childrenGap: 20 }}>
+                <Stack horizontal horizontalAlign="space-between">
+                    <Text variant="xxLarge" style={{ color: 'var(--text)' }}>Feedback Dashboard</Text>
+                    <Stack horizontal tokens={{ childrenGap: 10 }}>
+                        <Dropdown
+                            label="Filter by"
+                            selectedKey={filterType || 'all'}
+                            onChange={handleFilterChange}
+                            options={filterOptions}
+                            styles={{ 
+                                dropdown: { width: 200 },
+                                label: { color: 'var(--text)' },
+                                title: { backgroundColor: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }
+                            }}
+                        />
+                        <DefaultButton 
+                            text="Refresh" 
+                            onClick={fetchFeedback}
+                            styles={{
+                                root: { backgroundColor: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' },
+                                rootHovered: { backgroundColor: 'var(--surface-hover)' }
+                            }}
+                        />
+                    </Stack>
                 </Stack>
+                
+                {error && (
+                    <MessageBar messageBarType={MessageBarType.error}>
+                        {error}
+                    </MessageBar>
+                )}
+                
+                {loading ? (
+                    <Spinner size={SpinnerSize.large} label="Loading feedback..." />
+                ) : (
+                    <>
+                        <Text style={{ color: 'var(--text)' }}>{feedback.length} feedback items found</Text>
+                        <DetailsList
+                            items={feedback}
+                            columns={columns}
+                            layoutMode={DetailsListLayoutMode.justified}
+                            selectionMode={SelectionMode.none}
+                            isHeaderVisible={true}
+                            styles={{
+                                root: { backgroundColor: 'var(--surface)', color: 'var(--text)' },
+                                headerWrapper: { backgroundColor: 'var(--surface)', color: 'var(--text)' },
+                                contentWrapper: { backgroundColor: 'var(--surface)' }
+                            }}
+                        />
+                    </>
+                )}
             </Stack>
-            
-            {error && (
-                <MessageBar messageBarType={MessageBarType.error}>
-                    {error}
-                </MessageBar>
-            )}
-            
-            {loading ? (
-                <Spinner size={SpinnerSize.large} label="Loading feedback..." />
-            ) : (
-                <>
-                    <Text>{feedback.length} feedback items found</Text>
-                    <DetailsList
-                        items={feedback}
-                        columns={columns}
-                        layoutMode={DetailsListLayoutMode.justified}
-                        selectionMode={SelectionMode.none}
-                        isHeaderVisible={true}
-                    />
-                </>
-            )}
-        </Stack>
+        </div>
     );
 };
 

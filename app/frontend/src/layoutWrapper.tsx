@@ -26,24 +26,35 @@ const LayoutWrapper = () => {
 
         useEffect(() => {
             const fetchLoggedIn = async () => {
-                // Check if we have accounts and set logged in state
-                if (msalInstance.getAllAccounts().length > 0) {
+                // Check if we have accounts and set logged in state immediately
+                const accounts = msalInstance.getAllAccounts();
+                if (accounts.length > 0) {
+                    console.log("Found existing accounts, setting logged in to true");
                     setLoggedIn(true);
-                } else {
-                    // Try to authenticate automatically
-                    try {
-                        await msalInstance.ssoSilent({
-                            ...loginRequest,
-                            redirectUri: window.location.origin + "/redirect"
-                        });
-                        setLoggedIn(true);
-                    } catch (error) {
-                        console.log("Silent SSO failed, checking login state:", error);
-                        setLoggedIn(await checkLoggedIn(msalInstance));
-                    }
+                    return;
+                }
+                
+                // Try to authenticate automatically
+                try {
+                    await msalInstance.ssoSilent({
+                        ...loginRequest,
+                        redirectUri: window.location.origin + "/redirect"
+                    });
+                    console.log("Silent SSO successful, setting logged in to true");
+                    setLoggedIn(true);
+                } catch (error) {
+                    console.log("Silent SSO failed, checking login state:", error);
+                    const isLoggedIn = await checkLoggedIn(msalInstance);
+                    console.log("checkLoggedIn result:", isLoggedIn);
+                    setLoggedIn(isLoggedIn);
                 }
             };
 
+            // Set initial state immediately if accounts exist
+            if (msalInstance.getAllAccounts().length > 0) {
+                setLoggedIn(true);
+            }
+            
             fetchLoggedIn();
             
             // Set up a refresh interval to ensure authentication is current
