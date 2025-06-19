@@ -256,7 +256,7 @@ export const Answer = ({
                         }}
                         title={t("tooltips.showSupportingContent")}
                     >
-                        📋
+                        📄
                     </button>
                     
                     {showSpeechOutputAzure && (

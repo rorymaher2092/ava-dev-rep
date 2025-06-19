@@ -682,26 +682,18 @@ const Chat = () => {
                         borderTop: '1px solid var(--border)',
                         padding: '16px 20px'
                     }}>
-                        <div style={{
-                            backgroundColor: 'var(--surface)',
-                            borderRadius: '24px',
-                            padding: '4px',
-                            boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-                            transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
-                        }}>
-                            <QuestionInput
-                                clearOnSend
-                                placeholder={t("defaultExamples.placeholder")}
-                                disabled={isLoading}
-                                onSend={question => makeApiRequest(question)}
-                                showSpeechInput={showSpeechInput}
-                                followupQuestions={currentFollowupQuestions}
-                                onFollowupQuestionClicked={question => {
-                                    setCurrentFollowupQuestions([]);
-                                    makeApiRequest(question);
-                                }}
-                            />
-                        </div>
+                        <QuestionInput
+                            clearOnSend
+                            placeholder={t("defaultExamples.placeholder")}
+                            disabled={isLoading}
+                            onSend={question => makeApiRequest(question)}
+                            showSpeechInput={showSpeechInput}
+                            followupQuestions={currentFollowupQuestions}
+                            onFollowupQuestionClicked={question => {
+                                setCurrentFollowupQuestions([]);
+                                makeApiRequest(question);
+                            }}
+                        />
                     </div>
                 </div>
 
@@ -721,8 +713,12 @@ const Chat = () => {
                         position: "fixed", 
                         top: "64px", 
                         left: "0", 
-                        width: "300px", 
+                        width: "320px", 
                         height: "calc(100vh - 128px)",
+                        background: "var(--surface-elevated)",
+                        backdropFilter: "blur(20px)",
+                        borderRight: "1px solid var(--border-light)",
+                        boxShadow: "var(--shadow-lg)",
                         zIndex: 900,
                         display: isHistoryPanelOpen ? "block" : "none"
                     }}>

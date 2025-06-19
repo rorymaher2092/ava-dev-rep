@@ -64,7 +64,14 @@ const Layout = () => {
         <div className={styles.layout}>
             <header className={styles.header} role="banner">
                 <div className={styles.headerContainer} ref={menuRef}>
-                    <Link to="/" className={styles.logoLink}>
+                    <Link 
+                        to="/?clear=true" 
+                        className={styles.logoLink}
+                        onClick={() => {
+                            const clearChatEvent = new CustomEvent('clearChat');
+                            window.dispatchEvent(clearChatEvent);
+                        }}
+                    >
                         <img src={logoSrc} className={styles.headerLogo} alt="Vocus logo" />
                     </Link>
                     <div className={styles.headerCenterContainer}>
@@ -199,6 +206,21 @@ const Layout = () => {
                 <p>
                     &copy; {new Date().getFullYear()} Vocus Group. All rights reserved. | v{BUILD_VERSION} ({new Date(BUILD_TIME).toLocaleDateString()})
                 </p>
+                <div className={styles.userDebugInfo}>
+                    <button 
+                        className={styles.debugButton}
+                        title="User Debug Info"
+                    >
+                        👤
+                    </button>
+                    <div className={styles.debugTooltip}>
+                        <div><strong>Name:</strong> {instance.getAllAccounts()[0]?.name || 'N/A'}</div>
+                        <div><strong>Username:</strong> {instance.getAllAccounts()[0]?.username || 'N/A'}</div>
+                        <div><strong>Email:</strong> {instance.getAllAccounts()[0]?.idTokenClaims?.preferred_username || 'N/A'}</div>
+                        <div><strong>ID:</strong> {instance.getAllAccounts()[0]?.localAccountId || 'N/A'}</div>
+                        <div><strong>Tenant:</strong> {instance.getAllAccounts()[0]?.tenantId || 'N/A'}</div>
+                    </div>
+                </div>
             </footer>
         </div>
     );

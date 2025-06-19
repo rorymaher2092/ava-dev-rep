@@ -19,13 +19,19 @@
     width: 100%;
     line-height: 1.6;
     max-height: 10rem;
-    overflow-y: auto;
+    overflow-y: hidden;
     background: transparent;
     border: none;
     outline: none;
     color: var(--text);
     font-size: 1rem;
     resize: none;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.questionInputTextArea::-webkit-scrollbar {
+    display: none;
 }
 
 .questionInputTextArea::placeholder {
