@@ -522,7 +522,8 @@ const Chat = () => {
                         <div className={styles.chatEmptyState}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginBottom: '24px' }}>
                                 <div style={{
-                                    background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
+                                    background: 'var(--surface-elevated)',
+                                    border: '3px solid var(--border)',
                                     borderRadius: '50%',
                                     padding: '20px',
                                     boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
@@ -683,7 +684,6 @@ const Chat = () => {
                     }}>
                         <div style={{
                             backgroundColor: 'var(--surface)',
-                            border: '2px solid var(--border)',
                             borderRadius: '24px',
                             padding: '4px',
                             boxShadow: '0 4px 16px rgba(0,0,0,0.1)',

@@ -5,7 +5,7 @@
     padding: 1rem;
     background: var(--surface-elevated);
     backdrop-filter: blur(20px);
-    border: 2px solid var(--border-light);
+    border: 1px solid var(--border);
     overflow: visible;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }

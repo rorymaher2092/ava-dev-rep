@@ -145,22 +145,21 @@ export const Answer = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                marginBottom: '16px',
-                paddingBottom: '12px',
-                borderBottom: '1px solid var(--border)'
+                marginBottom: '16px'
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{
                         width: '40px',
                         height: '40px',
                         borderRadius: '50%',
-                        background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))',
+                        background: 'var(--surface-hover)',
+                        border: '2px solid var(--border)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        padding: '8px'
+                        padding: '6px'
                     }}>
-                        <img src={avaLogo} alt="Ava" style={{ width: '24px', height: '24px' }} />
+                        <img src={avaLogo} alt="Ava" style={{ width: '28px', height: '28px' }} />
                     </div>
                     <div>
                         <div style={{ 
@@ -280,8 +279,6 @@ export const Answer = ({
             {!isStreaming && (
                 <div style={{
                     marginTop: '20px',
-                    paddingTop: '16px',
-                    borderTop: '1px solid var(--border)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between'
@@ -361,9 +358,7 @@ export const Answer = ({
             {/* Citations */}
             {!!parsedAnswer.citations.length && (
                 <div style={{
-                    marginTop: '16px',
-                    paddingTop: '12px',
-                    borderTop: '1px solid var(--border)'
+                    marginTop: '16px'
                 }}>
                     <div style={{ 
                         color: 'var(--text-secondary)', 
