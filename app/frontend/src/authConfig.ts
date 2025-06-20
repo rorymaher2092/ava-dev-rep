@@ -247,15 +247,10 @@ export const getToken = async (client: IPublicClientApplication): Promise<string
     // If running in Teams, use Teams SSO
     if (isRunningInTeams) {
         try {
-            // First check if we have a cached token from the login process
-            const cachedToken = sessionStorage.getItem('teamsAuthToken');
-            if (cachedToken) {
-                return cachedToken;
-            }
-            
-            // Otherwise get a fresh token
+            // Always get a fresh token to ensure authentication is current
             const token = await microsoftTeams.authentication.getAuthToken();
             console.log("Got Teams token");
+            sessionStorage.setItem('teamsAuthToken', token);
             return token;
         } catch (error) {
             console.error("Error getting Teams token:", error);
@@ -263,15 +258,19 @@ export const getToken = async (client: IPublicClientApplication): Promise<string
         }
     }
 
+    // Always refresh the app services token
+    await fetch(appServicesAuthTokenRefreshUrl);
     const appServicesToken = await getAppServicesToken();
     if (appServicesToken) {
         return Promise.resolve(appServicesToken.access_token);
     }
 
+    // Force token refresh for MSAL authentication
     return client
         .acquireTokenSilent({
             ...tokenRequest,
-            redirectUri: getRedirectUri()
+            redirectUri: getRedirectUri(),
+            forceRefresh: true // Force token refresh every time
         })
         .then(r => r.accessToken)
         .catch(error => {

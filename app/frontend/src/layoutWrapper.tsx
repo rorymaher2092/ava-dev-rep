@@ -1,5 +1,5 @@
 import { AccountInfo, EventType, PublicClientApplication } from "@azure/msal-browser";
-import { checkLoggedIn, msalConfig, useLogin } from "./authConfig";
+import { checkLoggedIn, msalConfig, useLogin, loginRequest } from "./authConfig";
 import { useEffect, useState } from "react";
 import { MsalProvider } from "@azure/msal-react";
 import { LoginContext } from "./loginContext";
@@ -25,16 +25,35 @@ const LayoutWrapper = () => {
         });
 
         useEffect(() => {
-            const fetchLoggedIn = async () => {
-                // Check if we have accounts and set logged in state
-                if (msalInstance.getAllAccounts().length > 0) {
+            const initializeAuth = async () => {
+                // Always check for existing accounts first
+                const accounts = msalInstance.getAllAccounts();
+                console.log("Accounts found:", accounts.length);
+                
+                if (accounts.length > 0) {
+                    console.log("Setting logged in to true - accounts exist");
                     setLoggedIn(true);
-                } else {
-                    setLoggedIn(await checkLoggedIn(msalInstance));
+                    return;
+                }
+                
+                // If no accounts, try silent authentication
+                try {
+                    const response = await msalInstance.ssoSilent({
+                        ...loginRequest,
+                        redirectUri: window.location.origin + "/redirect"
+                    });
+                    console.log("Silent SSO successful");
+                    setLoggedIn(true);
+                } catch (error) {
+                    console.log("Silent SSO failed:", error);
+                    // Check if user is actually logged in via other means
+                    const isLoggedIn = await checkLoggedIn(msalInstance);
+                    console.log("Final login state:", isLoggedIn);
+                    setLoggedIn(isLoggedIn);
                 }
             };
 
-            fetchLoggedIn();
+            initializeAuth();
         }, []);
 
         return (

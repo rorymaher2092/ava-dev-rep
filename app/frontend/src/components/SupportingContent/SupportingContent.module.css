@@ -8,16 +8,20 @@
 
 .supportingContentItem {
     word-break: break-word;
-    background: var(--surface, rgb(249, 249, 249));
-    color: var(--text, #000000);
-    border-radius: 0.5em;
-    box-shadow:
-        rgb(0 0 0 / 5%) 0px 0px 0px 0.0625em,
-        rgb(0 0 0 / 10%) 0px 0.125em 0.1875em 0px;
-    outline: transparent solid 0.0625em;
+    background: var(--surface-elevated);
+    color: var(--text);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-light);
     display: flex;
     flex-direction: column;
-    padding: 1.25em;
+    padding: 1.25rem;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.supportingContentItem:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
 }
 
 .supportingContentItemHeader {

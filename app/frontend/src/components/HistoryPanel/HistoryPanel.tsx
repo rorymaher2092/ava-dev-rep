@@ -71,16 +71,55 @@ export const HistoryPanel = ({
     return (
         <Panel
             type={PanelType.customNear}
-            style={{ padding: "0px" }}
+            style={{ 
+                padding: "0px",
+                background: "var(--surface-elevated)",
+                color: "var(--text)"
+            }}
             headerText={t("history.chatHistory")}
-            customWidth="300px"
+            customWidth="320px"
             isBlocking={false}
+            isLightDismiss={true}
             isOpen={isOpen}
             onDismiss={() => onClose()}
             onDismissed={() => {
                 setHistory([]);
                 setHasMoreHistory(true);
                 historyManager.resetContinuationToken();
+            }}
+            styles={{
+                root: {
+                    background: "transparent !important"
+                },
+                overlay: {
+                    background: "transparent !important"
+                },
+                main: {
+                    background: "var(--surface-elevated) !important",
+                    boxShadow: "var(--shadow-lg) !important"
+                },
+                header: {
+                    background: "var(--surface-elevated) !important",
+                    color: "var(--text) !important",
+                    borderBottom: "1px solid var(--border) !important"
+                },
+                content: {
+                    background: "var(--surface-elevated) !important",
+                    color: "var(--text) !important",
+                    padding: "0 !important"
+                },
+                headerText: {
+                    color: "var(--text) !important"
+                },
+                navigation: {
+                    background: "var(--surface-elevated) !important"
+                },
+                commands: {
+                    background: "var(--surface-elevated) !important"
+                },
+                closeButton: {
+                    color: "var(--text) !important"
+                }
             }}
         >
             <div>

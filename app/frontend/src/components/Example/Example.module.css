@@ -1,38 +1,42 @@
 .examplesNavList {
     list-style: none;
-    padding-left: 1rem;
-    padding-right: 1rem;
+    padding: 0;
     display: flex;
     flex-wrap: wrap;
-    gap: 0.625rem;
+    gap: 1rem;
     flex: 1;
     justify-content: center;
-    color: white;
 }
 
 .example {
     word-break: break-word;
-    background: #007fff;
-    border-radius: 0.5rem;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
     display: flex;
     flex-direction: column;
-    margin-bottom: 0.3125rem;
     cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-sm);
+    backdrop-filter: blur(10px);
 }
 
 .example:hover {
-    box-shadow:
-        0rem 0.5rem 1rem rgba(0, 0, 0, 0.14),
-        0rem 0rem 0.125rem rgba(0, 0, 0, 0.12);
-    outline: 0.125rem solid rgba(115, 118, 225, 1);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--primary);
+    background: var(--surface-hover);
 }
 
 .exampleText {
     margin: 0;
-    font-size: 1.25rem;
-    width: 25rem;
-    padding: 0.5rem;
-    min-height: 4.5rem;
+    font-size: 1rem;
+    width: 20rem;
+    padding: 1.5rem;
+    min-height: 4rem;
+    color: var(--text);
+    font-weight: 500;
+    line-height: 1.5;
 }
 
 .examplesNavList li {
@@ -41,29 +45,23 @@
 
 .examplesNavList li:nth-of-type(1),
 .examplesNavList li:nth-of-type(2) {
-    display: block; /* Default to showing two list items */
+    display: block;
 }
 
 @media only screen and (min-width: 992px) {
     .examplesNavList {
-        flex-direction: row; /* Switch to row layout for wider screens */
-        padding-left: 0;
-        padding-right: 0;
-    }
-
-    .example {
-        margin-bottom: 0.3125rem;
-        padding: 1.25rem;
+        flex-direction: row;
+        gap: 1.5rem;
     }
 
     .examplesNavList li:nth-of-type(2),
     .examplesNavList li:nth-of-type(3) {
-        display: block; /* Show an additional list item for medium heights */
+        display: block;
     }
+    
     .exampleText {
-        font-size: 1.2rem;
-        width: 17.5rem;
-        padding: 0;
-        min-height: 6.25rem;
+        font-size: 1.1rem;
+        width: 18rem;
+        min-height: 5rem;
     }
 }

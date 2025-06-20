@@ -1,40 +1,4 @@
-/* Vocus Core Colours */
-:root {
-    --color-navy: #0f1c47; /* Vocus Navy */
-    --color-reflex: #0000ff; /* Vocus Reflex Blue */
-    --color-mid: #007fff; /* Vocus Mid Blue */
-    --color-aqua: #00ffff; /* Vocus Aqua */
-
-    /* Light-mode tokens */
-    --background: #ffffff;
-    --text: var(--color-navy);
-    --surface: #f2f2f2;
-    --example-bg-light: #e0f4ff; /* soft aqua tint */
-    --accent: var(--color-mid);
-    --inputBox-bg: white;
-    --logo-filter: none; /* Default logo filter */
-
-    /* Dark-mode example text */
-    --example-text-dark: var(--color-aqua);
-}
-
-[data-theme="dark"] {
-    /* Dark-mode tokens */
-    --background: var(--color-navy);
-    --text: #ffffff;
-    --surface: #15264f; /* slightly lighter than pure navy */
-    --accent: var(--color-reflex);
-    --inputBox-bg: #0f1c47;
-    --logo-filter: brightness(0) invert(1); /* Make dark logos visible in dark mode */
-}
-
-body {
-    background-color: var(--background);
-    color: var(--text);
-    transition:
-        background-color 0.3s,
-        color 0.3s;
-}
+/* Chat-specific styles - using global theme variables */
 
 .container {
     flex: 1;
@@ -94,20 +58,20 @@ body {
 .exampleCard {
     flex: 1;
     min-width: 12rem;
-    padding: 1rem;
-    border-radius: 0.5rem;
-    background: var(--surface);
+    padding: 1.5rem;
+    border-radius: var(--radius-lg);
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-light);
     cursor: pointer;
     text-align: center;
-    transition: background-color 0.2s;
-}
-
-[data-theme="light"] .exampleCard {
-    background: var(--example-bg-light);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-sm);
 }
 
 .exampleCard:hover {
-    filter: brightness(0.95);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--primary);
 }
 
 .exampleText {
@@ -129,7 +93,7 @@ body {
     padding: 0 1rem;
     display: flex;
     flex-direction: column;
-    margin-bottom: 180px;
+    margin-bottom: 250px;
     transition: width 0.3s ease;
 }
 
@@ -138,7 +102,7 @@ body {
 .chatMessageGptMinWidth {
     margin-bottom: 1.25rem;
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     width: 100%;
 }
 
@@ -162,8 +126,8 @@ body {
 /* Dark mode specific overrides for analysis panel */
 [data-theme="dark"] .chatAnalysisPanel pre,
 [data-theme="dark"] .chatAnalysisPanel code {
-    background-color: #1e2d4a !important;
-    color: #e0e0e0 !important;
+    background-color: var(--surface) !important;
+    color: var(--text) !important;
 }
 
 /* Override hover styles for icons */
@@ -177,17 +141,20 @@ body {
 /* Chat input */
 .chatInput {
     position: fixed;
-    bottom: 0px;
+    bottom: 50px;
     width: 100%;
     max-width: 800px;
     margin: 0 auto;
     left: 0;
     right: 0;
-    background: var(--inputBox-bg);
-    padding: 1rem;
+    background: var(--surface-elevated);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border-light);
+    padding: 1.5rem;
+    padding-bottom: 2rem;
     z-index: 999;
-    bottom: 50px;
-    transition: right 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-lg);
 }
 
 /* Analysis panel styling */

@@ -156,11 +156,12 @@ export const LoginButton = () => {
             appServicesLogout();
         }
     };
+    // Return a display of the username without logout functionality
     return (
         <DefaultButton
             text={loggedIn ? `${username || t("loading")}` : `${t("login")}`}
             className={styles.loginButton}
-            onClick={loggedIn ? handleLogoutPopup : handleLoginPopup}
+            onClick={loggedIn ? undefined : handleLoginPopup} // Only allow login, not logout
         ></DefaultButton>
     );
 };

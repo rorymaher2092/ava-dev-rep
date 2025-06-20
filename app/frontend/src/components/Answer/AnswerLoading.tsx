@@ -1,9 +1,9 @@
 import { Stack } from "@fluentui/react";
 import { animated, useSpring } from "@react-spring/web";
 import { useTranslation } from "react-i18next";
+import { Sparkle28Filled } from "@fluentui/react-icons";
 
 import styles from "./Answer.module.css";
-import avaLogo from "../../assets/ava.svg"; // Ava logo import
 
 export const AnswerLoading = () => {
     const { t, i18n } = useTranslation();
@@ -15,7 +15,9 @@ export const AnswerLoading = () => {
     return (
         <animated.div style={{ ...animatedStyles }}>
             <Stack className={styles.answerContainer} verticalAlign="space-between">
-                <img src={avaLogo} alt="Ava Logo" style={{ width: "30px", height: "30px", marginRight: "10px" }} />
+                <div className={styles.answerLogo}>
+                    <Sparkle28Filled primaryFill={"rgba(115, 118, 225, 1)"} aria-hidden="true" aria-label="Answer logo" />
+                </div>
                 <Stack.Item grow>
                     <p className={styles.answerText}>
                         {t("generatingAnswer")}

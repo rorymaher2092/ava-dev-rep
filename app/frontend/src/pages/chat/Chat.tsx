@@ -515,19 +515,132 @@ const Chat = () => {
                 </div>
             </div>
             <div className={styles.chatRoot} style={{ 
-                marginRight: activeAnalysisPanelTab && !isMobile ? "40%" : "0"
+                marginRight: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
+                marginLeft: isHistoryPanelOpen && !isMobile ? "320px" : "0"
             }}>
                 <div className={styles.chatContainer}>
                     {!lastQuestionRef.current ? (
                         <div className={styles.chatEmptyState}>
-                            <img src={appLogo} alt="App logo" width="120" height="120" />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginBottom: '24px' }}>
+                                <div style={{
+                                    background: 'var(--surface-elevated)',
+                                    border: '3px solid var(--border)',
+                                    borderRadius: '50%',
+                                    padding: '20px',
+                                    boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
+                                }}>
+                                    <img src={appLogo} alt="App logo" width="80" height="80" />
+                                </div>
+                                <h1 style={{ 
+                                    fontSize: '2.5rem',
+                                    fontWeight: '700',
+                                    color: 'var(--text)',
+                                    margin: 0
+                                }}>
+                                    Hello {userName}!
+                                </h1>
+                            </div>
 
-                            <h1 className={styles.chatEmptyStateTitle}>{t("chatEmptyStateTitle", { welcomeMessage: welcomeMessage })}</h1>
-                            <h2 className={styles.chatEmptyStateSubtitle}>{t("chatEmptyStateSubtitle")}</h2>
-                            {showLanguagePicker && <LanguagePicker onLanguageChange={newLang => i18n.changeLanguage(newLang)} />}
+                            <h2 style={{ 
+                                color: 'var(--text)',
+                                marginBottom: '16px',
+                                fontSize: '20px',
+                                fontWeight: '500',
+                                textAlign: 'center'
+                            }}>
+                                {welcomeMessage !== `Hello ${userName}!` ? welcomeMessage : ''}
+                            </h2>
+                            
+
+                            
+                            {/* Quick stats or tips */}
+                            <div style={{
+                                display: 'flex',
+                                gap: '24px',
+                                marginBottom: '32px',
+                                flexWrap: 'wrap',
+                                justifyContent: 'center'
+                            }}>
+                                <div style={{
+                                    backgroundColor: 'var(--surface-elevated)',
+                                    borderRadius: '16px',
+                                    padding: '20px',
+                                    textAlign: 'center',
+                                    width: '180px',
+                                    height: '140px',
+                                    boxShadow: 'var(--shadow-sm)',
+                                    position: 'relative',
+                                    overflow: 'hidden',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'center'
+                                }}>
+                                    <div style={{ 
+                                        fontSize: '32px', 
+                                        marginBottom: '12px',
+                                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
+                                    }}>💬</div>
+                                    <div style={{ color: 'var(--text)', fontWeight: '700', fontSize: '16px', marginBottom: '4px' }}>Ask Anything</div>
+                                    <div style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.4' }}>Get instant answers to your questions</div>
+                                </div>
+                                <div style={{
+                                    backgroundColor: 'var(--surface-elevated)',
+                                    borderRadius: '16px',
+                                    padding: '20px',
+                                    textAlign: 'center',
+                                    width: '180px',
+                                    height: '140px',
+                                    boxShadow: 'var(--shadow-sm)',
+                                    position: 'relative',
+                                    overflow: 'hidden',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'center'
+                                }}>
+                                    <div style={{ 
+                                        fontSize: '32px', 
+                                        marginBottom: '12px',
+                                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
+                                    }}>🔍</div>
+                                    <div style={{ color: 'var(--text)', fontWeight: '700', fontSize: '16px', marginBottom: '4px' }}>Smart Search</div>
+                                    <div style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.4' }}>Find information quickly</div>
+                                </div>
+                                <div style={{
+                                    backgroundColor: 'var(--surface-elevated)',
+                                    borderRadius: '16px',
+                                    padding: '20px',
+                                    textAlign: 'center',
+                                    width: '180px',
+                                    height: '140px',
+                                    boxShadow: 'var(--shadow-sm)',
+                                    position: 'relative',
+                                    overflow: 'hidden',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'center'
+                                }}>
+                                    <div style={{ 
+                                        fontSize: '32px', 
+                                        marginBottom: '12px',
+                                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
+                                    }}>⚡</div>
+                                    <div style={{ color: 'var(--text)', fontWeight: '700', fontSize: '16px', marginBottom: '4px' }}>Fast Response</div>
+                                    <div style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.4' }}>Powered by advanced AI</div>
+                                </div>
+                            </div>
+
+                            {showLanguagePicker && (
+                                <div style={{ marginBottom: '32px' }}>
+                                    <LanguagePicker onLanguageChange={newLang => i18n.changeLanguage(newLang)} />
+                                </div>
+                            )}
 
                             {/* Only show examples on non-mobile */}
-                            {!isMobile && <ExampleList onExampleClicked={onExampleClicked} useGPT4V={useGPT4V} />}
+                            {!isMobile && (
+                                <div style={{ marginTop: '40px', marginBottom: '120px' }}>
+                                    <ExampleList onExampleClicked={onExampleClicked} useGPT4V={useGPT4V} />
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className={styles.chatMessageStream}>
@@ -595,7 +708,11 @@ const Chat = () => {
 
                     <div className={styles.chatInput} style={{ 
                         right: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
-                        width: isHistoryPanelOpen && !isMobile ? "calc(100% - 300px)" : "100%"
+                        left: isHistoryPanelOpen && !isMobile ? "320px" : "0",
+                        width: "auto",
+                        backgroundColor: 'var(--background)',
+                        borderTop: '1px solid var(--border)',
+                        padding: '16px 20px'
                     }}>
                         <QuestionInput
                             clearOnSend
@@ -628,8 +745,12 @@ const Chat = () => {
                         position: "fixed", 
                         top: "64px", 
                         left: "0", 
-                        width: "300px", 
+                        width: "320px", 
                         height: "calc(100vh - 128px)",
+                        background: "var(--surface-elevated)",
+                        backdropFilter: "blur(20px)",
+                        borderRight: "1px solid var(--border-light)",
+                        boxShadow: "var(--shadow-lg)",
                         zIndex: 900,
                         display: isHistoryPanelOpen ? "block" : "none"
                     }}>

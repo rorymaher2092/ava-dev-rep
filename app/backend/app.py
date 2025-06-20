@@ -460,6 +460,64 @@ async def list_uploaded(auth_claims: dict[str, Any]):
     return jsonify(files), 200
 
 
+@bp.route("/feedback", methods=["POST"])
+@authenticated
+async def submit_feedback(auth_claims: dict[str, Any]):
+    """
+    Endpoint to collect user feedback on responses.
+    Stores feedback with user information for later analysis.
+    """
+    if not request.is_json:
+        return jsonify({"error": "request must be json"}), 415
+    
+    request_json = await request.get_json()
+    response_id = request_json.get("responseId")
+    feedback_type = request_json.get("feedback")
+    comments = request_json.get("comments", "")
+    
+    if not response_id or not feedback_type:
+        return jsonify({"error": "responseId and feedback are required"}), 400
+    
+    if feedback_type not in ["positive", "negative"]:
+        return jsonify({"error": "feedback must be either 'positive' or 'negative'"}), 400
+    
+    # Add user information from auth claims
+    feedback_data = {
+        "responseId": response_id,
+        "feedback": feedback_type,
+        "comments": comments,
+        "timestamp": time.time(),
+        "userId": auth_claims.get("oid", ""),
+        "username": auth_claims.get("username", ""),
+        "name": auth_claims.get("name", "")
+    }
+    
+    # Log the feedback
+    current_app.logger.info("Feedback received: %s", json.dumps(feedback_data))
+    
+    # Store feedback in Cosmos DB if Cosmos is enabled
+    cosmos_enabled = os.getenv("USE_CHAT_HISTORY_COSMOS", "").lower() == "true"
+    current_app.logger.info(f"Cosmos enabled: {cosmos_enabled}")
+    
+    if cosmos_enabled:
+        try:
+            current_app.logger.info("Attempting to store feedback in Cosmos DB")
+            from chat_history.feedback import FeedbackCosmosDB
+            feedback_db = FeedbackCosmosDB()
+            await feedback_db.initialize()
+            feedback_id = await feedback_db.add_feedback(feedback_data)
+            await feedback_db.close()
+            current_app.logger.info(f"Feedback stored in Cosmos DB with ID: {feedback_id}")
+            return jsonify({"message": "Feedback submitted and stored successfully", "id": feedback_id}), 200
+        except Exception as e:
+            current_app.logger.error(f"Error storing feedback in Cosmos DB: {str(e)}")
+            return jsonify({"message": "Feedback logged but not stored", "error": str(e)}), 200
+    else:
+        current_app.logger.info("Cosmos DB not enabled, feedback only logged")
+    
+    return jsonify({"message": "Feedback submitted successfully"}), 200
+
+
 @bp.before_app_serving
 async def setup_clients():
     # Replace these with your own values, either in environment variables or directly here
@@ -846,6 +904,10 @@ def create_app():
     app = Quart(__name__)
     app.register_blueprint(bp)
     app.register_blueprint(chat_history_cosmosdb_bp)
+    
+    # Register feedback blueprint
+    from chat_history.feedback_api import feedback_bp
+    app.register_blueprint(feedback_bp)
 
     # Add headers for Teams integration
     @app.after_request

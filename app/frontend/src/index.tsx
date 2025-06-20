@@ -7,10 +7,12 @@ import { initializeIcons } from "@fluentui/react";
 import * as microsoftTeams from "@microsoft/teams-js";
 
 import "./index.css";
+import "./theme.css";
 
 import Chat from "./pages/chat/Chat";
 import LayoutWrapper from "./layoutWrapper";
 import i18next from "./i18n/config";
+import AdminRoute from "./components/AdminRoute";
 
 // Initialize Teams SDK
 try {
@@ -29,6 +31,11 @@ const router = createHashRouter([
                 index: true,
                 element: <Chat />
             },
+            {
+                path: "feedback",
+                element: <AdminRoute><React.Suspense fallback={<div>Loading...</div>}>{React.createElement(React.lazy(() => import("./pages/feedback")))}</React.Suspense></AdminRoute>
+            },
+
             {
                 path: "*",
                 lazy: () => import("./pages/NoPage")

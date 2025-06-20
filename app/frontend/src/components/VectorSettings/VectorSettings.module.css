@@ -1,3 +1,8 @@
 .container {
-    margin-top: 0.625em;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    color: var(--text);
 }

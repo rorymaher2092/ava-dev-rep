@@ -19,6 +19,17 @@
     z-index: 900;
 }
 
+/* Dark mode tab hover fixes */
+[data-theme="dark"] :global(.ms-Pivot-link:hover) {
+    background-color: var(--surface-hover) !important;
+    color: var(--text) !important;
+}
+
+[data-theme="dark"] :global(.ms-Pivot-link.is-selected) {
+    background-color: var(--surface) !important;
+    color: var(--text) !important;
+}
+
 .tList {
     padding: 1.25em 1.25em 0 1.25em;
     display: inline-block;
@@ -72,12 +83,18 @@
 }
 
 .tProp {
-    background-color: var(--accent);
+    background-color: var(--primary);
     color: white;
     font-size: 0.75em;
     padding: 0.1875em 0.625em;
     border-radius: 0.625em;
     margin-bottom: 0.5em;
+}
+
+[data-theme="dark"] .tProp {
+    background-color: var(--vocus-navy);
+    color: var(--vocus-white);
+    border: 1px solid var(--border);
 }
 
 .citationImg {
@@ -87,7 +104,7 @@
 }
 
 .header {
-    color: #123bb6;
+    color: var(--primary);
     position: relative;
     font-size: 0.875em;
     margin-bottom: 0.5em;
@@ -139,23 +156,23 @@
 }
 
 .promptBar {
-    background-color: #a82424;
-    color: #ffffff; /* White text for contrast */
+    background-color: var(--error);
+    color: var(--vocus-white);
 }
 
 .reasoningBar {
-    background-color: #265e29;
-    color: #ffffff;
+    background-color: var(--success);
+    color: var(--vocus-white);
 }
 
 .outputBar {
-    background-color: #12579b;
-    color: #ffffff;
+    background-color: var(--info);
+    color: var(--vocus-white);
 }
 
 .totalBar {
-    background-color: #424242;
-    color: #ffffff;
+    background-color: var(--text-secondary);
+    color: var(--vocus-white);
 }
 
 .subqueriesTable,
