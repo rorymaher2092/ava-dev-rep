@@ -23,7 +23,7 @@
     --border: #e2e8f0;
     --border-light: #f1f5f9;
     --primary: var(--vocus-mid);
-    --primary-hover: #0066cc;
+    --primary-hover: var(--vocus-navy);
     --primary-light: #e6f3ff;
     --accent: var(--vocus-aqua);
     --success: #10b981;
@@ -52,7 +52,7 @@
     --border: #374151;
     --border-light: #2d3748;
     --primary: var(--vocus-mid);
-    --primary-hover: #1f2937;
+    --primary-hover: var(--surface-hover);
     --primary-light: rgba(31, 41, 55, 0.5);
     --accent: var(--vocus-aqua);
     --success: #10b981;
