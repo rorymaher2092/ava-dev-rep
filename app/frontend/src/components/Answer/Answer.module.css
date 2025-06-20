@@ -114,6 +114,12 @@
     box-shadow: var(--shadow-md);
 }
 
+[data-theme="dark"] .citation:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+    border-color: var(--text-secondary);
+}
+
 .followupQuestionsList {
     margin-top: 1rem;
 }
@@ -128,20 +134,38 @@
 .followupQuestion {
     font-weight: 500;
     line-height: 1.5;
-    text-align: center;
+    text-align: left;
     border-radius: var(--radius-lg);
-    padding: 0.75rem 1rem;
-    background: var(--accent);
-    color: white;
-    font-style: italic;
+    padding: 1rem 1.25rem;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-light);
+    color: var(--text);
     text-decoration: none;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    overflow: hidden;
+}
+
+.followupQuestion::before {
+    content: '💭';
+    position: absolute;
+    top: 0.75rem;
+    right: 1rem;
+    font-size: 1.2rem;
+    opacity: 0.6;
 }
 
 .followupQuestion:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--primary);
+    background: var(--surface-hover);
+}
+
+.followupQuestion:hover::before {
+    opacity: 1;
 }
 
 .supContainer {

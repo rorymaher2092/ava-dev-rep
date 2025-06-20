@@ -52,8 +52,8 @@
     --border: #374151;
     --border-light: #2d3748;
     --primary: var(--vocus-mid);
-    --primary-hover: var(--vocus-aqua);
-    --primary-light: rgba(0, 127, 255, 0.1);
+    --primary-hover: #1f2937;
+    --primary-light: rgba(31, 41, 55, 0.5);
     --accent: var(--vocus-aqua);
     --success: #10b981;
     --warning: var(--vocus-orange);

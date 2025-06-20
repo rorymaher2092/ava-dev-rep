@@ -19,6 +19,17 @@
     z-index: 900;
 }
 
+/* Dark mode tab hover fixes */
+[data-theme="dark"] :global(.ms-Pivot-link:hover) {
+    background-color: var(--surface-hover) !important;
+    color: var(--text) !important;
+}
+
+[data-theme="dark"] :global(.ms-Pivot-link.is-selected) {
+    background-color: var(--surface) !important;
+    color: var(--text) !important;
+}
+
 .tList {
     padding: 1.25em 1.25em 0 1.25em;
     display: inline-block;
