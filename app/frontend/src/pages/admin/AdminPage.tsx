@@ -25,7 +25,17 @@ const AdminPage: React.FC = () => {
             <DefaultButton 
                 text="Remove" 
                 onClick={() => handleRemoveAdmin(item.email)}
-                style={{ backgroundColor: '#f44336', color: 'white' }}
+                styles={{
+                    root: {
+                        backgroundColor: 'var(--error)',
+                        color: 'var(--vocus-white)',
+                        border: '1px solid var(--error)'
+                    },
+                    rootHovered: {
+                        backgroundColor: '#dc2626',
+                        color: 'var(--vocus-white)'
+                    }
+                }}
             />
           )
         }

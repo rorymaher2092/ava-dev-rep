@@ -98,8 +98,8 @@
     text-align: center;
     border-radius: var(--radius-lg);
     padding: 0.5rem 1rem;
-    background: var(--primary-light);
-    color: var(--primary);
+    background: var(--surface-elevated);
+    color: var(--text);
     text-decoration: none;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -108,11 +108,11 @@
 }
 
 .citation:hover {
-    background: var(--primary-hover);
+    background: var(--surface-hover);
     color: var(--text);
     transform: translateY(-1px);
     box-shadow: var(--shadow-md);
-    border-color: var(--primary-hover);
+    border-color: var(--border);
 }
 
 .followupQuestionsList {
@@ -222,8 +222,8 @@ sup:hover {
 
 .feedbackButton:hover {
     background-color: var(--surface-hover);
-    border-color: var(--primary);
-    color: var(--primary);
+    border-color: var(--text-secondary);
+    color: var(--text);
     transform: translateY(-1px);
 }
 

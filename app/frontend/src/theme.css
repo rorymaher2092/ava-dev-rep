@@ -4,14 +4,14 @@
     --vocus-navy: #0f1c47;
     --vocus-reflex: #0000ff;
     --vocus-mid: #007fff;
-    --vocus-aqua: #00ffff;
+    --vocus-aqua: #800080;
     --vocus-yellow: #ffcf00;
     --vocus-orange: #ff9c00;
     --vocus-magenta: #ff05c2;
     --vocus-green: #59ff00;
     --vocus-white: #ffffff;
     --vocus-black: #000000;
-    
+
     /* Light Theme - Modern */
     --background: #fafbfc;
     --surface: #ffffff;
@@ -25,10 +25,11 @@
     --primary: var(--vocus-mid);
     --primary-hover: var(--vocus-navy);
     --primary-light: #e6f3ff;
-    --accent: var(--vocus-aqua);
-    --success: #10b981;
+    --accent: var(--vocus-mid);
+    --success: #059669;
     --warning: var(--vocus-orange);
-    --error: #ef4444;
+    --error: #dc2626;
+    --info: var(--vocus-mid);
     --user-message-bg: linear-gradient(135deg, #e6f3ff 0%, #cce7ff 100%);
     --user-message-text: var(--vocus-navy);
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -57,7 +58,8 @@
     --accent: var(--vocus-aqua);
     --success: #10b981;
     --warning: var(--vocus-orange);
-    --error: #f87171;
+    --error: #ef4444;
+    --info: var(--vocus-mid);
     --user-message-bg: linear-gradient(135deg, var(--vocus-navy) 0%, #1a2951 100%);
     --user-message-text: var(--vocus-white);
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
@@ -68,7 +70,7 @@
 body {
     background-color: var(--background);
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;

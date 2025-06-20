@@ -37,6 +37,14 @@
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
+    max-width: calc(100% - 400px);
+    overflow: hidden;
+}
+
+@media (max-width: 1024px) {
+    .headerCenterContainer {
+        max-width: calc(100% - 300px);
+    }
 }
 
 @media (max-width: 768px) {
@@ -47,6 +55,7 @@
         left: auto;
         flex: 1;
         overflow: hidden;
+        max-width: none;
     }
     
     .headerContainer {
@@ -59,6 +68,12 @@
     align-items: center;
     height: 100%;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+    text-decoration: none;
+}
+
+.logoLink:focus {
+    outline: none;
 }
 
 .logoLink:hover {

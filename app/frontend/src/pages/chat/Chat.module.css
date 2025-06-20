@@ -93,7 +93,7 @@
     padding: 0 1rem;
     display: flex;
     flex-direction: column;
-    margin-bottom: 180px;
+    margin-bottom: 250px;
     transition: width 0.3s ease;
 }
 
@@ -126,8 +126,8 @@
 /* Dark mode specific overrides for analysis panel */
 [data-theme="dark"] .chatAnalysisPanel pre,
 [data-theme="dark"] .chatAnalysisPanel code {
-    background-color: #1e2d4a !important;
-    color: #e0e0e0 !important;
+    background-color: var(--surface) !important;
+    color: var(--text) !important;
 }
 
 /* Override hover styles for icons */
@@ -151,6 +151,7 @@
     backdrop-filter: blur(20px);
     border-top: 1px solid var(--border-light);
     padding: 1.5rem;
+    padding-bottom: 2rem;
     z-index: 999;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: var(--shadow-lg);

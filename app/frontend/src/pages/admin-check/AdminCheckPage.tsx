@@ -61,14 +61,26 @@ const AdminCheckPage: React.FC = () => {
                 <>
                     <Stack tokens={{ childrenGap: 10 }}>
                         <Text variant="large">User Information</Text>
-                        <pre style={{ backgroundColor: '#f5f5f5', padding: 10, borderRadius: 5 }}>
+                        <pre style={{ 
+                            backgroundColor: 'var(--surface)', 
+                            color: 'var(--text)',
+                            padding: '1rem', 
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid var(--border)'
+                        }}>
                             {JSON.stringify(userInfo, null, 2)}
                         </pre>
                     </Stack>
                     
                     <Stack tokens={{ childrenGap: 10 }}>
                         <Text variant="large">Admin Check Result</Text>
-                        <pre style={{ backgroundColor: '#f5f5f5', padding: 10, borderRadius: 5 }}>
+                        <pre style={{ 
+                            backgroundColor: 'var(--surface)', 
+                            color: 'var(--text)',
+                            padding: '1rem', 
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid var(--border)'
+                        }}>
                             {JSON.stringify(adminCheckResult, null, 2)}
                         </pre>
                     </Stack>
