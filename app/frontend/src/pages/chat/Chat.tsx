@@ -515,7 +515,8 @@ const Chat = () => {
                 </div>
             </div>
             <div className={styles.chatRoot} style={{ 
-                marginRight: activeAnalysisPanelTab && !isMobile ? "40%" : "0"
+                marginRight: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
+                marginLeft: isHistoryPanelOpen && !isMobile ? "320px" : "0"
             }}>
                 <div className={styles.chatContainer}>
                     {!lastQuestionRef.current ? (
@@ -561,40 +562,58 @@ const Chat = () => {
                                 justifyContent: 'center'
                             }}>
                                 <div style={{
-                                    backgroundColor: 'var(--surface)',
-                                    border: '1px solid var(--border)',
-                                    borderRadius: '12px',
-                                    padding: '16px 20px',
+                                    backgroundColor: 'var(--surface-elevated)',
+                                    borderRadius: '16px',
+                                    padding: '20px',
                                     textAlign: 'center',
-                                    minWidth: '140px'
+                                    minWidth: '160px',
+                                    boxShadow: 'var(--shadow-sm)',
+                                    position: 'relative',
+                                    overflow: 'hidden'
                                 }}>
-                                    <div style={{ fontSize: '24px', marginBottom: '8px' }}>💬</div>
-                                    <div style={{ color: 'var(--text)', fontWeight: '600', fontSize: '14px' }}>Ask Anything</div>
-                                    <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Get instant answers</div>
+                                    <div style={{ 
+                                        fontSize: '32px', 
+                                        marginBottom: '12px',
+                                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
+                                    }}>💬</div>
+                                    <div style={{ color: 'var(--text)', fontWeight: '700', fontSize: '16px', marginBottom: '4px' }}>Ask Anything</div>
+                                    <div style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.4' }}>Get instant answers to your questions</div>
                                 </div>
                                 <div style={{
-                                    backgroundColor: 'var(--surface)',
-                                    border: '1px solid var(--border)',
-                                    borderRadius: '12px',
-                                    padding: '16px 20px',
+                                    backgroundColor: 'var(--surface-elevated)',
+                                    borderRadius: '16px',
+                                    padding: '20px',
                                     textAlign: 'center',
-                                    minWidth: '140px'
+                                    minWidth: '160px',
+                                    boxShadow: 'var(--shadow-sm)',
+                                    position: 'relative',
+                                    overflow: 'hidden'
                                 }}>
-                                    <div style={{ fontSize: '24px', marginBottom: '8px' }}>🔍</div>
-                                    <div style={{ color: 'var(--text)', fontWeight: '600', fontSize: '14px' }}>Smart Search</div>
-                                    <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Find information fast</div>
+                                    <div style={{ 
+                                        fontSize: '32px', 
+                                        marginBottom: '12px',
+                                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
+                                    }}>🔍</div>
+                                    <div style={{ color: 'var(--text)', fontWeight: '700', fontSize: '16px', marginBottom: '4px' }}>Smart Search</div>
+                                    <div style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.4' }}>Find information quickly</div>
                                 </div>
                                 <div style={{
-                                    backgroundColor: 'var(--surface)',
-                                    border: '1px solid var(--border)',
-                                    borderRadius: '12px',
-                                    padding: '16px 20px',
+                                    backgroundColor: 'var(--surface-elevated)',
+                                    borderRadius: '16px',
+                                    padding: '20px',
                                     textAlign: 'center',
-                                    minWidth: '140px'
+                                    minWidth: '160px',
+                                    boxShadow: 'var(--shadow-sm)',
+                                    position: 'relative',
+                                    overflow: 'hidden'
                                 }}>
-                                    <div style={{ fontSize: '24px', marginBottom: '8px' }}>⚡</div>
-                                    <div style={{ color: 'var(--text)', fontWeight: '600', fontSize: '14px' }}>Fast Response</div>
-                                    <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Powered by AI</div>
+                                    <div style={{ 
+                                        fontSize: '32px', 
+                                        marginBottom: '12px',
+                                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
+                                    }}>⚡</div>
+                                    <div style={{ color: 'var(--text)', fontWeight: '700', fontSize: '16px', marginBottom: '4px' }}>Fast Response</div>
+                                    <div style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.4' }}>Powered by advanced AI</div>
                                 </div>
                             </div>
 
@@ -677,7 +696,8 @@ const Chat = () => {
 
                     <div className={styles.chatInput} style={{ 
                         right: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
-                        width: isHistoryPanelOpen && !isMobile ? "calc(100% - 300px)" : "100%",
+                        left: isHistoryPanelOpen && !isMobile ? "320px" : "0",
+                        width: "auto",
                         backgroundColor: 'var(--background)',
                         borderTop: '1px solid var(--border)',
                         padding: '16px 20px'

@@ -10,6 +10,34 @@
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+[data-theme="dark"] .questionInputContainer {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .questionInputTextArea {
+    color: var(--vocus-white) !important;
+    background: var(--surface) !important;
+}
+
+[data-theme="dark"] .questionInputTextArea :global(.ms-TextField-field) {
+    background: var(--surface) !important;
+    color: var(--vocus-white) !important;
+}
+
+[data-theme="dark"] .questionInputTextArea :global(.ms-TextField-field::placeholder) {
+    color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .questionInputTextArea :global(textarea) {
+    background: var(--surface) !important;
+    color: var(--vocus-white) !important;
+}
+
+[data-theme="dark"] .questionInputTextArea::placeholder {
+    color: var(--text-muted) !important;
+}
+
 .questionInputContainer:focus-within {
     border-color: var(--primary);
     box-shadow: var(--shadow-lg), 0 0 0 3px var(--primary-light);

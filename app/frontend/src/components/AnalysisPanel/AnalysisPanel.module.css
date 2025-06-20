@@ -72,12 +72,18 @@
 }
 
 .tProp {
-    background-color: var(--accent);
+    background-color: var(--primary);
     color: white;
     font-size: 0.75em;
     padding: 0.1875em 0.625em;
     border-radius: 0.625em;
     margin-bottom: 0.5em;
+}
+
+[data-theme="dark"] .tProp {
+    background-color: var(--vocus-navy);
+    color: var(--vocus-white);
+    border: 1px solid var(--border);
 }
 
 .citationImg {
