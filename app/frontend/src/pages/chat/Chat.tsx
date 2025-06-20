@@ -566,10 +566,14 @@ const Chat = () => {
                                     borderRadius: '16px',
                                     padding: '20px',
                                     textAlign: 'center',
-                                    minWidth: '160px',
+                                    width: '180px',
+                                    height: '140px',
                                     boxShadow: 'var(--shadow-sm)',
                                     position: 'relative',
-                                    overflow: 'hidden'
+                                    overflow: 'hidden',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'center'
                                 }}>
                                     <div style={{ 
                                         fontSize: '32px', 
@@ -584,10 +588,14 @@ const Chat = () => {
                                     borderRadius: '16px',
                                     padding: '20px',
                                     textAlign: 'center',
-                                    minWidth: '160px',
+                                    width: '180px',
+                                    height: '140px',
                                     boxShadow: 'var(--shadow-sm)',
                                     position: 'relative',
-                                    overflow: 'hidden'
+                                    overflow: 'hidden',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'center'
                                 }}>
                                     <div style={{ 
                                         fontSize: '32px', 
@@ -602,10 +610,14 @@ const Chat = () => {
                                     borderRadius: '16px',
                                     padding: '20px',
                                     textAlign: 'center',
-                                    minWidth: '160px',
+                                    width: '180px',
+                                    height: '140px',
                                     boxShadow: 'var(--shadow-sm)',
                                     position: 'relative',
-                                    overflow: 'hidden'
+                                    overflow: 'hidden',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'center'
                                 }}>
                                     <div style={{ 
                                         fontSize: '32px', 
