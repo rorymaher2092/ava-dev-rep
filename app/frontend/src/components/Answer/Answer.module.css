@@ -1,113 +1,147 @@
 .answerContainer {
-    padding: 1.25em;
-    background: var(--surface);
-    border-radius: 0.5em;
-    box-shadow:
-        0em 0.125em 0.25em rgba(0, 0, 0, 0.14),
-        0em 0em 0.125em rgba(0, 0, 0, 0.12);
-    outline: transparent solid 0.0625em;
+    padding: 1.5rem;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-md);
+    backdrop-filter: blur(10px);
     width: 100%;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.answerContainer:hover {
+    box-shadow: var(--shadow-lg);
 }
 
 @media (max-width: 768px) {
     .answerContainer {
-        padding: 0.75em;
+        padding: 1rem;
     }
 }
 
 .answerLogo {
-    font-size: 1.75em;
+    font-size: 1.75rem;
 }
 
 .answerText {
     font-size: 1rem;
     font-weight: 400;
-    line-height: 1.375em;
-    padding-top: 1em;
-    padding-bottom: 1em;
+    line-height: 1.6;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    color: var(--text);
 }
 
 .answerText blockquote {
-    background-color: var(--surface);
+    background-color: var(--surface-hover);
     color: var(--text);
-    border-left: 4px solid var(--accent);
-    padding: 0.5em 1em;
-    margin: 1em 0;
+    border-left: 4px solid var(--primary);
+    border-radius: var(--radius-md);
+    padding: 1rem 1.5rem;
+    margin: 1.5rem 0;
+    font-style: italic;
 }
 
 @media (max-width: 768px) {
     .answerText {
         font-size: 0.9rem;
-        padding-top: 0.5em;
-        padding-bottom: 0.5em;
+        padding-top: 0.75rem;
+        padding-bottom: 0.75rem;
     }
 }
 
-.answerText h1,
-h2,
-h2 {
-    font-size: 1rem;
-    font-weight: bold;
+.answerText h1, h2, h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 1rem 0 0.5rem 0;
 }
 
 .answerText table {
     border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
 }
 
-.answerText td,
+.answerText td, .answerText th {
+    border: 1px solid var(--border);
+    padding: 0.75rem;
+    background: var(--surface);
+}
+
 .answerText th {
-    border: 1px solid;
-    padding: 0.3125em;
+    background: var(--surface-hover);
+    font-weight: 600;
 }
 
 .selected {
-    outline: 0.125em solid rgba(115, 118, 225, 1);
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
 }
 
 .citationLearnMore {
-    margin-right: 0.3125em;
+    margin-right: 0.5rem;
     font-weight: 600;
-    line-height: 1.5em;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .citation {
     font-weight: 500;
-    line-height: 1.5em;
+    line-height: 1.5;
     text-align: center;
-    border-radius: 0.25em;
-    padding: 0em 0.5em;
-    background: var(--accent);
-    color: white;
+    border-radius: var(--radius-lg);
+    padding: 0.5rem 1rem;
+    background: var(--primary-light);
+    color: var(--primary);
     text-decoration: none;
     cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid var(--border);
+    font-size: 0.875rem;
 }
 
 .citation:hover {
-    text-decoration: underline;
-    opacity: 0.9;
+    background: var(--primary);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
 }
 
 .followupQuestionsList {
-    margin-top: 0.625em;
+    margin-top: 1rem;
 }
 
 .followupQuestionLearnMore {
-    margin-right: 0.3125em;
+    margin-right: 0.5rem;
     font-weight: 600;
-    line-height: 1.5em;
+    line-height: 1.5;
+    color: var(--text-secondary);
 }
 
 .followupQuestion {
-    font-weight: 600;
-    line-height: 1.5em;
+    font-weight: 500;
+    line-height: 1.5;
     text-align: center;
-    border-radius: 0.25em;
-    padding: 0em 0.5em;
+    border-radius: var(--radius-lg);
+    padding: 0.75rem 1rem;
     background: var(--accent);
     color: white;
     font-style: italic;
     text-decoration: none;
     cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.followupQuestion:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
 }
 
 .supContainer {
@@ -124,19 +158,24 @@ sup {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.625em;
+    font-size: 0.625rem;
     font-weight: 600;
     vertical-align: top;
-    top: -1;
-    margin: 0em 0.125em;
-    min-width: 0.875em;
-    height: 0.875em;
-    border-radius: 0.1875em;
-    background: var(--accent);
+    top: -1px;
+    margin: 0 0.25rem;
+    min-width: 1rem;
+    height: 1rem;
+    border-radius: var(--radius-sm);
+    background: var(--primary);
     color: white;
     text-decoration-color: transparent;
-    outline: transparent solid 0.0625em;
     cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+sup:hover {
+    transform: scale(1.1);
+    box-shadow: var(--shadow-sm);
 }
 
 .retryButton {
@@ -144,49 +183,46 @@ sup {
 }
 
 .feedbackContainer {
-    margin-top: 10px;
+    margin-top: 1rem;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 0.75rem;
 }
 
 .feedbackButton {
     background: transparent;
-    border: none;
+    border: 1px solid var(--border);
     cursor: pointer;
     display: flex;
     align-items: center;
-    padding: 5px;
-    border-radius: 4px;
-    transition: background-color 0.2s;
+    padding: 0.5rem;
+    border-radius: var(--radius-md);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    color: var(--text-secondary);
 }
 
 .feedbackButton:hover {
-    background-color: var(--hover-background);
+    background-color: var(--surface-hover);
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-1px);
 }
 
 .feedbackMessage {
-    margin-top: 10px;
-    color: var(--accent);
+    margin-top: 1rem;
+    color: var(--primary);
     font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 @keyframes loading {
-    0% {
-        content: "";
-    }
-    25% {
-        content: ".";
-    }
-    50% {
-        content: "..";
-    }
-    75% {
-        content: "...";
-    }
-    100% {
-        content: "";
-    }
+    0% { content: ""; }
+    25% { content: "."; }
+    50% { content: ".."; }
+    75% { content: "..."; }
+    100% { content: ""; }
 }
 
 .loadingdots::after {

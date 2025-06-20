@@ -1,33 +1,3 @@
-/* Vocus Core Colours */
-:root {
-    --color-navy: #0f1c47;
-    --color-reflex: #0000ff;
-    --color-mid: #007fff;
-    --color-aqua: #00ffff;
-
-    /* Light-mode tokens */
-    --background: #ffffff;
-    --text: var(--color-navy);
-    --surface: #f2f2f2;
-    --accent: var(--color-mid);
-}
-
-[data-theme="dark"] {
-    /* Dark-mode tokens */
-    --background: var(--color-navy);
-    --text: #ffffff;
-    --surface: #15264f;
-    --accent: var(--color-reflex);
-}
-
-body {
-    background-color: var(--background);
-    color: var(--text);
-    transition:
-        background-color 0.3s,
-        color 0.3s;
-}
-
 .layout {
     display: flex;
     flex-direction: column;
@@ -35,25 +5,25 @@ body {
 }
 
 .header {
-    background-color: var(--surface);
+    background: var(--surface-elevated);
+    backdrop-filter: blur(20px);
     color: var(--text);
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     height: 64px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-md);
     z-index: 1000;
+    border-bottom: 1px solid var(--border-light);
 }
 
-/* Container to align logo/title and menu on opposite ends */
 .headerContainer {
     display: flex;
     justify-content: space-between;
     align-items: center;
     height: 100%;
-    padding: 0 1.5rem;
-    /*adding changes to center the heading*/
+    padding: 0 2rem;
     position: relative;
     width: 100%;
 }
@@ -61,12 +31,12 @@ body {
 .headerCenterContainer {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    justify-content: center; /* Center content horizontally */
-    flex-grow: 1; /* Take up all available space */
-    position: absolute; /* Absolutely position this in the middle */
-    left: 50%; /* Start at the middle of the container */
-    transform: translateX(-50%); /* Adjust by 50% of its width to truly center */
+    gap: 0.75rem;
+    justify-content: center;
+    flex-grow: 1;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
 }
 
 @media (max-width: 768px) {
@@ -80,7 +50,7 @@ body {
     }
     
     .headerContainer {
-        padding: 0 0.5rem;
+        padding: 0 1rem;
     }
 }
 
@@ -88,32 +58,54 @@ body {
     display: flex;
     align-items: center;
     height: 100%;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.logoLink:hover {
+    transform: scale(1.05);
 }
 
 .headerLogo {
     width: auto;
     height: 40px;
-    margin-right: 10px;
+    margin-right: 1rem;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .appLogo {
     width: auto;
-    height: 30px;
-    margin-right: 10px;
+    height: 32px;
+    margin-right: 0.75rem;
+    border-radius: var(--radius-sm);
 }
 
 @media (max-width: 768px) {
     .headerLogo {
-        height: 30px;
-        margin-right: 5px;
+        height: 32px;
+        margin-right: 0.5rem;
+    }
+    
+    .appLogo {
+        height: 24px;
+        margin-right: 0.5rem;
     }
 }
 
 .headerTitle {
     margin: 0;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--text);
-    font-size: 30px;
+    font-size: 1.5rem;
+    background: linear-gradient(135deg, var(--vocus-navy), var(--vocus-reflex));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+[data-theme="dark"] .headerTitle {
+    background: none;
+    -webkit-text-fill-color: var(--text);
+    color: var(--text);
 }
 
 .fullTitle {
@@ -126,7 +118,7 @@ body {
 
 @media (max-width: 768px) {
     .headerTitle {
-        font-size: 16px;
+        font-size: 1rem;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -142,7 +134,6 @@ body {
     }
 }
 
-/* Right side login, settings, menu */
 .loginMenuContainer {
     display: flex;
     align-items: center;
@@ -153,46 +144,69 @@ body {
 
 @media (max-width: 768px) {
     .loginMenuContainer > *:first-child {
-        display: none; /* Hide login button on mobile */
+        display: none;
     }
 }
 
 .themeToggle,
 .menuToggle,
 .settingsToggle {
-    background: none;
-    border: none;
-    font-size: 1.2rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
     cursor: pointer;
     color: var(--text);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.themeToggle:hover,
+.menuToggle:hover,
+.settingsToggle:hover {
+    background: var(--surface-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
 }
 
 .dropdownMenu {
     position: absolute;
     top: 100%;
-    right: 1.5rem;
-    background: var(--surface);
+    right: 2rem;
+    background: var(--surface-elevated);
+    backdrop-filter: blur(20px);
     color: var(--text);
-    border: 1px solid var(--accent);
-    padding: 0.5rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 0.75rem;
+    box-shadow: var(--shadow-lg);
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
     z-index: 2000;
+    min-width: 200px;
 }
 
 .dropdownMenu button {
-    background: none;
+    background: transparent;
     border: none;
     text-align: left;
-    padding: 0.25rem 0;
+    padding: 0.75rem;
     color: var(--text);
     cursor: pointer;
+    border-radius: var(--radius-md);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .dropdownMenu button:hover {
-    background-color: rgba(0, 0, 0, 0.05);
+    background: var(--surface-hover);
+    color: var(--primary);
 }
 
 .mainContent {
@@ -200,11 +214,13 @@ body {
     margin-top: 64px;
     margin-bottom: 64px;
     overflow-y: auto;
+    background: var(--background);
 }
 
 .footer {
-    background-color: var(--surface);
-    color: var(--text);
+    background: var(--surface-elevated);
+    backdrop-filter: blur(20px);
+    color: var(--text-secondary);
     position: fixed;
     bottom: 0;
     left: 0;
@@ -214,6 +230,63 @@ body {
     justify-content: center;
     align-items: center;
     font-size: 0.875rem;
-    border-top: 2px solid var(--accent);
+    border-top: 1px solid var(--border-light);
     z-index: 1000;
+    font-weight: 500;
+}
+
+.userDebugInfo {
+    position: absolute;
+    right: 1rem;
+    display: flex;
+    align-items: center;
+}
+
+.debugButton {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 0.5rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.debugButton:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+}
+
+.debugTooltip {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    min-width: 250px;
+    font-size: 0.75rem;
+    line-height: 1.4;
+}
+
+.debugTooltip div {
+    margin-bottom: 0.25rem;
+    color: var(--text);
+}
+
+.debugTooltip strong {
+    color: var(--text-secondary);
+}
+
+.userDebugInfo:hover .debugTooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(-2px);
 }

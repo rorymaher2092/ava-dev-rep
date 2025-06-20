@@ -7,6 +7,7 @@ import { initializeIcons } from "@fluentui/react";
 import * as microsoftTeams from "@microsoft/teams-js";
 
 import "./index.css";
+import "./theme.css";
 
 import Chat from "./pages/chat/Chat";
 import LayoutWrapper from "./layoutWrapper";

@@ -1,19 +1,69 @@
 .questionInputContainer {
-    border-radius: 0.5rem;
-    box-shadow:
-        0px 0.5rem 1rem rgba(0, 0, 0, 0.14),
-        0px 0px 0.125rem rgba(0, 0, 0, 0.12);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
     width: 100%;
-    padding: 0.8rem;
-    background: var(--inputBox-bg);
+    padding: 1rem;
+    background: var(--surface-elevated);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
     overflow: visible;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="dark"] .questionInputContainer {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+}
+
+[data-theme="dark"] .questionInputTextArea {
+    color: var(--vocus-white) !important;
+    background: var(--surface) !important;
+}
+
+[data-theme="dark"] .questionInputTextArea :global(.ms-TextField-field) {
+    background: var(--surface) !important;
+    color: var(--vocus-white) !important;
+}
+
+[data-theme="dark"] .questionInputTextArea :global(.ms-TextField-field::placeholder) {
+    color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .questionInputTextArea :global(textarea) {
+    background: var(--surface) !important;
+    color: var(--vocus-white) !important;
+}
+
+[data-theme="dark"] .questionInputTextArea::placeholder {
+    color: var(--text-muted) !important;
+}
+
+.questionInputContainer:focus-within {
+    border-color: var(--primary);
+    box-shadow: var(--shadow-lg), 0 0 0 3px var(--primary-light);
 }
 
 .questionInputTextArea {
     width: 100%;
-    line-height: 2.5rem;
+    line-height: 1.6;
     max-height: 10rem;
-    overflow-y: auto;
+    overflow-y: hidden;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-size: 1rem;
+    resize: none;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.questionInputTextArea::-webkit-scrollbar {
+    display: none;
+}
+
+.questionInputTextArea::placeholder {
+    color: var(--text-muted);
 }
 
 .questionInputButtonsContainer {
@@ -24,23 +74,23 @@
     z-index: 10;
 }
 
-/* Custom tooltip styles */
 .customTooltip {
     position: absolute;
     bottom: 100%;
     left: 50%;
     transform: translateX(-50%);
-    background-color: var(--accent);
-    color: white !important;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 14px;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
     white-space: nowrap;
-    margin-bottom: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    margin-bottom: 0.5rem;
+    box-shadow: var(--shadow-md);
     pointer-events: none;
     opacity: 0;
-    transition: opacity 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 9999;
 }
 
@@ -52,11 +102,12 @@
     margin-left: -6px;
     border-width: 6px;
     border-style: solid;
-    border-color: var(--accent) transparent transparent transparent;
+    border-color: var(--surface) transparent transparent transparent;
 }
 
 .questionInputButtonsContainer:hover .customTooltip {
     opacity: 1;
+    transform: translateX(-50%) translateY(-2px);
 }
 
 .questionInputWrapper {
@@ -65,52 +116,54 @@
 
 @media (min-width: 992px) {
     .questionInputContainer {
-        min-height: 5.625rem;
+        min-height: 5rem;
         max-height: 12rem;
         overflow: visible;
     }
 }
 
 .followupQuestionsWrapper {
-    margin-bottom: 5px;
+    margin-bottom: 1rem;
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
 }
 
-/* Individual Follow-up Question Box */
 .followupQuestion {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 400;
-    font-size: 14px;
-    padding: 16px;
-    background: var(--surface);
-    border: 2px solid var(--accent);
-    border-radius: 10px;
-    width: 30%;
-    min-height: 80px;
-    max-height: 80px;
-    line-height: 1;
+    font-weight: 500;
+    font-size: 0.875rem;
+    padding: 1rem 1.5rem;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    min-height: 3rem;
+    line-height: 1.4;
     text-align: center;
     cursor: pointer;
-    transition:
-        background 0.3s ease,
-        border 0.3s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     color: var(--text);
+    flex: 1;
+    min-width: 200px;
+    box-shadow: var(--shadow-sm);
 }
 
 @media (max-width: 768px) {
     .followupQuestion {
         width: 100%;
-        min-height: 60px;
-        max-height: 60px;
-        padding: 10px;
-        margin-bottom: 8px;
+        min-height: 2.5rem;
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
+        font-size: 0.8rem;
     }
 }
 
-/* Hover effect for follow-up questions */
 .followupQuestion:hover {
-    background: var(--accent);
+    background: var(--primary);
     color: white;
-    border-color: var(--accent);
+    border-color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
 }
