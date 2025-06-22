@@ -130,6 +130,12 @@
     flex-wrap: wrap;
 }
 
+@media (max-width: 768px) {
+    .followupQuestionsWrapper {
+        display: none !important;
+    }
+}
+
 .followupQuestion {
     display: flex;
     align-items: center;

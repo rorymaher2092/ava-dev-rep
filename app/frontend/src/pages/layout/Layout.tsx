@@ -85,28 +85,10 @@ const Layout = () => {
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                         <button
                             onClick={toggleTheme}
-                            style={{
-                                backgroundColor: "var(--surface)",
-                                border: "1px solid var(--border)",
-                                borderRadius: "8px",
-                                padding: "8px 12px",
-                                color: "var(--text)",
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "6px",
-                                fontSize: "14px",
-                                transition: "all 0.2s ease"
-                            }}
-                            onMouseEnter={e => {
-                                e.currentTarget.style.backgroundColor = "var(--surface-hover)";
-                            }}
-                            onMouseLeave={e => {
-                                e.currentTarget.style.backgroundColor = "var(--surface)";
-                            }}
+                            className={styles.headerButton}
                         >
                             <span>{theme === "dark" ? "🌞" : "🌙"}</span>
-                            <span>{theme === "dark" ? "Light" : "Dark"}</span>
+                            <span className={styles.buttonText}>{theme === "dark" ? "Light" : "Dark"}</span>
                         </button>
 
                         <button
@@ -114,28 +96,10 @@ const Layout = () => {
                                 const clearChatEvent = new CustomEvent("clearChat");
                                 window.dispatchEvent(clearChatEvent);
                             }}
-                            style={{
-                                backgroundColor: "var(--surface)",
-                                border: "1px solid var(--border)",
-                                borderRadius: "8px",
-                                padding: "8px 12px",
-                                color: "var(--text)",
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "6px",
-                                fontSize: "14px",
-                                transition: "all 0.2s ease"
-                            }}
-                            onMouseEnter={e => {
-                                e.currentTarget.style.backgroundColor = "var(--surface-hover)";
-                            }}
-                            onMouseLeave={e => {
-                                e.currentTarget.style.backgroundColor = "var(--surface)";
-                            }}
+                            className={styles.headerButton}
                         >
                             <span>🧹</span>
-                            <span>Clear</span>
+                            <span className={styles.buttonText}>Clear</span>
                         </button>
 
                         <button
@@ -143,55 +107,19 @@ const Layout = () => {
                                 const chatHistoryEvent = new CustomEvent("openChatHistory");
                                 window.dispatchEvent(chatHistoryEvent);
                             }}
-                            style={{
-                                backgroundColor: "var(--surface)",
-                                border: "1px solid var(--border)",
-                                borderRadius: "8px",
-                                padding: "8px 12px",
-                                color: "var(--text)",
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "6px",
-                                fontSize: "14px",
-                                transition: "all 0.2s ease"
-                            }}
-                            onMouseEnter={e => {
-                                e.currentTarget.style.backgroundColor = "var(--surface-hover)";
-                            }}
-                            onMouseLeave={e => {
-                                e.currentTarget.style.backgroundColor = "var(--surface)";
-                            }}
+                            className={styles.headerButton}
                         >
                             <span>📜</span>
-                            <span>History</span>
+                            <span className={styles.buttonText}>History</span>
                         </button>
 
                         {isAdmin && (
                             <button
                                 onClick={() => navigate("/feedback")}
-                                style={{
-                                    backgroundColor: "var(--surface)",
-                                    border: "1px solid var(--border)",
-                                    borderRadius: "8px",
-                                    padding: "8px 12px",
-                                    color: "var(--text)",
-                                    cursor: "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "6px",
-                                    fontSize: "14px",
-                                    transition: "all 0.2s ease"
-                                }}
-                                onMouseEnter={e => {
-                                    e.currentTarget.style.backgroundColor = "var(--surface-hover)";
-                                }}
-                                onMouseLeave={e => {
-                                    e.currentTarget.style.backgroundColor = "var(--surface)";
-                                }}
+                                className={styles.headerButton}
                             >
                                 <span>📊</span>
-                                <span>Feedback</span>
+                                <span className={styles.buttonText}>Feedback</span>
                             </button>
                         )}
                     </div>
