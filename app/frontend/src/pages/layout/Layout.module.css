@@ -250,3 +250,42 @@
     font-weight: 500;
 }
 
+.headerButton {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.headerButton:hover {
+    background: var(--surface-hover);
+}
+
+.buttonText {
+    display: inline;
+}
+
+@media (max-width: 768px) {
+    .footer {
+        display: none !important;
+    }
+    
+    .buttonText {
+        display: none !important;
+    }
+    
+    .headerButton {
+        padding: 8px !important;
+        min-width: 40px;
+        justify-content: center;
+        gap: 0;
+    }
+}
+
