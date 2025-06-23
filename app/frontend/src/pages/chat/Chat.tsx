@@ -398,8 +398,10 @@ const Chat = () => {
                     setWelcomeMessage("Hello there!");
                 }
             } else {
-                // Try to get user from app services even if not explicitly logged in
+                // Clear cache and try to get user from app services
                 try {
+                    globalThis.cachedAppServicesToken = null;
+                    await fetch('/.auth/refresh', { method: 'POST' });
                     const name = await getUsername();
                     if (name) {
                         const firstName = name.split(' ')[0];

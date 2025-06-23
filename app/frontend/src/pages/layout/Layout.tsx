@@ -32,10 +32,16 @@ const Layout = () => {
     useEffect(() => {
         const checkAdminStatus = async () => {
             try {
-                // Try app services authentication first
+                console.log('Checking admin status...');
+                
+                // Try app services authentication
                 const response = await fetch('/.auth/me');
+                console.log('Auth response status:', response.status);
+                
                 if (response.ok) {
                     const authData = await response.json();
+                    console.log('Auth data:', authData);
+                    
                     if (authData.length > 0) {
                         const userClaims = authData[0].user_claims;
                         const email = userClaims.find((claim: any) => claim.typ === 'preferred_username')?.val ||
@@ -45,7 +51,7 @@ const Layout = () => {
                         console.log('User email from app services:', email);
                         
                         // Check if user is admin
-                        const adminUserIds = ['Jamie.Gray@vocus.com.au', 'rory.maher@vocus.com.au', 'cal.mayhook@vocus.com.au'];
+                        const adminUserIds = ['jamie.gray@vocus.com.au', 'rory.maher@vocus.com.au', 'cal.mayhook@vocus.com.au'];
                         const isUserAdmin = adminUserIds.some(adminUserId => 
                             email?.toLowerCase() === adminUserId.toLowerCase()
                         );
@@ -53,11 +59,15 @@ const Layout = () => {
                         console.log('Is admin:', isUserAdmin);
                         setIsAdmin(isUserAdmin);
                         return;
+                    } else {
+                        console.log('No auth data - user not authenticated via container app auth');
+                        // Redirect to login if not authenticated
+                        window.location.href = '/.auth/login/aad';
+                        return;
                     }
                 }
                 
-                // Fallback - set admin to false if app services auth not available
-                console.log('App services auth not available');
+                console.log('Auth endpoint not available or failed');
                 setIsAdmin(false);
                 
             } catch (error) {
