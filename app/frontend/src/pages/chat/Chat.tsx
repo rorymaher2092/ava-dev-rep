@@ -322,49 +322,99 @@ const Chat = () => {
         }
     }, [searchParams]);
     
-    // Get the user's name and welcome message when logged in
+    // Listen for focus events to refresh user details
     useEffect(() => {
-        const fetchUserDetails = async () => {
+        const handleFocus = async () => {
             if (client && loggedIn) {
-                const name = await getUsername(client);
-                if (name) {
-                    // Extract first name if possible
-                    const firstName = name.split(' ')[0];
-                    setUserName(firstName);
-                    
-                    // Import the getUserWelcomeMessage function
-                    const { getUserWelcomeMessage } = await import('../../api');
-                    
-                    try {
-                        // Get user claims from the token
-                        const accounts = client.getAllAccounts();
-                        const account = accounts[0];
-                        const claims = account?.idTokenClaims || {};
-                        
-                        // Debug: Log claims to console
-                        console.log("DEBUG - Token claims:", claims);
-                        
-                        // Prepare user details with available information
-                        const userDetails = {
-                            name: firstName,
-                            username: claims.preferred_username
-                        };
-                        
-                        // Debug: Log user details being sent
-                        console.log("DEBUG - User details being sent:", userDetails);
-                        
-                        // Fetch custom welcome message
-                        const message = await getUserWelcomeMessage(userDetails);
-                        setWelcomeMessage(message);
-                    } catch (error) {
-                        console.error("Error fetching user details:", error);
-                        setWelcomeMessage(`Hello ${firstName}!`);
+                try {
+                    const name = await getUsername(client);
+                    if (name) {
+                        const firstName = name.split(' ')[0];
+                        if (firstName !== userName) {
+                            setUserName(firstName);
+                            
+                            const { getUserWelcomeMessage } = await import('../../api');
+                            const token = await getToken(client);
+                            const accounts = client.getAllAccounts();
+                            const account = accounts[0];
+                            const claims = account?.idTokenClaims || {};
+                            
+                            const userDetails = {
+                                name: firstName,
+                                username: claims.preferred_username || claims.upn || claims.email
+                            };
+                            
+                            const message = await getUserWelcomeMessage(userDetails, token);
+                            setWelcomeMessage(message);
+                        }
                     }
+                } catch (error) {
+                    console.error("Error refreshing user details on focus:", error);
                 }
             }
         };
         
+        window.addEventListener('focus', handleFocus);
+        return () => window.removeEventListener('focus', handleFocus);
+    }, [client, loggedIn, userName]);
+    
+    // Get the user's name and welcome message when logged in
+    useEffect(() => {
+        const fetchUserDetails = async () => {
+            if (client && loggedIn) {
+                try {
+                    // Force refresh of user details
+                    const name = await getUsername(client);
+                    if (name) {
+                        // Extract first name if possible
+                        const firstName = name.split(' ')[0];
+                        setUserName(firstName);
+                        
+                        // Import the getUserWelcomeMessage function
+                        const { getUserWelcomeMessage } = await import('../../api');
+                        
+                        // Get fresh token claims
+                        const token = await getToken(client);
+                        const accounts = client.getAllAccounts();
+                        const account = accounts[0];
+                        const claims = account?.idTokenClaims || {};
+                        
+                        // Prepare user details with available information
+                        const userDetails = {
+                            name: firstName,
+                            username: claims.preferred_username || claims.upn || claims.email
+                        };
+                        
+                        console.log("Fetching welcome message for:", userDetails);
+                        
+                        // Fetch custom welcome message with token
+                        const message = await getUserWelcomeMessage(userDetails, token);
+                        setWelcomeMessage(message);
+                    } else {
+                        // Fallback if no name found
+                        setUserName("there");
+                        setWelcomeMessage("Hello there!");
+                    }
+                } catch (error) {
+                    console.error("Error fetching user details:", error);
+                    // Fallback on error
+                    setUserName("there");
+                    setWelcomeMessage("Hello there!");
+                }
+            } else {
+                // Not logged in - use default
+                setUserName("there");
+                setWelcomeMessage("Hello there!");
+            }
+        };
+        
+        // Fetch immediately and set up interval for periodic refresh
         fetchUserDetails();
+        
+        // Refresh user details every 5 minutes to handle token expiry
+        const interval = setInterval(fetchUserDetails, 5 * 60 * 1000);
+        
+        return () => clearInterval(interval);
     }, [client, loggedIn]);
     
     // Listen for custom events and window resize

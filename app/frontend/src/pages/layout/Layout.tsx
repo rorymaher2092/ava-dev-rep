@@ -32,9 +32,33 @@ const Layout = () => {
     };
 
     useEffect(() => {
-        // Always show admin features - simplified approach
-        setIsAdmin(true);
-    }, []);
+        const checkAdminStatus = async () => {
+            if (useLogin && instance) {
+                try {
+                    const token = await getToken(instance);
+                    const response = await fetch('/admin/check', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        setIsAdmin(data.isAdmin || false);
+                    } else {
+                        setIsAdmin(false);
+                    }
+                } catch (error) {
+                    console.error('Error checking admin status:', error);
+                    setIsAdmin(false);
+                }
+            } else {
+                setIsAdmin(false);
+            }
+        };
+        
+        checkAdminStatus();
+    }, [instance]);
 
     useEffect(() => {
         // Check for user's preferred color scheme
