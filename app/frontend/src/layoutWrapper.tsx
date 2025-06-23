@@ -47,7 +47,7 @@ const LayoutWrapper = () => {
                 } catch (error) {
                     console.log("Silent SSO failed:", error);
                     // Check if user is actually logged in via other means
-                    const isLoggedIn = await checkLoggedIn(msalInstance);
+                    const isLoggedIn = await checkLoggedIn();
                     console.log("Final login state:", isLoggedIn);
                     setLoggedIn(isLoggedIn);
                 }

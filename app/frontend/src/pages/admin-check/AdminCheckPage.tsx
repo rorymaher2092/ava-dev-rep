@@ -14,7 +14,7 @@ const AdminCheckPage: React.FC = () => {
         const checkAdmin = async () => {
             try {
                 // Get user claims
-                const claims = await getTokenClaims(instance);
+                const claims = await getTokenClaims();
                 setUserInfo({
                     name: claims?.name,
                     email: claims?.preferred_username,
@@ -22,7 +22,7 @@ const AdminCheckPage: React.FC = () => {
                 });
                 
                 // Check admin status with backend
-                const token = await getToken(instance);
+                const token = await getToken();
                 const response = await fetch('/admin/check', {
                     headers: {
                         'Authorization': `Bearer ${token}`

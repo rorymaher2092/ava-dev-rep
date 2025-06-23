@@ -81,7 +81,7 @@ const FeedbackPage: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            const token = await getToken(instance);
+            const token = await getToken();
             let url = '/feedback/list?limit=100';
             if (filterType && filterType !== 'all') {
                 url += `&type=${filterType}`;

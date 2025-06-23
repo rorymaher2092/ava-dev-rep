@@ -31,7 +31,7 @@ import { HistoryButton } from "../../components/HistoryButton";
 // import { SettingsButton } from "../../components/SettingsButton";
 import { ClearChatButton } from "../../components/ClearChatButton";
 import { UploadFile } from "../../components/UploadFile";
-import { useLogin, getToken, requireAccessControl, getUsername } from "../../authConfig";
+import { useLogin, getToken, requireAccessControl, getUsername, getTokenClaims } from "../../authConfig";
 import { useMsal } from "@azure/msal-react";
 import { TokenClaimsDisplay } from "../../components/TokenClaimsDisplay";
 import { LoginContext } from "../../loginContext";
@@ -212,7 +212,7 @@ const Chat = () => {
         setActiveCitation(undefined);
         setActiveAnalysisPanelTab(undefined);
 
-        const token = client ? await getToken(client) : undefined;
+        const token = await getToken();
 
         try {
             const messages: ResponseMessage[] = answers.flatMap(a => [
@@ -270,7 +270,7 @@ const Chat = () => {
                 }
 
                 if (typeof parsedResponse.session_state === "string" && parsedResponse.session_state !== "") {
-                    const token = client ? await getToken(client) : undefined;
+                    const token = await getToken();
                     historyManager.addItem(parsedResponse.session_state, [...answers, [question, parsedResponse]], token);
                 }
             } else {
@@ -286,7 +286,7 @@ const Chat = () => {
                 }
 
                 if (typeof parsedResponse.session_state === "string" && parsedResponse.session_state !== "") {
-                    const token = client ? await getToken(client) : undefined;
+                    const token = await getToken();
                     historyManager.addItem(parsedResponse.session_state, [...answers, [question, parsedResponse as ChatAppResponse]], token);
                 }
             }
@@ -327,24 +327,22 @@ const Chat = () => {
         const handleFocus = async () => {
             if (client && loggedIn) {
                 try {
-                    const name = await getUsername(client);
+                    const name = await getUsername();
                     if (name) {
                         const firstName = name.split(' ')[0];
                         if (firstName !== userName) {
                             setUserName(firstName);
                             
                             const { getUserWelcomeMessage } = await import('../../api');
-                            const token = await getToken(client);
-                            const accounts = client.getAllAccounts();
-                            const account = accounts[0];
-                            const claims = account?.idTokenClaims || {};
+                            const token = await getToken();
+                            const claims = await getTokenClaims() || {};
                             
                             const userDetails = {
                                 name: firstName,
                                 username: claims.preferred_username || claims.upn || claims.email
                             };
                             
-                            const message = await getUserWelcomeMessage(userDetails, token);
+                            const message = await getUserWelcomeMessage(userDetails);
                             setWelcomeMessage(message);
                         }
                     }
@@ -364,7 +362,7 @@ const Chat = () => {
             if (client && loggedIn) {
                 try {
                     // Force refresh of user details
-                    const name = await getUsername(client);
+                    const name = await getUsername();
                     if (name) {
                         // Extract first name if possible
                         const firstName = name.split(' ')[0];
@@ -374,10 +372,8 @@ const Chat = () => {
                         const { getUserWelcomeMessage } = await import('../../api');
                         
                         // Get fresh token claims
-                        const token = await getToken(client);
-                        const accounts = client.getAllAccounts();
-                        const account = accounts[0];
-                        const claims = account?.idTokenClaims || {};
+                        const token = await getToken();
+                        const claims = await getTokenClaims() || {};
                         
                         // Prepare user details with available information
                         const userDetails = {
@@ -387,8 +383,8 @@ const Chat = () => {
                         
                         console.log("Fetching welcome message for:", userDetails);
                         
-                        // Fetch custom welcome message with token
-                        const message = await getUserWelcomeMessage(userDetails, token);
+                        // Fetch custom welcome message
+                        const message = await getUserWelcomeMessage(userDetails);
                         setWelcomeMessage(message);
                     } else {
                         // Fallback if no name found
@@ -402,7 +398,19 @@ const Chat = () => {
                     setWelcomeMessage("Hello there!");
                 }
             } else {
-                // Not logged in - use default
+                // Try to get user from app services even if not explicitly logged in
+                try {
+                    const name = await getUsername();
+                    if (name) {
+                        const firstName = name.split(' ')[0];
+                        setUserName(firstName);
+                        setWelcomeMessage(`Hello ${firstName}!`);
+                        return;
+                    }
+                } catch (error) {
+                    console.log('Could not get username:', error);
+                }
+                // Final fallback
                 setUserName("there");
                 setWelcomeMessage("Hello there!");
             }

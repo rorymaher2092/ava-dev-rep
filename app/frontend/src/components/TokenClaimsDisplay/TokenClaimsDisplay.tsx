@@ -25,7 +25,7 @@ export const TokenClaimsDisplay = () => {
 
     useEffect(() => {
         const fetchClaims = async () => {
-            setClaims(await getTokenClaims(instance));
+            setClaims(await getTokenClaims());
         };
 
         fetchClaims();

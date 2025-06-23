@@ -37,7 +37,7 @@ export const AnalysisPanel = ({ answer, activeTab, activeCitation, citationHeigh
     const { t } = useTranslation();
 
     const fetchCitation = async () => {
-        const token = client ? await getToken(client) : undefined;
+        const token = await getToken();
         if (activeCitation) {
             // Get hash from the URL as it may contain #page=N
             // which helps browser PDF renderer jump to correct page N

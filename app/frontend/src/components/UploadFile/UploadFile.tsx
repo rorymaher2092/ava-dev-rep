@@ -37,7 +37,7 @@ export const UploadFile: React.FC<Props> = ({ className, disabled }: Props) => {
 
         // Update uploaded files by calling the API
         try {
-            const idToken = await getToken(client);
+            const idToken = await getToken();
             if (!idToken) {
                 throw new Error("No authentication token available");
             }
@@ -60,7 +60,7 @@ export const UploadFile: React.FC<Props> = ({ className, disabled }: Props) => {
         setDeletionStatus({ ...deletionStatus, [filename]: "pending" });
 
         try {
-            const idToken = await getToken(client);
+            const idToken = await getToken();
             if (!idToken) {
                 throw new Error("No authentication token available");
             }
@@ -86,7 +86,7 @@ export const UploadFile: React.FC<Props> = ({ className, disabled }: Props) => {
         formData.append("file", file);
 
         try {
-            const idToken = await getToken(client);
+            const idToken = await getToken();
             if (!idToken) {
                 throw new Error("No authentication token available");
             }
