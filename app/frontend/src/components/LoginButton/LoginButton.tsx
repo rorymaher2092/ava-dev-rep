@@ -43,7 +43,7 @@ export const LoginButton = () => {
         autoLogin();
 
         const fetchUsername = async () => {
-            const name = await getUsername(instance);
+            const name = await getUsername();
             if (name) {
                 setUsername(name);
                 setLoggedIn(true);
@@ -54,13 +54,13 @@ export const LoginButton = () => {
         
         // Check login status and username on component mount and every 2 seconds
         const checkLoginStatus = async () => {
-            const isLoggedIn = await checkLoggedIn(instance);
+            const isLoggedIn = await checkLoggedIn();
             if (isLoggedIn !== loggedIn) {
                 setLoggedIn(isLoggedIn);
             }
             
             if (isLoggedIn) {
-                const currentUsername = await getUsername(instance);
+                const currentUsername = await getUsername();
                 if (currentUsername && currentUsername !== username) {
                     setUsername(currentUsername);
                 }
@@ -119,8 +119,8 @@ export const LoginButton = () => {
             })
             .catch(error => console.log(error))
             .then(async () => {
-                setLoggedIn(await checkLoggedIn(instance));
-                setUsername((await getUsername(instance)) ?? "");
+                setLoggedIn(await checkLoggedIn());
+                setUsername((await getUsername()) ?? "");
             });
     };
 
@@ -149,8 +149,8 @@ export const LoginButton = () => {
                 })
                 .catch(error => console.log(error))
                 .then(async () => {
-                    setLoggedIn(await checkLoggedIn(instance));
-                    setUsername((await getUsername(instance)) ?? "");
+                    setLoggedIn(await checkLoggedIn());
+                    setUsername((await getUsername()) ?? "");
                 });
         } else {
             appServicesLogout();

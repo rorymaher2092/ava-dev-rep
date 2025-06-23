@@ -3,9 +3,7 @@ import { Outlet, Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import styles from "./Layout.module.css";
 import { useMsal } from "@azure/msal-react";
-import { getTokenClaims, getToken } from "../../authConfig";
-
-import { useLogin } from "../../authConfig";
+import { getTokenClaims, getToken, getUsername, useLogin } from "../../authConfig";
 import vocusLogoWhite from "../../assets/vocus-logo-white.png";
 import vocusLogoNavy from "../../assets/vocus-logo-navy.png";
 import vocusdark from "../../assets/vocusdark.png";
@@ -32,9 +30,54 @@ const Layout = () => {
     };
 
     useEffect(() => {
-        // Always show admin features - simplified approach
-        setIsAdmin(true);
-    }, []);
+        const checkAdminStatus = async () => {
+            try {
+                console.log('Checking admin status...');
+                
+                // Try app services authentication
+                const response = await fetch('/.auth/me');
+                console.log('Auth response status:', response.status);
+                
+                if (response.ok) {
+                    const authData = await response.json();
+                    console.log('Auth data:', authData);
+                    
+                    if (authData.length > 0) {
+                        const userClaims = authData[0].user_claims;
+                        const email = userClaims.find((claim: any) => claim.typ === 'preferred_username')?.val ||
+                                     userClaims.find((claim: any) => claim.typ === 'email')?.val ||
+                                     userClaims.find((claim: any) => claim.typ === 'upn')?.val;
+                        
+                        console.log('User email from app services:', email);
+                        
+                        // Check if user is admin
+                        const adminUserIds = ['jamie.gray@vocus.com.au', 'rory.maher@vocus.com.au', 'cal.mayhook@vocus.com.au'];
+                        const isUserAdmin = adminUserIds.some(adminUserId => 
+                            email?.toLowerCase() === adminUserId.toLowerCase()
+                        );
+                        
+                        console.log('Is admin:', isUserAdmin);
+                        setIsAdmin(isUserAdmin);
+                        return;
+                    } else {
+                        console.log('No auth data - user not authenticated via container app auth');
+                        // Redirect to login if not authenticated
+                        window.location.href = '/.auth/login/aad';
+                        return;
+                    }
+                }
+                
+                console.log('Auth endpoint not available or failed');
+                setIsAdmin(false);
+                
+            } catch (error) {
+                console.error('Error checking admin status:', error);
+                setIsAdmin(false);
+            }
+        };
+        
+        checkAdminStatus();
+    }, [instance]);
 
     useEffect(() => {
         // Check for user's preferred color scheme

@@ -45,7 +45,7 @@ const AdminPage: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            const token = await getToken(instance);
+            const token = await getToken();
             const response = await fetch('/admin/list', {
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -75,7 +75,7 @@ const AdminPage: React.FC = () => {
         setError(null);
         
         try {
-            const token = await getToken(instance);
+            const token = await getToken();
             const response = await fetch('/admin/add', {
                 method: 'POST',
                 headers: {
@@ -112,7 +112,7 @@ const AdminPage: React.FC = () => {
         setError(null);
         
         try {
-            const token = await getToken(instance);
+            const token = await getToken();
             const response = await fetch('/admin/remove', {
                 method: 'POST',
                 headers: {

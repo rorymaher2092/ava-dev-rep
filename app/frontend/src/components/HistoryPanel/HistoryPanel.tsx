@@ -41,7 +41,7 @@ export const HistoryPanel = ({
 
     const loadMoreHistory = async () => {
         setIsLoading(() => true);
-        const token = client ? await getToken(client) : undefined;
+        const token = await getToken();
         const items = await historyManager.getNextItems(HISTORY_COUNT_PER_LOAD, token);
         if (items.length === 0) {
             setHasMoreHistory(false);
@@ -51,7 +51,7 @@ export const HistoryPanel = ({
     };
 
     const handleSelect = async (id: string) => {
-        const token = client ? await getToken(client) : undefined;
+        const token = await getToken();
         const item = await historyManager.getItem(id, token);
         if (item) {
             onChatSelected(item);
@@ -59,7 +59,7 @@ export const HistoryPanel = ({
     };
 
     const handleDelete = async (id: string) => {
-        const token = client ? await getToken(client) : undefined;
+        const token = await getToken();
         await historyManager.deleteItem(id, token);
         setHistory(prevHistory => prevHistory.filter(item => item.id !== id));
     };
