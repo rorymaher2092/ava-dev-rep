@@ -57,7 +57,7 @@
         overflow: hidden;
         max-width: none;
     }
-    
+
     .headerContainer {
         padding: 0 1rem;
     }
@@ -99,7 +99,7 @@
         height: 32px;
         margin-right: 0.5rem;
     }
-    
+
     .appLogo {
         height: 24px;
         margin-right: 0.5rem;
@@ -139,11 +139,11 @@
         text-overflow: ellipsis;
         max-width: 200px;
     }
-    
+
     .fullTitle {
         display: none;
     }
-    
+
     .shortTitle {
         display: block;
     }
@@ -276,11 +276,11 @@
     .footer {
         display: none !important;
     }
-    
+
     .buttonText {
         display: none !important;
     }
-    
+
     .headerButton {
         padding: 8px !important;
         min-width: 40px;
@@ -289,3 +289,51 @@
     }
 }
 
+/* ----- Bot-selector pill ----------------------------------- */
+
+/* pill inherits rounded border, bg, hover-lift from .headerButton */
+.botPill {
+    position: relative;
+    padding: 8px 40px 8px 40px; /* 40px left & right = room for icon + arrow */
+    display: inline-block; /* needed so pseudo-elements position correctly */
+}
+
+/* draw 🤖 on the left */
+.botPill::before {
+    content: "🤖";
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    line-height: 1;
+}
+
+/* draw ▼ on the right (remove if you don’t want it) */
+.botPill::after {
+    content: "▾";
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+/* the <select> itself */
+.botSelect {
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    appearance: none; /* hide native arrow */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+}
+
+/* Optional: IE11 arrow */
+.botSelect::-ms-expand {
+    display: none;
+}

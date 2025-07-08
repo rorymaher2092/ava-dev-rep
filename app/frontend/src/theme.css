@@ -95,3 +95,59 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--text-secondary);
 }
+
+/* ────────────────────────────────────────────────────────────────
+   BOT-SPECIFIC PALETTES
+   Activate one of these classes on <html> (we do it in useBotTheme).
+   ────────────────────────────────────────────────────────────────*/
+
+/* BLUE – default, already the values set in :root so we only list brand vars
+   (handy if you want to tweak them later) */
+.theme-blue {
+    --brand-100: #0f1c47; /* dark navy */
+    --brand-80: #007fff; /* bright mid */
+    --brand-40: #d1e4ff; /* tint */
+}
+
+/* ORANGE – “tender” bot */
+.theme-orange {
+    --brand-100: #b64e12; /* 30 % darker than #ff9c00 */
+    --brand-80: #ff9c00; /* base orange */
+    --brand-40: #ffe6c2; /* light tint */
+
+    /* tie major UI tokens to the brand */
+    --primary: var(--brand-80);
+    --primary-hover: var(--brand-100);
+    --accent: var(--brand-80);
+    --info: var(--brand-80);
+
+    /* user chat bubble */
+    --user-message-bg: linear-gradient(135deg, var(--brand-40) 0%, var(--brand-80) 100%);
+    --user-message-text: var(--vocus-navy);
+}
+
+/* GREEN – “ba” bot */
+.theme-green {
+    --brand-100: #0e7a0e;
+    --brand-80: #1ac01a;
+    --brand-40: #d6f9d6;
+
+    --primary: var(--brand-80);
+    --primary-hover: var(--brand-100);
+    --accent: var(--brand-80);
+    --info: var(--brand-80);
+
+    --user-message-bg: linear-gradient(135deg, var(--brand-40) 0%, var(--brand-80) 100%);
+    --user-message-text: var(--vocus-navy);
+}
+
+/* OPTIONAL – dark-mode tweaks per palette
+   (inherit from [data-theme="dark"] first, then override)  */
+[data-theme="dark"].theme-orange {
+    --primary: var(--brand-80);
+    --primary-hover: var(--brand-40);
+}
+[data-theme="dark"].theme-green {
+    --primary: var(--brand-80);
+    --primary-hover: var(--brand-40);
+}

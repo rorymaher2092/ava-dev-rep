@@ -38,11 +38,17 @@ import { LoginContext } from "../../loginContext";
 import { LanguagePicker } from "../../i18n/LanguagePicker";
 import { Settings } from "../../components/Settings/Settings";
 
+// Import the Bot Selector
+import BotSelector from "../../components/BotSelectorButton/BotSelector"; // adjust path
+import { BOTS, DEFAULT_BOT_ID, BotProfile } from "../../config/botConfig";
+import { useBot } from "../../contexts/BotContext"; // ✅ ADD
+import { useBotTheme } from "../../hooks/useBotTheme";
+
 const Chat = () => {
     const [searchParams] = useSearchParams();
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
     const [isConfigPanelOpen, setIsConfigPanelOpen] = useState(false);
-    const [isHistoryPanelOpen, setIsHistoryPanelOpen] = useState(searchParams.get('history') === 'true');
+    const [isHistoryPanelOpen, setIsHistoryPanelOpen] = useState(searchParams.get("history") === "true");
     const [promptTemplate, setPromptTemplate] = useState<string>("");
     const [temperature, setTemperature] = useState<number>(0.3);
     const [seed, setSeed] = useState<number | null>(null);
@@ -315,13 +321,13 @@ const Chat = () => {
     useEffect(() => chatMessageStreamEnd.current?.scrollIntoView({ behavior: "auto" }), [streamedAnswers]);
     useEffect(() => {
         getConfig();
-        
+
         // Check URL parameters for actions
-        if (searchParams.get('clear') === 'true') {
+        if (searchParams.get("clear") === "true") {
             clearChat();
         }
     }, [searchParams]);
-    
+
     // Listen for focus events to refresh user details
     useEffect(() => {
         const handleFocus = async () => {
@@ -329,19 +335,19 @@ const Chat = () => {
                 try {
                     const name = await getUsername();
                     if (name) {
-                        const firstName = name.split(' ')[0];
+                        const firstName = name.split(" ")[0];
                         if (firstName !== userName) {
                             setUserName(firstName);
-                            
-                            const { getUserWelcomeMessage } = await import('../../api');
+
+                            const { getUserWelcomeMessage } = await import("../../api");
                             const token = await getToken();
-                            const claims = await getTokenClaims() || {};
-                            
+                            const claims = (await getTokenClaims()) || {};
+
                             const userDetails = {
                                 name: firstName,
                                 username: claims.preferred_username || claims.upn || claims.email
                             };
-                            
+
                             const message = await getUserWelcomeMessage(userDetails);
                             setWelcomeMessage(message);
                         }
@@ -351,11 +357,11 @@ const Chat = () => {
                 }
             }
         };
-        
-        window.addEventListener('focus', handleFocus);
-        return () => window.removeEventListener('focus', handleFocus);
+
+        window.addEventListener("focus", handleFocus);
+        return () => window.removeEventListener("focus", handleFocus);
     }, [client, loggedIn, userName]);
-    
+
     // Get the user's name and welcome message when logged in
     useEffect(() => {
         const fetchUserDetails = async () => {
@@ -365,24 +371,24 @@ const Chat = () => {
                     const name = await getUsername();
                     if (name) {
                         // Extract first name if possible
-                        const firstName = name.split(' ')[0];
+                        const firstName = name.split(" ")[0];
                         setUserName(firstName);
-                        
+
                         // Import the getUserWelcomeMessage function
-                        const { getUserWelcomeMessage } = await import('../../api');
-                        
+                        const { getUserWelcomeMessage } = await import("../../api");
+
                         // Get fresh token claims
                         const token = await getToken();
-                        const claims = await getTokenClaims() || {};
-                        
+                        const claims = (await getTokenClaims()) || {};
+
                         // Prepare user details with available information
                         const userDetails = {
                             name: firstName,
                             username: claims.preferred_username || claims.upn || claims.email
                         };
-                        
+
                         console.log("Fetching welcome message for:", userDetails);
-                        
+
                         // Fetch custom welcome message
                         const message = await getUserWelcomeMessage(userDetails);
                         setWelcomeMessage(message);
@@ -401,45 +407,51 @@ const Chat = () => {
                 // Clear cache and try to get user from app services
                 try {
                     globalThis.cachedAppServicesToken = null;
-                    await fetch('/.auth/refresh', { method: 'POST' });
+                    await fetch("/.auth/refresh", { method: "POST" });
                     const name = await getUsername();
                     if (name) {
-                        const firstName = name.split(' ')[0];
+                        const firstName = name.split(" ")[0];
                         setUserName(firstName);
                         setWelcomeMessage(`Hello ${firstName}!`);
                         return;
                     }
                 } catch (error) {
-                    console.log('Could not get username:', error);
+                    console.log("Could not get username:", error);
                 }
                 // Final fallback
                 setUserName("there");
                 setWelcomeMessage("Hello there!");
             }
         };
-        
+
         // Fetch immediately and set up interval for periodic refresh
         fetchUserDetails();
-        
+
         // Refresh user details every 5 minutes to handle token expiry
         const interval = setInterval(fetchUserDetails, 5 * 60 * 1000);
-        
+
         return () => clearInterval(interval);
     }, [client, loggedIn]);
-    
+
+    /* ─── Bot selection ─────────────────────────────────────────── */
+    const { botId, setBotId } = useBot();
+    const botProfile: BotProfile = BOTS[botId] ?? BOTS[DEFAULT_BOT_ID];
+
+    useBotTheme(botId);
+
     // Listen for custom events and window resize
     useEffect(() => {
         const handleOpenChatHistory = () => {
             setIsHistoryPanelOpen(true);
         };
-        
+
         const handleClearChat = () => {
             clearChat();
         };
-        
+
         const handleResize = () => {
             setIsMobile(window.innerWidth <= 768);
-            
+
             // Close panels on mobile when resizing to mobile
             if (window.innerWidth <= 768) {
                 if (activeAnalysisPanelTab) {
@@ -450,15 +462,15 @@ const Chat = () => {
                 }
             }
         };
-        
-        window.addEventListener('openChatHistory', handleOpenChatHistory);
-        window.addEventListener('clearChat', handleClearChat);
-        window.addEventListener('resize', handleResize);
-        
+
+        window.addEventListener("openChatHistory", handleOpenChatHistory);
+        window.addEventListener("clearChat", handleClearChat);
+        window.addEventListener("resize", handleResize);
+
         return () => {
-            window.removeEventListener('openChatHistory', handleOpenChatHistory);
-            window.removeEventListener('clearChat', handleClearChat);
-            window.removeEventListener('resize', handleResize);
+            window.removeEventListener("openChatHistory", handleOpenChatHistory);
+            window.removeEventListener("clearChat", handleClearChat);
+            window.removeEventListener("resize", handleResize);
         };
     }, [activeAnalysisPanelTab, isHistoryPanelOpen]);
 
@@ -570,134 +582,161 @@ const Chat = () => {
             </Helmet>
             {/* Removed command buttons as they're now in the header menu */}
             <div className={styles.commandsSplitContainer}>
-                <div className={styles.commandsContainer}>
-                    {showUserUpload && <UploadFile className={styles.commandButton} disabled={!loggedIn} />}
-                </div>
+                <div className={styles.commandsContainer}>{showUserUpload && <UploadFile className={styles.commandButton} disabled={!loggedIn} />}</div>
             </div>
-            <div className={styles.chatRoot} style={{ 
-                marginRight: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
-                marginLeft: isHistoryPanelOpen && !isMobile ? "320px" : "0"
-            }}>
+            <div
+                className={styles.chatRoot}
+                style={{
+                    marginRight: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
+                    marginLeft: isHistoryPanelOpen && !isMobile ? "320px" : "0"
+                }}
+            >
                 <div className={styles.chatContainer}>
                     {!lastQuestionRef.current ? (
                         <div className={styles.chatEmptyState}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginBottom: '24px' }}>
-                                <div style={{
-                                    background: 'var(--surface-elevated)',
-                                    border: '3px solid var(--border)',
-                                    borderRadius: '50%',
-                                    padding: '20px',
-                                    boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
-                                }}>
-                                    <img src={appLogo} alt="App logo" width="80" height="80" />
+                            <div style={{ display: "flex", alignItems: "center", gap: "24px", marginBottom: "24px" }}>
+                                <div
+                                    style={{
+                                        background: "var(--surface-elevated)",
+                                        border: "3px solid var(--border)",
+                                        borderRadius: "50%",
+                                        padding: "20px",
+                                        boxShadow: "0 8px 32px rgba(0,0,0,0.1)"
+                                    }}
+                                >
+                                    <img src={botProfile.logo} alt={botProfile.label} width="80" height="80" />
                                 </div>
-                                <h1 style={{ 
-                                    fontSize: '2.5rem',
-                                    fontWeight: '700',
-                                    color: 'var(--text)',
-                                    margin: 0
-                                }}>
+                                <h1
+                                    style={{
+                                        fontSize: "2.5rem",
+                                        fontWeight: "700",
+                                        color: "var(--text)",
+                                        margin: 0
+                                    }}
+                                >
                                     Hello {userName}!
                                 </h1>
                             </div>
 
-                            <h2 style={{ 
-                                color: 'var(--text)',
-                                marginBottom: '16px',
-                                fontSize: '20px',
-                                fontWeight: '500',
-                                textAlign: 'center'
-                            }}>
-                                {welcomeMessage !== `Hello ${userName}!` ? welcomeMessage : ''}
+                            <h2
+                                style={{
+                                    color: "var(--text)",
+                                    marginBottom: "16px",
+                                    fontSize: "20px",
+                                    fontWeight: "500",
+                                    textAlign: "center"
+                                }}
+                            >
+                                {welcomeMessage !== `Hello ${userName}!` ? welcomeMessage : ""}
                             </h2>
-                            
 
-                            
                             {/* Quick stats or tips */}
-                            <div style={{
-                                display: 'flex',
-                                gap: '24px',
-                                marginBottom: '32px',
-                                flexWrap: 'wrap',
-                                justifyContent: 'center'
-                            }}>
-                                <div style={{
-                                    backgroundColor: 'var(--surface-elevated)',
-                                    borderRadius: '16px',
-                                    padding: '20px',
-                                    textAlign: 'center',
-                                    width: '180px',
-                                    height: '140px',
-                                    boxShadow: 'var(--shadow-sm)',
-                                    position: 'relative',
-                                    overflow: 'hidden',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    justifyContent: 'center'
-                                }}>
-                                    <div style={{ 
-                                        fontSize: '32px', 
-                                        marginBottom: '12px',
-                                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
-                                    }}>💬</div>
-                                    <div style={{ color: 'var(--text)', fontWeight: '700', fontSize: '16px', marginBottom: '4px' }}>Ask Anything</div>
-                                    <div style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.4' }}>Get instant answers to your questions</div>
+                            <div
+                                style={{
+                                    display: "flex",
+                                    gap: "24px",
+                                    marginBottom: "32px",
+                                    flexWrap: "wrap",
+                                    justifyContent: "center"
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        backgroundColor: "var(--surface-elevated)",
+                                        borderRadius: "16px",
+                                        padding: "20px",
+                                        textAlign: "center",
+                                        width: "180px",
+                                        height: "140px",
+                                        boxShadow: "var(--shadow-sm)",
+                                        position: "relative",
+                                        overflow: "hidden",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        justifyContent: "center"
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            fontSize: "32px",
+                                            marginBottom: "12px",
+                                            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
+                                        }}
+                                    >
+                                        💬
+                                    </div>
+                                    <div style={{ color: "var(--text)", fontWeight: "700", fontSize: "16px", marginBottom: "4px" }}>Ask Anything</div>
+                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>
+                                        Get instant answers to your questions
+                                    </div>
                                 </div>
-                                <div style={{
-                                    backgroundColor: 'var(--surface-elevated)',
-                                    borderRadius: '16px',
-                                    padding: '20px',
-                                    textAlign: 'center',
-                                    width: '180px',
-                                    height: '140px',
-                                    boxShadow: 'var(--shadow-sm)',
-                                    position: 'relative',
-                                    overflow: 'hidden',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    justifyContent: 'center'
-                                }}>
-                                    <div style={{ 
-                                        fontSize: '32px', 
-                                        marginBottom: '12px',
-                                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
-                                    }}>🔍</div>
-                                    <div style={{ color: 'var(--text)', fontWeight: '700', fontSize: '16px', marginBottom: '4px' }}>Smart Search</div>
-                                    <div style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.4' }}>Find information quickly</div>
+                                <div
+                                    style={{
+                                        backgroundColor: "var(--surface-elevated)",
+                                        borderRadius: "16px",
+                                        padding: "20px",
+                                        textAlign: "center",
+                                        width: "180px",
+                                        height: "140px",
+                                        boxShadow: "var(--shadow-sm)",
+                                        position: "relative",
+                                        overflow: "hidden",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        justifyContent: "center"
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            fontSize: "32px",
+                                            marginBottom: "12px",
+                                            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
+                                        }}
+                                    >
+                                        🔍
+                                    </div>
+                                    <div style={{ color: "var(--text)", fontWeight: "700", fontSize: "16px", marginBottom: "4px" }}>Smart Search</div>
+                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>Find information quickly</div>
                                 </div>
-                                <div style={{
-                                    backgroundColor: 'var(--surface-elevated)',
-                                    borderRadius: '16px',
-                                    padding: '20px',
-                                    textAlign: 'center',
-                                    width: '180px',
-                                    height: '140px',
-                                    boxShadow: 'var(--shadow-sm)',
-                                    position: 'relative',
-                                    overflow: 'hidden',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    justifyContent: 'center'
-                                }}>
-                                    <div style={{ 
-                                        fontSize: '32px', 
-                                        marginBottom: '12px',
-                                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
-                                    }}>⚡</div>
-                                    <div style={{ color: 'var(--text)', fontWeight: '700', fontSize: '16px', marginBottom: '4px' }}>Fast Response</div>
-                                    <div style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.4' }}>Powered by advanced AI</div>
+                                <div
+                                    style={{
+                                        backgroundColor: "var(--surface-elevated)",
+                                        borderRadius: "16px",
+                                        padding: "20px",
+                                        textAlign: "center",
+                                        width: "180px",
+                                        height: "140px",
+                                        boxShadow: "var(--shadow-sm)",
+                                        position: "relative",
+                                        overflow: "hidden",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        justifyContent: "center"
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            fontSize: "32px",
+                                            marginBottom: "12px",
+                                            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
+                                        }}
+                                    >
+                                        ⚡
+                                    </div>
+                                    <div style={{ color: "var(--text)", fontWeight: "700", fontSize: "16px", marginBottom: "4px" }}>Fast Response</div>
+                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>Powered by advanced AI</div>
                                 </div>
                             </div>
 
                             {showLanguagePicker && (
-                                <div style={{ marginBottom: '32px' }}>
+                                <div style={{ marginBottom: "32px" }}>
                                     <LanguagePicker onLanguageChange={newLang => i18n.changeLanguage(newLang)} />
                                 </div>
                             )}
 
                             {/* Only show examples on non-mobile */}
                             {!isMobile && (
-                                <div style={{ marginTop: '40px', marginBottom: '120px' }}>
+                                <div style={{ marginTop: "40px", marginBottom: "120px" }}>
                                     <ExampleList onExampleClicked={onExampleClicked} useGPT4V={useGPT4V} />
                                 </div>
                             )}
@@ -766,14 +805,17 @@ const Chat = () => {
                         </div>
                     )}
 
-                    <div className={styles.chatInput} style={{ 
-                        right: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
-                        left: isHistoryPanelOpen && !isMobile ? "320px" : "0",
-                        width: "auto",
-                        backgroundColor: 'var(--background)',
-                        borderTop: '1px solid var(--border)',
-                        padding: '16px 20px'
-                    }}>
+                    <div
+                        className={styles.chatInput}
+                        style={{
+                            right: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
+                            left: isHistoryPanelOpen && !isMobile ? "320px" : "0",
+                            width: "auto",
+                            backgroundColor: "var(--background)",
+                            borderTop: "1px solid var(--border)",
+                            padding: "16px 20px"
+                        }}
+                    >
                         <QuestionInput
                             clearOnSend
                             placeholder={t("defaultExamples.placeholder")}
@@ -801,19 +843,21 @@ const Chat = () => {
                 )}
 
                 {((useLogin && showChatHistoryCosmos) || showChatHistoryBrowser) && (
-                    <div style={{ 
-                        position: "fixed", 
-                        top: "64px", 
-                        left: "0", 
-                        width: "320px", 
-                        height: "calc(100vh - 128px)",
-                        background: "var(--surface-elevated)",
-                        backdropFilter: "blur(20px)",
-                        borderRight: "1px solid var(--border-light)",
-                        boxShadow: "var(--shadow-lg)",
-                        zIndex: 900,
-                        display: isHistoryPanelOpen ? "block" : "none"
-                    }}>
+                    <div
+                        style={{
+                            position: "fixed",
+                            top: "64px",
+                            left: "0",
+                            width: "320px",
+                            height: "calc(100vh - 128px)",
+                            background: "var(--surface-elevated)",
+                            backdropFilter: "blur(20px)",
+                            borderRight: "1px solid var(--border-light)",
+                            boxShadow: "var(--shadow-lg)",
+                            zIndex: 900,
+                            display: isHistoryPanelOpen ? "block" : "none"
+                        }}
+                    >
                         <HistoryPanel
                             provider={historyProvider}
                             isOpen={isHistoryPanelOpen}

@@ -14,11 +14,14 @@ import LayoutWrapper from "./layoutWrapper";
 import i18next from "./i18n/config";
 import AdminRoute from "./components/AdminRoute";
 
+// ✅ Import BotProvider
+import { BotProvider } from "./contexts/BotContext";
+
 // Initialize Teams SDK
 try {
-  microsoftTeams.app.initialize();
+    microsoftTeams.app.initialize();
 } catch (error) {
-  console.log("Teams initialization failed or not in Teams context");
+    console.log("Teams initialization failed or not in Teams context");
 }
 initializeIcons();
 
@@ -33,9 +36,12 @@ const router = createHashRouter([
             },
             {
                 path: "feedback",
-                element: <AdminRoute><React.Suspense fallback={<div>Loading...</div>}>{React.createElement(React.lazy(() => import("./pages/feedback")))}</React.Suspense></AdminRoute>
+                element: (
+                    <AdminRoute>
+                        <React.Suspense fallback={<div>Loading...</div>}>{React.createElement(React.lazy(() => import("./pages/feedback")))}</React.Suspense>
+                    </AdminRoute>
+                )
             },
-
             {
                 path: "*",
                 lazy: () => import("./pages/NoPage")
@@ -48,7 +54,10 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
         <I18nextProvider i18n={i18next}>
             <HelmetProvider>
-                <RouterProvider router={router} />
+                {/* ✅ Wrap with BotProvider */}
+                <BotProvider>
+                    <RouterProvider router={router} />
+                </BotProvider>
             </HelmetProvider>
         </I18nextProvider>
     </React.StrictMode>

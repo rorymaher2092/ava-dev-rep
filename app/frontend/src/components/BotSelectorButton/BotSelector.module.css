@@ -1,0 +1,25 @@
+/* BotSelector.module.css */
+
+/* styles applied directly to the <select> element */
+.BotSelectorDropdown {
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    appearance: none; /* hide native arrow */
+    padding: 0; /* wrapper supplies padding */
+    line-height: 1;
+}
+
+/* optional ▼ inside the select itself (not essential anymore) */
+.BotSelectorDropdown::after {
+    content: "▾";
+    pointer-events: none;
+}
+
+/* disabled entries */
+.BotSelectorDropdown:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
