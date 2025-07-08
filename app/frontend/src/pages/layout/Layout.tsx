@@ -123,7 +123,12 @@ const Layout = () => {
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                         {/* ✅ Use global bot selector */}
                         <div className={`${styles.headerButton} ${styles.botPill}`}>
-                            <BotSelector userEmail={userEmail} className={styles.botSelect} />
+                            <BotSelector
+                                value={botId}
+                                userEmail={userEmail}
+                                onChange={(id: string) => setBotId(id)} // <-- You need to pass this `onChange` handler
+                                className={styles.botSelect}
+                            />
                         </div>
 
                         <button onClick={toggleTheme} className={styles.headerButton}>

@@ -1,25 +1,35 @@
 /* BotSelector.module.css */
 
-/* styles applied directly to the <select> element */
-.BotSelectorDropdown {
-    border: none;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
-    appearance: none; /* hide native arrow */
-    padding: 0; /* wrapper supplies padding */
-    line-height: 1;
+/* Local Styles for the BotSelector dropdown */
+.selectDropdown {
+    background-color: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 8px 16px;
+    font-size: 16px;
+    width: 100%;
+    transition:
+        background-color 0.3s ease,
+        box-shadow 0.3s ease;
 }
 
-/* optional ▼ inside the select itself (not essential anymore) */
-.BotSelectorDropdown::after {
-    content: "▾";
-    pointer-events: none;
+.selectDropdown:hover {
+    background-color: var(--surface-hover);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* disabled entries */
-.BotSelectorDropdown:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
+.selectDropdown:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 5px var(--primary);
+}
+
+[data-theme="dark"] .selectDropdown {
+    background-color: var(--surface-elevated);
+    color: var(--text);
+}
+
+[data-theme="dark"] .selectDropdown option {
+    color: var(--text);
 }
