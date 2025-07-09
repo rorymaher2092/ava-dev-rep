@@ -50,6 +50,7 @@ from quart import (
 )
 from quart_cors import cors
 
+from bot_profiles import BotProfile, BOTS, DEFAULT_BOT_ID
 from approaches.approach import Approach
 from approaches.chatreadretrieveread import ChatReadRetrieveReadApproach
 from approaches.chatreadretrievereadvision import ChatReadRetrieveReadVisionApproach
@@ -184,6 +185,16 @@ async def ask(auth_claims: dict[str, Any]):
     request_json = await request.get_json()
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
+
+    # Print out the full context, including overrides
+    current_app.logger.info(f"Received context: {json.dumps(context, indent=2)}")
+
+    # Extract the bot_id from the overrides in context (default to 'ava' if not present)
+    bot_id = context.get("overrides", {}).get("bot_id", DEFAULT_BOT_ID)
+    bot_profile = BOTS.get(bot_id, BOTS[DEFAULT_BOT_ID])  # Default to 'ava' if not found
+    
+    current_app.logger.info(f"Bot ID: {bot_id}, Bot Profile: {bot_profile.label}")
+
     try:
         use_gpt4v = context.get("overrides", {}).get("use_gpt4v", False)
         approach: Approach
@@ -223,6 +234,16 @@ async def chat(auth_claims: dict[str, Any]):
     request_json = await request.get_json()
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
+
+    # Print out the full context, including overrides
+    current_app.logger.info(f"Received context: {json.dumps(context, indent=2)}")
+
+    # Extract the bot_id from the overrides in context (default to 'ava' if not present)
+    bot_id = context.get("overrides", {}).get("bot_id", DEFAULT_BOT_ID)
+    bot_profile = BOTS.get(bot_id, BOTS[DEFAULT_BOT_ID])  # Default to 'ava' if not found
+    
+    current_app.logger.info(f"Bot ID: {bot_id}, Bot Profile: {bot_profile.label}")
+
     try:
         use_gpt4v = context.get("overrides", {}).get("use_gpt4v", False)
         approach: Approach

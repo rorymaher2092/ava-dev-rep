@@ -17,6 +17,8 @@ from approaches.chatapproach import ChatApproach
 from approaches.promptmanager import PromptManager
 from core.authentication import AuthenticationHelper
 
+from bot_profiles import DEFAULT_BOT_ID, BOTS
+
 
 class ChatReadRetrieveReadApproach(ChatApproach):
     """
@@ -87,6 +89,19 @@ class ChatReadRetrieveReadApproach(ChatApproach):
             raise Exception(
                 f"{self.chatgpt_model} does not support streaming. Please use a different model or disable streaming."
             )
+
+        # Retrieve the bot_id from overrides (default to "ava" if not provided)
+        bot_id = overrides.get("bot_id", DEFAULT_BOT_ID)
+        profile = BOTS.get(bot_id, BOTS[DEFAULT_BOT_ID])  # Default to 'ava' if bot_id is not found
+
+        # Log the bot profile for debugging (optional)
+        #current_app.logger.info(f"Bot ID: {bot_id}, Bot Profile: {profile.label}")
+
+        # Access the profile's examples
+        overrides.setdefault("model_override", profile.model)
+        overrides.setdefault("examples", profile.examples)
+        overrides.setdefault("prompt_template", profile.system_prompt)
+
         if use_agentic_retrieval:
             extra_info = await self.run_agentic_retrieval_approach(messages, overrides, auth_claims)
         else:
@@ -103,11 +118,14 @@ class ChatReadRetrieveReadApproach(ChatApproach):
             },
         )
 
+        # Ensure model_override is used when creating the chat completion
+        model_to_use = overrides.get("model_override", self.chatgpt_model)  # Use
+
         chat_coroutine = cast(
             Union[Awaitable[ChatCompletion], Awaitable[AsyncStream[ChatCompletionChunk]]],
             self.create_chat_completion(
                 self.chatgpt_deployment,
-                self.chatgpt_model,
+                model_to_use,
                 messages,
                 overrides,
                 self.get_response_token_limit(self.chatgpt_model, 1024),

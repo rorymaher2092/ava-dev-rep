@@ -209,7 +209,7 @@ const Chat = () => {
 
     const makeApiRequest = async (question: string) => {
         lastQuestionRef.current = question;
-
+        console.log("Sending API request with botId:", botId);
         // Clear follow-up questions when a new question is asked
         setCurrentFollowupQuestions([]);
 
@@ -252,6 +252,8 @@ const Chat = () => {
                         gpt4v_input: gpt4vInput,
                         language: i18n.language,
                         use_agentic_retrieval: useAgenticRetrieval,
+                        // bot_id: to select which bot is being used
+                        bot_id: botId,
                         ...(seed !== null ? { seed: seed } : {})
                     }
                 },
@@ -435,6 +437,7 @@ const Chat = () => {
 
     /* ─── Bot selection ─────────────────────────────────────────── */
     const { botId, setBotId } = useBot();
+    console.log("Current botId:", botId); // Log the botId
     const botProfile: BotProfile = BOTS[botId] ?? BOTS[DEFAULT_BOT_ID];
 
     useBotTheme(botId);
