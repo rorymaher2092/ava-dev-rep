@@ -97,6 +97,13 @@ const Layout = () => {
 
     const logoSrc = theme === "light" ? vocusLogoNavy : vocusLogoWhite;
 
+    // Function to trigger when bot is changed
+    const handleBotChange = (newBotId: string) => {
+        setBotId(newBotId); // Update the botId in the context
+        const clearChatEvent = new CustomEvent("clearChat");
+        window.dispatchEvent(clearChatEvent); // Dispatch the event to clear chat
+    };
+
     return (
         <div className={styles.layout}>
             <header className={styles.header} role="banner">
@@ -122,14 +129,7 @@ const Layout = () => {
 
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                         {/* ✅ Use global bot selector */}
-                        <div className={`${styles.headerButton} ${styles.botPill}`}>
-                            <BotSelector
-                                value={botId}
-                                userEmail={userEmail}
-                                onChange={(id: string) => setBotId(id)} // <-- You need to pass this `onChange` handler
-                                className={styles.botSelect}
-                            />
-                        </div>
+                        <BotSelector userEmail={userEmail} onChange={handleBotChange} className={styles.botSelect} />
 
                         <button onClick={toggleTheme} className={styles.headerButton}>
                             <span>📊</span>
