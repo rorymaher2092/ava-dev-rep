@@ -638,6 +638,7 @@ async def setup_clients():
 
     # Set the Azure credential in the app config for use in other parts of the app
     current_app.config[CONFIG_CREDENTIAL] = azure_credential
+    current_app.config[AZURE_SEARCH_ENDPOINT] = AZURE_SEARCH_ENDPOINT
 
     # Set up clients for AI Search and Storage
     search_client = SearchClient(

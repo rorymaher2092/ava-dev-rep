@@ -45,6 +45,7 @@ export type ChatAppRequestOverrides = {
     bot_id?: string; // Optional bot ID to override the default bot
     model?: string; // Optional model override
     examples?: Array<{ role: string; content: string }>; // Optional examples override
+    search_index_name?: string; // Optional search index name override
 };
 
 export type ResponseMessage = {

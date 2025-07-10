@@ -4,6 +4,20 @@ from collections.abc import AsyncGenerator, Awaitable
 from dataclasses import dataclass
 from typing import Any, Callable, Optional, TypedDict, Union, cast
 from urllib.parse import urljoin
+from azure.core.exceptions import HttpResponseError
+from quart import current_app
+from config import CONFIG_CREDENTIAL
+import traceback
+# 2. Add more detailed logging to your search function
+import logging
+
+# Configure logging settings globally
+logging.basicConfig(
+    level=logging.INFO,  # Set the log level to INFO or DEBUG depending on the level of detail you want
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',  # Format for the logs
+)
+
+import traceback
 
 import aiohttp
 from azure.search.documents.agent.aio import KnowledgeAgentRetrievalClient
@@ -172,6 +186,12 @@ class Approach(ABC):
         self.reasoning_effort = reasoning_effort
         self.include_token_usage = True
 
+        # Add logger initialization
+        self.logger = logging.getLogger(self.__class__.__name__)
+        
+        # Store the original search index name from the client
+        self.search_index_name = getattr(search_client, 'index_name', None)
+
     def build_filter(self, overrides: dict[str, Any], auth_claims: dict[str, Any]) -> Optional[str]:
         include_category = overrides.get("include_category")
         exclude_category = overrides.get("exclude_category")
@@ -198,49 +218,95 @@ class Approach(ABC):
         minimum_search_score: Optional[float] = None,
         minimum_reranker_score: Optional[float] = None,
         use_query_rewriting: Optional[bool] = None,
+        search_index_name: Optional[str] = None,
     ) -> list[Document]:
-        search_text = query_text if use_text_search else ""
-        search_vectors = vectors if use_vector_search else []
-        if use_semantic_ranker:
-            results = await self.search_client.search(
-                search_text=search_text,
-                filter=filter,
-                top=top,
-                query_caption="extractive|highlight-false" if use_semantic_captions else None,
-                query_rewrites="generative" if use_query_rewriting else None,
-                vector_queries=search_vectors,
-                query_type=QueryType.SEMANTIC,
-                query_language=self.query_language,
-                query_speller=self.query_speller,
-                semantic_configuration_name="default",
-                semantic_query=query_text,
-            )
-        else:
-            results = await self.search_client.search(
-                search_text=search_text,
-                filter=filter,
-                top=top,
-                vector_queries=search_vectors,
-            )
-
-        documents = []
-        async for page in results.by_page():
-            async for document in page:
-                documents.append(
-                    Document(
-                        id=document.get("id"),
-                        content=document.get("content"),
-                        category=document.get("category"),
-                        sourcepage=document.get("sourcepage"),
-                        sourcefile=document.get("sourcefile"),
-                        oids=document.get("oids"),
-                        groups=document.get("groups"),
-                        captions=cast(list[QueryCaptionResult], document.get("@search.captions")),
-                        score=document.get("@search.score"),
-                        reranker_score=document.get("@search.reranker_score"),
-                    )
+        
+        try:
+            # Log the inputs
+            self.logger.info(f"Search called with index: {search_index_name}")
+            self.logger.info(f"Query: {query_text}")
+            self.logger.info(f"Top: {top}")
+            
+            # Determine which index to use
+            effective_index_name = search_index_name or self.search_index_name
+            self.logger.info(f"Effective index name: {effective_index_name}")
+            
+            # Use default client if it's the same index, otherwise create new client
+            if effective_index_name == self.search_index_name:
+                search_client = self.search_client
+                self.logger.info("Using default search client")
+            else:
+                # Create new client for different index
+                self.logger.info("Creating new search client for different index")
+                search_client = SearchClient(
+                    endpoint=current_app.config['AZURE_SEARCH_ENDPOINT'],
+                    index_name=effective_index_name,
+                    credential=current_app.config[CONFIG_CREDENTIAL],
                 )
-
+                self.logger.info("New search client created successfully")
+            
+            # Log search parameters
+            search_text = query_text if use_text_search else ""
+            search_vectors = vectors if use_vector_search else []
+            
+            self.logger.info(f"Search text: {search_text}")
+            self.logger.info(f"Use semantic ranker: {use_semantic_ranker}")
+            self.logger.info(f"Vector search enabled: {use_vector_search}")
+            
+            # Execute search
+            if use_semantic_ranker:
+                self.logger.info("Executing semantic ranker search")
+                results = await search_client.search(
+                    search_text=search_text,
+                    filter=filter,
+                    top=top,
+                    query_caption="extractive|highlight-false" if use_semantic_captions else None,
+                    query_rewrites="generative" if use_query_rewriting else None,
+                    vector_queries=search_vectors,
+                    query_type=QueryType.SEMANTIC,
+                    query_language=self.query_language,
+                    query_speller=self.query_speller,
+                    semantic_configuration_name="default",
+                    semantic_query=query_text,
+                )
+            else:
+                self.logger.info("Executing standard search")
+                results = await search_client.search(
+                    search_text=search_text,
+                    filter=filter,
+                    top=top,
+                    vector_queries=search_vectors,
+                )
+            
+            self.logger.info("Search executed successfully, processing results")
+            
+            # Process documents
+            documents = []
+            page_count = 0
+            document_count = 0
+            
+            async for page in results.by_page():
+                page_count += 1
+                async for document in page:
+                    document_count += 1
+                    documents.append(
+                        Document(
+                            id=document.get("id"),
+                            content=document.get("content"),
+                            category=document.get("category"),
+                            sourcepage=document.get("sourcepage"),
+                            sourcefile=document.get("sourcefile"),
+                            oids=document.get("oids"),
+                            groups=document.get("groups"),
+                            captions=cast(list[QueryCaptionResult], document.get("@search.captions")),
+                            score=document.get("@search.score"),
+                            reranker_score=document.get("@search.reranker_score"),
+                        )
+                    )
+            
+            self.logger.info(f"Processed {document_count} documents from {page_count} pages")
+            
+            # Filter documents
             qualified_documents = [
                 doc
                 for doc in documents
@@ -249,8 +315,16 @@ class Approach(ABC):
                     and (doc.reranker_score or 0) >= (minimum_reranker_score or 0)
                 )
             ]
-
-        return qualified_documents
+            
+            self.logger.info(f"Returning {len(qualified_documents)} qualified documents")
+            return qualified_documents
+            
+        except Exception as e:
+            # Log the full error with stack trace
+            self.logger.error(f"Search failed with error: {str(e)}")
+            self.logger.error(f"Error type: {type(e).__name__}")
+            self.logger.error(f"Full traceback: {traceback.format_exc()}")
+            raise
 
     async def run_agentic_retrieval(
         self,

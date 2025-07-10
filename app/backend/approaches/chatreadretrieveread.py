@@ -19,6 +19,14 @@ from core.authentication import AuthenticationHelper
 
 from bot_profiles import DEFAULT_BOT_ID, BOTS
 
+import logging
+
+# Configure logging settings globally
+logging.basicConfig(
+    level=logging.INFO,  # Set the log level to INFO or DEBUG depending on the level of detail you want
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',  # Format for the logs
+)
+
 
 class ChatReadRetrieveReadApproach(ChatApproach):
     """
@@ -31,7 +39,7 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         self,
         *,
         search_client: SearchClient,
-        search_index_name: str,
+        search_index_name: Optional[str] = None,
         agent_model: Optional[str],
         agent_deployment: Optional[str],
         agent_client: KnowledgeAgentRetrievalClient,
@@ -51,7 +59,7 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         reasoning_effort: Optional[str] = None,
     ):
         self.search_client = search_client
-        self.search_index_name = search_index_name
+        self.search_index_name: Optional[str] = search_index_name
         self.agent_model = agent_model
         self.agent_deployment = agent_deployment
         self.agent_client = agent_client
@@ -74,6 +82,9 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         self.reasoning_effort = reasoning_effort
         self.include_token_usage = True
 
+        # Initialize the logger
+        self.logger = logging.getLogger(__name__)
+
     async def run_until_final_call(
         self,
         messages: list[ChatCompletionMessageParam],
@@ -81,31 +92,52 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         auth_claims: dict[str, Any],
         should_stream: bool = False,
     ) -> tuple[ExtraInfo, Union[Awaitable[ChatCompletion], Awaitable[AsyncStream[ChatCompletionChunk]]]]:
+        self.logger.info("Starting run_until_final_call method")
+
         use_agentic_retrieval = True if overrides.get("use_agentic_retrieval") else False
         original_user_query = messages[-1]["content"]
 
+        self.logger.debug(f"Original user query: {original_user_query}")
+
         reasoning_model_support = self.GPT_REASONING_MODELS.get(self.chatgpt_model)
         if reasoning_model_support and (not reasoning_model_support.streaming and should_stream):
+            self.logger.warning(f"{self.chatgpt_model} does not support streaming. Please use a different model or disable streaming.")
             raise Exception(
                 f"{self.chatgpt_model} does not support streaming. Please use a different model or disable streaming."
             )
 
-        # Retrieve the bot_id from overrides (default to "ava" if not provided)
         bot_id = overrides.get("bot_id", DEFAULT_BOT_ID)
         profile = BOTS.get(bot_id, BOTS[DEFAULT_BOT_ID])  # Default to 'ava' if bot_id is not found
+        self.logger.info(f"Using bot profile: {profile.label}")
 
-        # Log the bot profile for debugging (optional)
-        #current_app.logger.info(f"Bot ID: {bot_id}, Bot Profile: {profile.label}")
+        # Log search index
+        search_index_name = overrides.get("search_index_name", self.search_index_name)
+        self.logger.debug(f"Using search index: {search_index_name}")
 
-        # Access the profile's examples
-        overrides.setdefault("model_override", profile.model)
-        overrides.setdefault("examples", profile.examples)
-        overrides.setdefault("prompt_template", profile.system_prompt)
-
-        if use_agentic_retrieval:
-            extra_info = await self.run_agentic_retrieval_approach(messages, overrides, auth_claims)
+        if profile.search_indexes:
+            overrides.setdefault("search_index_name", profile.search_indexes)
         else:
-            extra_info = await self.run_search_approach(messages, overrides, auth_claims)
+            overrides.pop("search_index_name", None)
+
+        # Log the override values
+        self.logger.debug(f"Overrides after checking search index: {overrides}")
+
+        should_use_rag = bool(overrides.get("search_index_name"))
+        self.logger.info(f"Should use RAG: {should_use_rag}")
+
+        # Handle search or agentic retrieval
+        if should_use_rag:
+            if use_agentic_retrieval:
+                self.logger.info("Using agentic retrieval approach")
+                extra_info = await self.run_agentic_retrieval_approach(messages, overrides, auth_claims)
+            else:
+                self.logger.info("Using standard search approach")
+                extra_info = await self.run_search_approach(messages, overrides, auth_claims)
+        else:
+            extra_info = ExtraInfo(DataPoints(text=[]))
+
+        # Log extra info generated
+        self.logger.debug(f"Generated extra_info: {extra_info}")
 
         messages = self.prompt_manager.render_prompt(
             self.answer_prompt,
@@ -118,8 +150,8 @@ class ChatReadRetrieveReadApproach(ChatApproach):
             },
         )
 
-        # Ensure model_override is used when creating the chat completion
-        model_to_use = overrides.get("model_override", self.chatgpt_model)  # Use
+        model_to_use = overrides.get("model_override", self.chatgpt_model)
+        self.logger.info(f"Using model: {model_to_use}")
 
         chat_coroutine = cast(
             Union[Awaitable[ChatCompletion], Awaitable[AsyncStream[ChatCompletionChunk]]],
@@ -132,6 +164,10 @@ class ChatReadRetrieveReadApproach(ChatApproach):
                 should_stream,
             ),
         )
+        
+        # Log the chat completion request
+        self.logger.info("Chat completion request created")
+
         extra_info.thoughts.append(
             self.format_thought_step_for_chatcompletion(
                 title="Prompt to generate answer",
@@ -142,6 +178,7 @@ class ChatReadRetrieveReadApproach(ChatApproach):
                 usage=None,
             )
         )
+
         return (extra_info, chat_coroutine)
 
     async def run_search_approach(
@@ -156,6 +193,11 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         minimum_search_score = overrides.get("minimum_search_score", 0.0)
         minimum_reranker_score = overrides.get("minimum_reranker_score", 0.0)
         search_index_filter = self.build_filter(overrides, auth_claims)
+
+        # Dynamically fetch the search index
+        search_index_name = overrides.get("search_index_name", self.search_index_name)
+        if not search_index_name:
+            raise ValueError("No search index provided")
 
         original_user_query = messages[-1]["content"]
         if not isinstance(original_user_query, str):
@@ -205,6 +247,7 @@ class ChatReadRetrieveReadApproach(ChatApproach):
             minimum_search_score,
             minimum_reranker_score,
             use_query_rewriting,
+            search_index_name,  # Pass the search index name dynamically here
         )
 
         # STEP 3: Generate a contextual and content specific answer using the search results and chat history
@@ -249,6 +292,11 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         overrides: dict[str, Any],
         auth_claims: dict[str, Any],
     ):
+        # Get the search index dynamically from the overrides or bot profile
+        # Get the search index dynamically from the overrides or bot profile
+        search_index_name = overrides.get("search_index_name", self.search_index_name)
+     
+
         minimum_reranker_score = overrides.get("minimum_reranker_score", 0)
         search_index_filter = self.build_filter(overrides, auth_claims)
         top = overrides.get("top", 3)
@@ -260,7 +308,7 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         response, results = await self.run_agentic_retrieval(
             messages=messages,
             agent_client=self.agent_client,
-            search_index_name=self.search_index_name,
+            search_index_name=search_index_name,
             top=top,
             filter_add_on=search_index_filter,
             minimum_reranker_score=minimum_reranker_score,

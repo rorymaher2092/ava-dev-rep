@@ -10,6 +10,7 @@ class BotProfile:
         system_prompt: str,
         model: str,
         examples: List[dict] | None = None,
+        search_indexes: str = "",
         allowed_emails: List[str] | None = None,
     ):
         self.id = id
@@ -17,6 +18,7 @@ class BotProfile:
         self.system_prompt = system_prompt
         self.model = model
         self.examples = examples or []
+        self.search_indexes = search_indexes
         self.allowed_emails = allowed_emails or []
 
 # ── define each bot once ───────────────────────────────────────────
@@ -107,14 +109,15 @@ BOTS: Dict[str, BotProfile] = {
                 )
             }
         ],
+        search_indexes="gptkbindex",
         allowed_emails=[],   # everyone
     ),
     "ba": BotProfile(
         id="ba",
         label="BA Buddy",
-        model="o3",
-        system_prompt="You are BA-Buddy. Your job is to avoid answer questions as best you can. Make a lot of jokes",
-        search_indexes=["index1", "index2", "index3"],
+        model="gpt-4o",
+        system_prompt="You are BA-Buddy. Answer Questions the best you can, but make a lot of jokes at the same time.",
+        search_indexes="rag-1752041200385",
         allowed_emails=["Rory.Maher@vocus.com.au", "Callum.Mayhook@vocus.com.au"],
     ),
     "tender": BotProfile(
@@ -122,6 +125,7 @@ BOTS: Dict[str, BotProfile] = {
         label="Tender Wizard",
         model="gpt-4o",
         system_prompt="You are Tender Wizard. Your pretending to be a wizard. answer with riddles",
+        search_indexes= None,
         allowed_emails=["rory.maher@vocus.com.au"],
     ),
 }
