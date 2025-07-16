@@ -5,13 +5,26 @@ import json
 import logging
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+import sys
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 logger = logging.getLogger(__name__)
+
+# Add a StreamHandler to ensure logs are shown in real-time (to stdout or stderr)
+if not any(isinstance(handler, logging.StreamHandler) for handler in logger.handlers):
+    stream_handler = logging.StreamHandler(sys.stdout)  # You can use sys.stderr if you prefer
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+
 
 # CONFIGURATION: Choose your search strategy
 USE_CONFLUENCE_CONNECTOR = False  # Set to True when you have your Confluence connector ID
 CONFLUENCE_CONNECTOR_ID = "your-confluence-connector-id-here"  # Set this when you have it
-SEARCH_ALL_EXTERNAL_CONNECTORS = False  # Set to True to search ALL external connectors (slower but comprehensive)
+SEARCH_ALL_EXTERNAL_CONNECTORS = False  # Set to True to search ALL external connectors (no IDs needed!)
 
 
 class ConfluenceSearchService:
@@ -27,9 +40,9 @@ class ConfluenceSearchService:
         """
         Find the Confluence connector ID using exact name match
         """
-        logger.info("🔍 Finding Confluence connector with exact name match...")
+        logger.warning("🔍 Finding Confluence connector with exact name match...")
         target_connector_name = "Confluence_Ava_Connector"
-        logger.info(f"   Looking for connector named: '{target_connector_name}'")
+        logger.warning(f"   Looking for connector named: '{target_connector_name}'")
         
         headers = {
             "Authorization": f"Bearer {user_graph_token}",
@@ -37,18 +50,18 @@ class ConfluenceSearchService:
         }
         
         try:
-            logger.info("   Making API call to list connections...")
+            logger.warning("   Making API call to list connections...")
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     "https://graph.microsoft.com/v1.0/external/connections",
                     headers=headers
                 ) as response:
-                    logger.info(f"   API Response status: {response.status}")
+                    logger.warning(f"   API Response status: {response.status}")
                     
                     if response.status == 200:
                         data = await response.json()
                         connections = data.get("value", [])
-                        logger.info(f"   Found {len(connections)} total connections")
+                        logger.warning(f"   Found {len(connections)} total connections")
                         
                         # Look for exact connector name
                         for i, connection in enumerate(connections, 1):
@@ -56,15 +69,15 @@ class ConfluenceSearchService:
                             conn_id = connection.get("id", "")
                             state = connection.get("state", "")
                             
-                            logger.info(f"     {i}. '{name}' (ID: {conn_id}, State: {state})")
+                            logger.warning(f"     {i}. '{name}' (ID: {conn_id}, State: {state})")
                             
                             if name == target_connector_name:
-                                logger.info(f"   ✅ Found exact match! Connector ID: {conn_id}")
+                                logger.warning(f"   ✅ Found exact match! Connector ID: {conn_id}")
                                 return conn_id
                         
                         logger.warning(f"   ❌ Confluence connector '{target_connector_name}' not found")
                         available_names = [conn.get("name", "No name") for conn in connections]
-                        logger.info(f"   Available connector names: {available_names}")
+                        logger.warning(f"   Available connector names: {available_names}")
                         return None
                     else:
                         error_text = await response.text()
@@ -77,6 +90,183 @@ class ConfluenceSearchService:
             import traceback
             logger.error(f"   Full traceback: {traceback.format_exc()}")
             return None
+        
+    # Add this method to your ConfluenceSearchService class
+
+    async def debug_actual_token(self, user_graph_token: str) -> dict:
+        """
+        Debug the actual token your app is using to understand why we get 401
+        """
+        logger.warning("🔍 DEBUGGING ACTUAL APP TOKEN")
+        logger.warning("=" * 60)
+        
+        # First, let's decode the JWT token to see what's inside
+        try:
+            import base64
+            import json
+            from datetime import datetime
+            
+            # Split the JWT token (format: header.payload.signature)
+            token_parts = user_graph_token.split('.')
+            if len(token_parts) >= 2:
+                # Decode the payload (second part)
+                payload = token_parts[1]
+                # Add padding for base64 decoding
+                payload += '=' * (4 - len(payload) % 4)
+                
+                decoded_bytes = base64.urlsafe_b64decode(payload)
+                token_payload = json.loads(decoded_bytes.decode('utf-8'))
+                
+                logger.warning("📋 TOKEN CONTENTS:")
+                logger.warning(f"   🎯 Audience (aud): {token_payload.get('aud', 'Not found')}")
+                logger.warning(f"   🔑 App ID (appid): {token_payload.get('appid', 'Not found')}")
+                logger.warning(f"   👤 User ID (oid): {token_payload.get('oid', 'Not found')}")
+                logger.warning(f"   🏢 Tenant ID (tid): {token_payload.get('tid', 'Not found')}")
+                logger.warning(f"   📜 Scopes (scp): {token_payload.get('scp', 'Not found')}")
+                logger.warning(f"   🎭 Roles (roles): {token_payload.get('roles', 'Not found')}")
+                logger.warning(f"   ⏰ Expires: {datetime.fromtimestamp(token_payload.get('exp', 0))}")
+                logger.warning(f"   🎫 Token Use (token_use): {token_payload.get('token_use', 'Not found')}")
+                
+                # Check if we have the right audience for Microsoft Graph
+                audience = token_payload.get('aud', '')
+                if 'graph.microsoft.com' not in audience and '00000003-0000-0000-c000-000000000000' not in audience:
+                    logger.error(f"   ❌ WRONG AUDIENCE! Token audience is '{audience}' but should be for Microsoft Graph")
+                    logger.error(f"      Expected: https://graph.microsoft.com OR 00000003-0000-0000-c000-000000000000")
+                else:
+                    logger.warning(f"   ✅ Correct audience for Microsoft Graph")
+                
+                # Check for the specific scopes we need
+                scopes = token_payload.get('scp', '')
+                required_scopes = ['ExternalConnection.Read.All', 'ExternalItem.Read.All']
+                
+                logger.warning("🔍 SCOPE ANALYSIS:")
+                for required_scope in required_scopes:
+                    if required_scope in scopes:
+                        logger.warning(f"   ✅ Found required scope: {required_scope}")
+                    else:
+                        logger.error(f"   ❌ Missing required scope: {required_scope}")
+                
+                # Show all scopes for debugging
+                if scopes:
+                    all_scopes = scopes.split(' ')
+                    logger.warning(f"   📜 All scopes in token: {all_scopes}")
+                
+                return token_payload
+                
+        except Exception as e:
+            logger.error(f"❌ Error decoding token: {e}")
+            return {}
+
+    # Modified method to include token debugging in your search
+    async def debug_search_with_token_analysis(
+        self,
+        query: str,
+        user_graph_token: str,
+        top: int = 20
+    ) -> List[Any]:
+        """
+        Search with comprehensive token debugging
+        """
+        logger.warning("🚀 Starting search with token analysis")
+        logger.warning(f"   Query: '{query}' (top {top})")
+        logger.warning(f"   Token length: {len(user_graph_token)} characters")
+        
+        # Step 1: Analyze the token
+        logger.warning("\n" + "=" * 60)
+        logger.warning("STEP 1: TOKEN ANALYSIS")
+        logger.warning("=" * 60)
+        token_warning = await self.debug_actual_token(user_graph_token)
+        
+        # Step 2: Test a simple Graph call first
+        logger.warning("\n" + "=" * 60)
+        logger.warning("STEP 2: BASIC GRAPH API TEST")
+        logger.warning("=" * 60)
+        
+        headers = {
+            "Authorization": f"Bearer {user_graph_token}",
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                # Test basic user profile (should always work)
+                async with session.get(
+                    "https://graph.microsoft.com/v1.0/me",
+                    headers=headers
+                ) as response:
+                    if response.status == 200:
+                        user_data = await response.json()
+                        logger.warning(f"   ✅ Basic Graph API works - User: {user_data.get('displayName', 'Unknown')}")
+                    else:
+                        logger.error(f"   ❌ Basic Graph API failed: {response.status}")
+                        error_text = await response.text()
+                        logger.error(f"   Error: {error_text}")
+                        return []
+        except Exception as e:
+            logger.error(f"   ❌ Exception testing basic Graph API: {e}")
+            return []
+        
+        # Step 3: Test external connections specifically
+        logger.warning("\n" + "=" * 60)
+        logger.warning("STEP 3: EXTERNAL CONNECTIONS TEST")
+        logger.warning("=" * 60)
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "https://graph.microsoft.com/v1.0/external/connections",
+                    headers=headers
+                ) as response:
+                    logger.warning(f"   External connections API response: {response.status}")
+                    
+                    if response.status == 200:
+                        data = await response.json()
+                        connections = data.get("value", [])
+                        logger.warning(f"   ✅ SUCCESS! Found {len(connections)} external connections")
+                        
+                        for i, conn in enumerate(connections, 1):
+                            logger.warning(f"     {i}. Name: {conn.get('name', 'No name')}")
+                            logger.warning(f"        ID: {conn.get('id', 'No ID')}")
+                            logger.warning(f"        State: {conn.get('state', 'Unknown')}")
+                        
+                        return connections
+                        
+                    elif response.status == 401:
+                        error_text = await response.text()
+                        logger.error(f"   ❌ 401 UNAUTHORIZED")
+                        logger.error(f"   Error details: {error_text}")
+                        
+                        # Try to parse the error to understand why
+                        try:
+                            error_json = json.loads(error_text)
+                            error_code = error_json.get('error', {}).get('code', 'Unknown')
+                            error_message = error_json.get('error', {}).get('message', 'Unknown')
+                            logger.error(f"   Error code: {error_code}")
+                            logger.error(f"   Error message: {error_message}")
+                        except:
+                            pass
+                        
+                        # Analyze possible causes
+                        logger.warning("\n🔍 POSSIBLE CAUSES OF 401:")
+                        scopes = token_warning.get('scp', '')
+                        if 'ExternalConnection.Read.All' not in scopes:
+                            logger.error("   ❌ Token doesn't contain ExternalConnection.Read.All scope")
+                            logger.error("   This means the token wasn't requested with this scope")
+                        else:
+                            logger.warning("   ✅ Token contains ExternalConnection.Read.All scope")
+                            logger.error("   ❌ But still getting 401 - this might be a user access issue")
+                            logger.error("   Your user might not have access to external connectors")
+                        
+                        return []
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"   ❌ Unexpected status: {response.status}")
+                        logger.error(f"   Error: {error_text}")
+                        return []
+                        
+        except Exception as e:
+            logger.error(f"   ❌ Exception testing external connections: {e}")
+            return []
 
     async def search_all_microsoft_graph(
         self, 
@@ -86,32 +276,52 @@ class ConfluenceSearchService:
         fields: Optional[List[str]] = None
     ) -> List[Any]:
         """
-        Search Microsoft 365 content (OneDrive, Outlook, Teams) - no external connectors
-        This searches built-in Microsoft 365 content the user has access to
+        Search Microsoft 365 content - falls back to basic Graph API calls if search permissions missing
         """
-        logger.info(f"🌐 Starting Microsoft 365 search for: '{query}' (top {top})")
-        logger.info(f"   Token length: {len(user_graph_token)} characters")
+        logger.warning(f"🌐 Starting Microsoft 365 search for: '{query}' (top {top})")
+        logger.warning(f"   Token length: {len(user_graph_token)} characters")
+        
+        # First try the search API
+        search_results = await self._try_graph_search_api(query, user_graph_token, top, fields)
+        if search_results:
+            return search_results
+        
+        # If search API fails due to permissions, try basic Graph API calls
+        logger.warning("   Search API failed, trying basic Graph API calls...")
+        return await self._try_basic_graph_api(query, user_graph_token, top)
+
+    async def _try_graph_search_api(
+        self, 
+        query: str, 
+        user_graph_token: str,
+        top: int = 20,
+        fields: Optional[List[str]] = None
+    ) -> List[Any]:
+        """Try the Graph Search API with different entity type combinations"""
         
         # Default fields to retrieve
         if fields is None:
             fields = ["title", "url", "summary", "lastModifiedDateTime", "createdDateTime"]
-        logger.info(f"   Requesting fields: {fields}")
+        logger.warning(f"   Requesting fields: {fields}")
         
-        # Try different entity type combinations that are known to work
+        # SharePoint-focused entity type combinations
         entity_combinations = [
-            # Combination 1: Core Microsoft 365 content
-            ["driveItem", "message", "event"],
-            # Combination 2: Just OneDrive files if the first fails
+            # Combination 1: SharePoint sites only (what you want for now)
+            ["site"],
+            # Combination 2: SharePoint sites + files in document libraries
+            ["site", "driveItem"], 
+            # Combination 3: SharePoint files/documents only
             ["driveItem"],
-            # Combination 3: Just emails if others fail
-            ["message"]
+            # Combination 4: SharePoint list items only
+            ["listItem"],
+            # Combination 5: Sites + list items (full SharePoint content)
+            ["site", "listItem"]
         ]
         
         all_results = []
-        per_search_limit = max(1, top // len(entity_combinations))
         
         for i, entity_types in enumerate(entity_combinations, 1):
-            logger.info(f"   Attempt {i}/{len(entity_combinations)}: Trying entity types {entity_types}")
+            logger.warning(f"   Attempt {i}/{len(entity_combinations)}: Trying entity types {entity_types}")
             
             search_request = {
                 "requests": [{
@@ -120,7 +330,7 @@ class ConfluenceSearchService:
                         "queryString": query
                     },
                     "from": 0,
-                    "size": min(per_search_limit, 25),
+                    "size": min(top, 25),
                     "fields": fields
                 }]
             }
@@ -131,69 +341,148 @@ class ConfluenceSearchService:
             }
             
             try:
-                logger.info(f"     Making API call with {len(entity_types)} entity types...")
                 async with aiohttp.ClientSession() as session:
                     async with session.post(
                         "https://graph.microsoft.com/v1.0/search/query",
                         headers=headers,
                         json=search_request
                     ) as response:
-                        logger.info(f"     API Response status: {response.status}")
+                        logger.warning(f"     API Response status: {response.status}")
                         
                         if response.status == 200:
                             data = await response.json()
-                            logger.info(f"     Raw response contains {len(data.get('value', []))} search response containers")
-                            
                             results = self._parse_general_graph_results(data)
-                            logger.info(f"     ✅ Found {len(results)} results for entity types {entity_types}")
-                            
+                            logger.warning(f"     ✅ Found {len(results)} results for entity types {entity_types}")
                             all_results.extend(results)
                             
-                            # Log sample results
-                            for j, result in enumerate(results[:2], 1):
-                                logger.info(f"       Sample {j}: [{result.get('content_source', 'unknown')}] {result.get('title', 'No title')}")
-                        
+                        elif response.status == 403:
+                            error_text = await response.text()
+                            logger.warning(f"     ⚠️ Permission denied for {entity_types}: {response.status}")
+                            logger.warning(f"     Error details: {error_text}")  # ← Now shows the actual error!
+                            logger.warning(f"     This means your app needs additional Graph API permissions")
+                            continue
+                            
                         else:
                             error_text = await response.text()
                             logger.warning(f"     ⚠️ Entity types {entity_types} failed: {response.status}")
-                            logger.warning(f"     Error: {error_text}")
+                            logger.warning(f"     Error details: {error_text}")  # ← Now shows the actual error!
                             continue
                             
             except Exception as e:
                 logger.warning(f"     ⚠️ Exception with entity types {entity_types}: {e}")
                 continue
         
-        # Sort and deduplicate results
-        seen_ids = set()
-        unique_results = []
-        for result in all_results:
-            hit_id = result.get("hit_id", "")
-            if hit_id and hit_id not in seen_ids:
-                seen_ids.add(hit_id)
-                unique_results.append(result)
-            elif not hit_id:  # Include results without IDs
-                unique_results.append(result)
+        return all_results[:top] if all_results else []
+
+    async def _try_basic_graph_api(
+        self, 
+        query: str, 
+        user_graph_token: str,
+        top: int = 20
+    ) -> List[Any]:
+        """
+        Try basic Graph API calls that work with minimal permissions
+        This is a fallback when search API permissions are missing
+        """
+        logger.warning("   🔧 Trying basic Graph API fallback (works with User.Read permission)")
         
-        # Limit to top N
-        final_results = unique_results[:top]
+        headers = {
+            "Authorization": f"Bearer {user_graph_token}",
+            "Content-Type": "application/json"
+        }
         
-        if final_results:
-            # Log content type breakdown
-            content_types = {}
-            for result in final_results:
-                content_type = result.get("content_source", "unknown")
-                content_types[content_type] = content_types.get(content_type, 0) + 1
-            
-            logger.info(f"✅ Successfully retrieved {len(final_results)} Microsoft 365 results total")
-            logger.info(f"   Content breakdown: {content_types}")
-            
-            # Log first few results
-            for i, result in enumerate(final_results[:3], 1):
-                logger.info(f"   Result {i}: [{result.get('content_source', 'unknown')}] {result.get('title', 'No title')}")
+        results = []
+        
+        # 1. Get user profile (always works with User.Read)
+        try:
+            logger.warning("     Getting user profile...")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "https://graph.microsoft.com/v1.0/me",
+                    headers=headers
+                ) as response:
+                    if response.status == 200:
+                        user_data = await response.json()
+                        
+                        # Create a mock "result" from user profile if query matches
+                        display_name = user_data.get("displayName", "")
+                        email = user_data.get("mail", user_data.get("userPrincipalName", ""))
+                        
+                        if any(term.lower() in display_name.lower() or term.lower() in email.lower() 
+                               for term in query.split()):
+                            
+                            results.append({
+                                "hit_id": f"user_profile_{user_data.get('id', '')}",
+                                "title": f"User Profile: {display_name}",
+                                "url": f"https://outlook.office.com/people/{email}",
+                                "summary": f"User profile for {display_name} ({email})",
+                                "rank": 1,
+                                "last_modified": None,
+                                "content_source": "user_profile"
+                            })
+                            
+                        logger.warning(f"     ✅ User profile processed (matched: {len(results) > 0})")
+                    else:
+                        logger.warning(f"     ⚠️ Could not get user profile: {response.status}")
+                        
+        except Exception as e:
+            logger.warning(f"     ⚠️ Error getting user profile: {e}")
+        
+        # 2. Try to get recent activities (may work with basic permissions)
+        try:
+            logger.warning("     Trying to get recent activities...")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "https://graph.microsoft.com/v1.0/me/activities/recent",
+                    headers=headers
+                ) as response:
+                    if response.status == 200:
+                        activities_data = await response.json()
+                        activities = activities_data.get("value", [])
+                        
+                        for activity in activities[:5]:  # Limit to recent 5
+                            activity_name = activity.get("activitySourceHost", "")
+                            visual_elements = activity.get("visualElements", {})
+                            display_text = visual_elements.get("displayText", "")
+                            
+                            if any(term.lower() in display_text.lower() 
+                                   for term in query.split() if term):
+                                
+                                results.append({
+                                    "hit_id": f"activity_{activity.get('id', '')}",
+                                    "title": f"Recent Activity: {display_text}",
+                                    "url": activity.get("contentUrl", ""),
+                                    "summary": f"Recent activity from {activity_name}",
+                                    "rank": 2,
+                                    "last_modified": activity.get("lastModifiedDateTime"),
+                                    "content_source": "recent_activity"
+                                })
+                        
+                        logger.warning(f"     ✅ Recent activities processed (found {len(activities)}, matched {len([r for r in results if r['content_source'] == 'recent_activity'])})")
+                    else:
+                        logger.warning(f"     ⚠️ Recent activities not available: {response.status}")
+                        
+        except Exception as e:
+            logger.warning(f"     ⚠️ Error getting recent activities: {e}")
+        
+        if results:
+            logger.warning(f"   ✅ Basic Graph API returned {len(results)} results")
+            for i, result in enumerate(results, 1):
+                logger.warning(f"     Result {i}: [{result['content_source']}] {result['title']}")
         else:
-            logger.warning("❌ No results found across any entity type combination")
+            logger.warning("   ℹ️ No matching content found with basic Graph API calls")
+            # Return a helpful message instead of empty results
+            results.append({
+                "hit_id": "no_permissions_message",
+                "title": "Limited Search Results",
+                "url": "",
+                "summary": f"Your search for '{query}' requires additional Microsoft Graph permissions. Contact your admin to enable Files.Read.All and Mail.Read permissions for better search results.",
+                "rank": 1,
+                "last_modified": None,
+                "content_source": "system_message"
+            })
         
-        return final_results
+        return results[:top]
 
     async def search_confluence_content(
         self, 
@@ -206,7 +495,7 @@ class ConfluenceSearchService:
         """
         Search Confluence content using the signed-in user's Graph token with specific connector ID
         """
-        logger.info(f"🔗 Searching Confluence connector '{confluence_connector_id}' for: '{query}' (top {top})")
+        logger.warning(f"🔗 Searching Confluence connector '{confluence_connector_id}' for: '{query}' (top {top})")
         
         # Default fields to retrieve
         if fields is None:
@@ -240,7 +529,7 @@ class ConfluenceSearchService:
                     if response.status == 200:
                         data = await response.json()
                         results = self._parse_confluence_results(data)
-                        logger.info(f"✅ Successfully retrieved {len(results)} Confluence results")
+                        logger.warning(f"✅ Successfully retrieved {len(results)} Confluence results")
                         return results
                     else:
                         error_text = await response.text()
@@ -251,8 +540,9 @@ class ConfluenceSearchService:
             logger.error(f"❌ Error searching Confluence: {e}")
             return []
 
+    # Update your _parse_general_graph_results method to better handle SharePoint site data
     def _parse_general_graph_results(self, search_data: dict) -> List[Any]:
-        """Parse Microsoft Graph search response for Microsoft 365 content (files, emails, etc.)"""
+        """Parse Microsoft Graph search response for Microsoft 365 content with improved SharePoint site handling"""
         results = []
         
         try:
@@ -264,61 +554,116 @@ class ConfluenceSearchService:
                         rank = hit.get("rank", 0)
                         summary = hit.get("summary", "")
                         
-                        # Extract properties - these vary by content type
+                        # Extract resource warningrmation
                         resource = hit.get("resource", {})
-                        properties = resource.get("properties", {})
                         
-                        # Try to get title from various fields
-                        title = (properties.get("title") or 
-                                properties.get("name") or 
-                                properties.get("subject") or 
-                                resource.get("name") or 
-                                "Untitled")
-                        
-                        # Try to get URL from various fields  
-                        url = (properties.get("url") or 
-                              properties.get("webUrl") or 
-                              resource.get("webUrl") or 
-                              "")
-                        
-                        # Get content source/type
-                        content_source = resource.get("@odata.type", "unknown")
-                        if "driveItem" in content_source:
-                            content_source = "onedrive"
-                        elif "message" in content_source:
-                            content_source = "email"
-                        elif "event" in content_source:
-                            content_source = "calendar"
-                        elif "site" in content_source:
-                            content_source = "sharepoint_site"
-                        elif "list" in content_source:
-                            content_source = "sharepoint_list"
-                        elif "listItem" in content_source:
-                            content_source = "sharepoint_item"
+                        # For SharePoint sites, the data structure is different than files
+                        if resource.get("@odata.type") == "#microsoft.graph.site":
+                            # SharePoint site - data is directly in resource, not in properties
+                            title = resource.get("displayName", "Untitled Site")
+                            url = resource.get("webUrl", "")
+                            description = resource.get("description", "")
+                            last_modified = resource.get("lastModifiedDateTime")
+                            created = resource.get("createdDateTime")
+                            site_name = resource.get("name", "")
+                            
+                            # Determine if it's a personal OneDrive site or team site
+                            if "-my.sharepoint.com" in url:
+                                content_source = "onedrive_personal"
+                            else:
+                                content_source = "sharepoint_site"
+                            
+                            # Use description as summary if summary is empty or not useful
+                            if not summary.strip() or summary == description:
+                                summary = description or f"SharePoint site: {title}"
+                            
+                            result = {
+                                "hit_id": hit_id,
+                                "title": title,
+                                "url": url,
+                                "summary": summary,
+                                "rank": rank,
+                                "last_modified": last_modified,
+                                "created": created,
+                                "content_source": content_source,
+                                "site_name": site_name,
+                                "path": ""  # Sites don't have paths like files do
+                            }
+                            
                         else:
-                            content_source = "microsoft365"
+                            # Handle other content types (files, etc.) - existing logic
+                            properties = resource.get("properties", {})
+                            
+                            # Try to get title from various fields
+                            title = (properties.get("title") or 
+                                    properties.get("name") or 
+                                    properties.get("subject") or 
+                                    resource.get("name") or 
+                                    resource.get("displayName") or
+                                    "Untitled")
+                            
+                            # Try to get URL from various fields  
+                            url = (properties.get("url") or 
+                                properties.get("webUrl") or 
+                                resource.get("webUrl") or 
+                                "")
+                            
+                            # Get content source/type with better detection
+                            content_source = resource.get("@odata.type", "unknown")
+                            if "driveItem" in content_source:
+                                # Check if it's SharePoint or OneDrive based on URL
+                                if url and "sharepoint.com" in url and "/sites/" in url:
+                                    content_source = "sharepoint_file"
+                                else:
+                                    content_source = "onedrive_file"
+                            elif "listItem" in content_source:
+                                content_source = "sharepoint_list"
+                            elif "message" in content_source:
+                                content_source = "email"
+                            elif "event" in content_source:
+                                content_source = "calendar"
+                            else:
+                                content_source = "microsoft365"
+                            
+                            last_modified = (properties.get("lastModifiedDateTime") or 
+                                            resource.get("lastModifiedDateTime"))
+                            created = (properties.get("createdDateTime") or 
+                                    resource.get("createdDateTime"))
+                            
+                            # Get path warningrmation for better context
+                            path = properties.get("path", "")
+                            
+                            result = {
+                                "hit_id": hit_id,
+                                "title": title,
+                                "url": url,
+                                "summary": summary,
+                                "rank": rank,
+                                "last_modified": last_modified,
+                                "created": created,
+                                "content_source": content_source,
+                                "path": path,
+                                "site_name": ""
+                            }
                         
-                        last_modified = (properties.get("lastModifiedDateTime") or 
-                                        properties.get("createdDateTime") or 
-                                        resource.get("lastModifiedDateTime"))
-                        
-                        # Create result object
-                        result = {
-                            "hit_id": hit_id,
-                            "title": title,
-                            "url": url,
-                            "summary": summary,
-                            "rank": rank,
-                            "last_modified": last_modified,
-                            "content_source": content_source
-                        }
                         results.append(result)
                         
             logger.debug(f"Parsed {len(results)} Microsoft 365 results")
+            
+            # Log a summary of what we found
+            content_breakdown = {}
+            for result in results:
+                source = result.get("content_source", "unknown")
+                content_breakdown[source] = content_breakdown.get(source, 0) + 1
+            
+            logger.warning(f"Content breakdown: {content_breakdown}")
+            
             return results
             
         except Exception as e:
             logger.error(f"Error parsing Microsoft 365 results: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             return []
 
     def _parse_confluence_results(self, search_data: dict) -> List[Any]:
@@ -373,63 +718,101 @@ class ConfluenceSearchService:
         - If both False: Search Microsoft 365 content only
         """
         
-        logger.info("🚀 Starting auto-discovery search process")
-        logger.info(f"   Query: '{query}' (top {top})")
-        logger.info(f"   Configuration:")
-        logger.info(f"     USE_CONFLUENCE_CONNECTOR = {USE_CONFLUENCE_CONNECTOR}")
-        logger.info(f"     SEARCH_ALL_EXTERNAL_CONNECTORS = {SEARCH_ALL_EXTERNAL_CONNECTORS}")
-        logger.info(f"     CONFLUENCE_CONNECTOR_ID = '{CONFLUENCE_CONNECTOR_ID}'")
+        logger.warning("🚀 Starting auto-discovery search process")
+        logger.warning(f"   Query: '{query}' (top {top})")
+        logger.warning(f"   Configuration:")
+        logger.warning(f"     USE_CONFLUENCE_CONNECTOR = {USE_CONFLUENCE_CONNECTOR}")
+        logger.warning(f"     SEARCH_ALL_EXTERNAL_CONNECTORS = {SEARCH_ALL_EXTERNAL_CONNECTORS}")
+        logger.warning(f"     CONFLUENCE_CONNECTOR_ID = '{CONFLUENCE_CONNECTOR_ID}'")
         
         # Option 1: Search ALL external connectors (comprehensive but slower)
         if SEARCH_ALL_EXTERNAL_CONNECTORS:
-            logger.info("🔗 Route 1: Searching ALL external connectors (comprehensive mode)")
-            return await self.search_all_external_connectors(
-                query=query,
-                user_graph_token=user_graph_token,
-                top=top,
-                fields=fields
-            )
+            logger.warning("🔗 Route 1: Searching ALL external connectors (comprehensive mode)")
+            try:
+                results = await self.search_all_external_connectors(
+                    query=query,
+                    user_graph_token=user_graph_token,
+                    top=top,
+                    fields=fields
+                )
+                logger.warning(f"   External connectors search returned {len(results)} results")
+                return results
+            except Exception as e:
+                logger.error(f"   ❌ Error in external connectors search: {e}")
+                logger.error("   Falling back to basic Graph API...")
+                return await self._try_basic_graph_api(query, user_graph_token, top)
         
         # Option 2: Search specific Confluence connector
         if USE_CONFLUENCE_CONNECTOR:
-            logger.info("🎯 Route 2: Searching specific Confluence connector")
+            logger.warning("🎯 Route 2: Searching specific Confluence connector")
             
             # Try configured connector ID first
             if CONFLUENCE_CONNECTOR_ID and CONFLUENCE_CONNECTOR_ID != "your-confluence-connector-id-here":
-                logger.info(f"   Using pre-configured connector ID: {CONFLUENCE_CONNECTOR_ID}")
-                return await self.search_confluence_content(
-                    query=query,
-                    confluence_connector_id=CONFLUENCE_CONNECTOR_ID,
-                    user_graph_token=user_graph_token,
-                    top=top,
-                    fields=fields
-                )
+                logger.warning(f"   Using pre-configured connector ID: {CONFLUENCE_CONNECTOR_ID}")
+                try:
+                    results = await self.search_confluence_content(
+                        query=query,
+                        confluence_connector_id=CONFLUENCE_CONNECTOR_ID,
+                        user_graph_token=user_graph_token,
+                        top=top,
+                        fields=fields
+                    )
+                    return results
+                except Exception as e:
+                    logger.error(f"   ❌ Error with configured connector: {e}")
             
             # Try to auto-discover the connector
-            logger.info("   No pre-configured ID, attempting auto-discovery...")
-            connector_id = await self.find_confluence_connector_id(user_graph_token)
-            
-            if connector_id:
-                logger.info(f"   ✅ Auto-discovered connector ID: {connector_id}")
-                return await self.search_confluence_content(
-                    query=query,
-                    confluence_connector_id=connector_id,
-                    user_graph_token=user_graph_token,
-                    top=top,
-                    fields=fields
-                )
-            else:
-                logger.warning("   ❌ Confluence connector not found - falling back to Microsoft 365 search")
+            logger.warning("   No pre-configured ID, attempting auto-discovery...")
+            try:
+                connector_id = await self.find_confluence_connector_id(user_graph_token)
+                
+                if connector_id:
+                    logger.warning(f"   ✅ Auto-discovered connector ID: {connector_id}")
+                    results = await self.search_confluence_content(
+                        query=query,
+                        confluence_connector_id=connector_id,
+                        user_graph_token=user_graph_token,
+                        top=top,
+                        fields=fields
+                    )
+                    return results
+                else:
+                    logger.warning("   ❌ Confluence connector not found - falling back to basic Graph API")
+            except Exception as e:
+                logger.error(f"   ❌ Error in auto-discovery: {e}")
         
-        # Option 3: Search Microsoft 365 content only (default)
-        logger.info("🌐 Route 3: Searching Microsoft 365 content only (default mode)")
-        logger.info("   This includes: OneDrive, Outlook, SharePoint, Teams")
-        return await self.search_all_microsoft_graph(
-            query=query,
-            user_graph_token=user_graph_token,
-            top=top,
-            fields=fields
-        )
+        # Option 3: Basic Graph API fallback (works with minimal permissions)
+        logger.warning("🔧 Route 3: Using basic Graph API fallback (minimal permissions)")
+        logger.warning("   This works with just User.Read permission and provides helpful messages")
+        return await self._try_basic_graph_api(query, user_graph_token, top)
+    
+    def log_connector_summary(self, connectors: List[dict]) -> None:
+        """
+        Log a clear summary of all connector IDs for easy copying/reference
+        """
+        logger.warning("=" * 60)
+        logger.warning("📋 CONNECTOR ID SUMMARY (for configuration)")
+        logger.warning("=" * 60)
+        
+        if not connectors:
+            logger.warning("❌ No connectors found")
+            return
+        
+        for i, connector in enumerate(connectors, 1):
+            name = connector.get("name", "Unknown")
+            connector_id = connector.get("id", "No ID")
+            state = connector.get("state", "Unknown")
+            
+            logger.warning(f"{i}. {name}")
+            logger.warning(f"   🆔 ID: {connector_id}")
+            logger.warning(f"   📊 State: {state}")
+            logger.warning("")
+        
+        logger.warning("💡 To use a specific connector:")
+        logger.warning("   1. Copy the ID from above")
+        logger.warning("   2. Set CONFLUENCE_CONNECTOR_ID = 'your-connector-id'")
+        logger.warning("   3. Set USE_CONFLUENCE_CONNECTOR = True")
+        logger.warning("=" * 60)
 
     async def search_all_external_connectors(
         self,
@@ -442,28 +825,39 @@ class ConfluenceSearchService:
         Search ALL external connectors the user has access to
         This finds all connectors first, then searches each one
         """
-        logger.info(f"🔗 Starting search across ALL external connectors")
-        logger.info(f"   Query: '{query}' (top {top})")
-        logger.info(f"   Token length: {len(user_graph_token)} characters")
+        logger.warning(f"🔗 Starting search across ALL external connectors")
+        logger.warning(f"   Query: '{query}' (top {top})")
+        logger.warning(f"   Token length: {len(user_graph_token)} characters")
         
         # First, get all available connectors
-        logger.info("   Step 1: Listing all available external connectors...")
-        connectors = await self._list_all_connectors(user_graph_token)
+        logger.warning("   Step 1: Listing all available external connectors...")
+        try:
+            connectors = await self._list_all_connectors(user_graph_token)
+        except Exception as e:
+            logger.error(f"   ❌ Failed to list connectors: {e}")
+            logger.error("   This usually means missing ExternalConnection.Read.All permission")
+            logger.warning("   Falling back to basic Graph API...")
+            return await self._try_basic_graph_api(query, user_graph_token, top)
         
         if not connectors:
-            logger.warning("   No external connectors found - falling back to Microsoft 365 search")
-            return await self.search_all_microsoft_graph(query, user_graph_token, top, fields)
+            logger.warning("   No external connectors found")
+            logger.warning("   Possible reasons:")
+            logger.warning("     1. No external connectors configured")
+            logger.warning("     2. Missing Graph API permissions")
+            logger.warning("     3. User doesn't have access to connectors")
+            logger.warning("   Falling back to basic Graph API...")
+            return await self._try_basic_graph_api(query, user_graph_token, top)
         
-        logger.info(f"   Found {len(connectors)} external connectors to search:")
+        logger.warning(f"   Found {len(connectors)} external connectors to search:")
         for i, connector in enumerate(connectors, 1):
             connector_name = connector.get("name", "Unknown")
             connector_id = connector.get("id", "No ID")
             connector_state = connector.get("state", "Unknown")
-            logger.info(f"     {i}. {connector_name} (ID: {connector_id}, State: {connector_state})")
+            logger.warning(f"     {i}. {connector_name} (ID: {connector_id}, State: {connector_state})")
         
         all_results = []
         per_connector_limit = max(1, top // len(connectors))  # Split the top limit across connectors
-        logger.info(f"   Step 2: Searching each connector (limit: {per_connector_limit} per connector)")
+        logger.warning(f"   Step 2: Searching each connector (limit: {per_connector_limit} per connector)")
         
         # Search each connector
         for i, connector in enumerate(connectors, 1):
@@ -471,10 +865,8 @@ class ConfluenceSearchService:
             connector_name = connector.get("name", "Unknown")
             
             try:
-                logger.info(f"   Searching connector {i}/{len(connectors)}: {connector_name}")
-                logger.info(f"     Connector ID: {connector_id}")
-                
-                start_time = logger.info("     Making search request...")
+                logger.warning(f"   Searching connector {i}/{len(connectors)}: {connector_name}")
+                logger.warning(f"     Connector ID: {connector_id}")
                 
                 connector_results = await self.search_confluence_content(
                     query=query,
@@ -484,9 +876,9 @@ class ConfluenceSearchService:
                     fields=fields
                 )
                 
-                logger.info(f"     ✅ Found {len(connector_results)} results in {connector_name}")
+                logger.warning(f"     ✅ Found {len(connector_results)} results in {connector_name}")
                 
-                # Add connector info to results
+                # Add connector warning to results
                 for result in connector_results:
                     if isinstance(result, dict):
                         result["connector_name"] = connector_name
@@ -498,15 +890,22 @@ class ConfluenceSearchService:
                 if connector_results:
                     for j, result in enumerate(connector_results[:2], 1):
                         title = result.get("title", "No title")
-                        logger.info(f"       Sample {j}: {title}")
+                        logger.warning(f"       Sample {j}: {title}")
                 
             except Exception as e:
                 logger.error(f"     ❌ Error searching connector {connector_name}: {e}")
                 logger.error(f"       Error type: {type(e)}")
+                # Continue with next connector instead of failing completely
                 continue
         
         # Sort by rank and limit to top N
-        logger.info(f"   Step 3: Combining and sorting {len(all_results)} total results")
+        logger.warning(f"   Step 3: Combining and sorting {len(all_results)} total results")
+        
+        if not all_results:
+            logger.warning("   No results found across any external connectors")
+            logger.warning("   Falling back to basic Graph API...")
+            return await self._try_basic_graph_api(query, user_graph_token, top)
+        
         all_results.sort(key=lambda x: x.get("rank", 0))
         final_results = all_results[:top]
         
@@ -516,14 +915,14 @@ class ConfluenceSearchService:
             connector_name = result.get("connector_name", "Unknown")
             connector_breakdown[connector_name] = connector_breakdown.get(connector_name, 0) + 1
         
-        logger.info(f"✅ Final results: {len(final_results)} from {len(connector_breakdown)} connectors")
-        logger.info(f"   Results by connector: {connector_breakdown}")
+        logger.warning(f"✅ Final results: {len(final_results)} from {len(connector_breakdown)} connectors")
+        logger.warning(f"   Results by connector: {connector_breakdown}")
         
         return final_results
 
     async def _list_all_connectors(self, user_graph_token: str) -> List[dict]:
         """List all external connectors the user has access to"""
-        logger.info("📋 Listing all external connectors...")
+        logger.warning("📋 Listing all external connectors...")
         
         headers = {
             "Authorization": f"Bearer {user_graph_token}",
@@ -531,34 +930,34 @@ class ConfluenceSearchService:
         }
         
         try:
-            logger.info("   Making API call to https://graph.microsoft.com/v1.0/external/connections")
+            logger.warning("   Making API call to https://graph.microsoft.com/v1.0/external/connections")
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     "https://graph.microsoft.com/v1.0/external/connections",
                     headers=headers
                 ) as response:
-                    logger.info(f"   API Response status: {response.status}")
+                    logger.warning(f"   API Response status: {response.status}")
                     
                     if response.status == 200:
                         data = await response.json()
                         connectors = data.get("value", [])
-                        logger.info(f"   ✅ Successfully retrieved {len(connectors)} connectors")
+                        logger.warning(f"   ✅ Successfully retrieved {len(connectors)} connectors")
                         
                         # Log each connector's details
                         if connectors:
-                            logger.info("   Available connectors:")
+                            logger.warning("   Available connectors:")
                             for i, connector in enumerate(connectors, 1):
                                 name = connector.get("name", "No name")
                                 conn_id = connector.get("id", "No ID")
                                 state = connector.get("state", "Unknown state")
                                 description = connector.get("description", "No description")
-                                logger.info(f"     {i}. {name}")
-                                logger.info(f"        ID: {conn_id}")
-                                logger.info(f"        State: {state}")
+                                logger.warning(f"     {i}. {name}")
+                                logger.warning(f"        ID: {conn_id}")
+                                logger.warning(f"        State: {state}")
                                 if description != "No description":
-                                    logger.info(f"        Description: {description[:100]}...")
+                                    logger.warning(f"        Description: {description[:100]}...")
                         else:
-                            logger.info("   No connectors found in response")
+                            logger.warning("   No connectors found in response")
                         
                         return connectors
                     else:
