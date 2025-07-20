@@ -4,6 +4,7 @@ import { Helmet } from "react-helmet-async";
 import { useSearchParams } from "react-router-dom";
 import { Panel, DefaultButton } from "@fluentui/react";
 import readNDJSONStream from "ndjson-readablestream";
+import { MicrosoftSignIn } from "../../MicrosoftSignIn"; // Add this with other imports
 
 import appLogo from "../../assets/ava.svg";
 import styles from "./Chat.module.css";
@@ -218,7 +219,15 @@ const Chat = () => {
         setActiveCitation(undefined);
         setActiveAnalysisPanelTab(undefined);
 
-        const token = await getGraphToken();
+        let token;
+        try {
+            token = await getGraphToken();
+            console.log(token);
+        } catch (error) {
+            console.error("Failed to get Graph token:", error);
+            // Continue without Graph token - the API can still work with App Service auth
+            token = await getToken();
+        }
 
         try {
             const messages: ResponseMessage[] = answers.flatMap(a => [
@@ -729,6 +738,11 @@ const Chat = () => {
                                     <div style={{ color: "var(--text)", fontWeight: "700", fontSize: "16px", marginBottom: "4px" }}>Fast Response</div>
                                     <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>Powered by advanced AI</div>
                                 </div>
+                            </div>
+
+                            {/* Microsoft Sign-In */}
+                            <div style={{ marginBottom: "32px", display: "flex", justifyContent: "center" }}>
+                                <MicrosoftSignIn />
                             </div>
 
                             {showLanguagePicker && (

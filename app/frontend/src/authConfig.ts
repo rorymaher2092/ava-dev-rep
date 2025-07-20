@@ -133,47 +133,40 @@ const tokenRequest = authSetup.tokenRequest;
 // Create MSAL instance
 export const msalInstance = new PublicClientApplication(msalConfig);
 
-// Initialize MSAL and handle redirect
+// Add a flag to track initialization
+let msalInitialized = false;
+
+// Update initializeMsal to reset the flag
 export const initializeMsal = async (): Promise<void> => {
     try {
-        // Only initialize once
-        if (!msalInstance.getConfiguration()) {
-            console.log("MSAL not yet initialized, initializing now");
-            await msalInstance.initialize();
-            console.log("MSAL initialized successfully");
-        }
+        await msalInstance.initialize();
+        console.log("MSAL initialized successfully");
 
-        // Only handle redirect if we're coming from a redirect
-        const urlParams = new URLSearchParams(window.location.search);
-        const hashParams = window.location.hash;
-
-        if (hashParams.includes("code=") || urlParams.get("code")) {
-            console.log("Auth code detected, handling redirect");
+        // Handle redirect promise
+        if (window.location.pathname !== "/redirect") {
             const response = await msalInstance.handleRedirectPromise();
-            console.log("Handle redirect promise completed", response);
 
             if (response) {
-                console.log("Redirect response received:", response);
+                console.log("Redirect response processed:", response);
                 msalInstance.setActiveAccount(response.account);
-
-                // Store that we've completed MSAL auth
                 sessionStorage.setItem("msal.auth.completed", "true");
+                isInteractionInProgress = false; // Reset the flag
 
-                // Clear the URL
-                window.history.replaceState({}, document.title, window.location.pathname);
-
-                return;
+                // Clear URL if needed
+                if (window.location.hash.includes("code=")) {
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
             }
         }
 
-        // Set active account if not set
+        // Set active account if available
         const accounts = msalInstance.getAllAccounts();
         if (!msalInstance.getActiveAccount() && accounts.length > 0) {
-            console.log("Setting active account from existing accounts");
             msalInstance.setActiveAccount(accounts[0]);
         }
     } catch (error) {
         console.error("Error initializing MSAL:", error);
+        isInteractionInProgress = false;
         throw error;
     }
 };
@@ -292,6 +285,12 @@ export const getToken = async (): Promise<string | undefined> => {
 /**
  * Get Microsoft Graph access token using MSAL
  */
+// Update getGraphToken to be more robust
+
+// In authConfig.ts, add interaction tracking
+let isInteractionInProgress = false;
+
+// Remove the automatic login attempts - let users trigger it manually
 export const getGraphToken = async (): Promise<string | undefined> => {
     if (!useLogin || !msalInstance) {
         console.log("MSAL not available");
@@ -300,70 +299,68 @@ export const getGraphToken = async (): Promise<string | undefined> => {
 
     try {
         const accounts = msalInstance.getAllAccounts();
-        let account = msalInstance.getActiveAccount();
-
-        if (!account && accounts.length > 0) {
-            account = accounts[0];
-            msalInstance.setActiveAccount(account);
-        }
-
-        // Use the default scope for Microsoft Graph
-        const graphScopes = ["https://graph.microsoft.com/.default"];
+        const account = msalInstance.getActiveAccount() || accounts[0];
 
         if (account) {
-            const tokenRequest = {
-                scopes: graphScopes,
-                account: account,
-                forceRefresh: false
-            };
+            msalInstance.setActiveAccount(account);
 
             try {
-                const response = await msalInstance.acquireTokenSilent(tokenRequest);
+                // Try silent token acquisition first
+                const response = await msalInstance.acquireTokenSilent({
+                    scopes: ["https://graph.microsoft.com/.default"],
+                    account: account,
+                    forceRefresh: false
+                });
                 console.log("Graph token acquired silently");
                 return response.accessToken;
             } catch (silentError) {
                 if (silentError instanceof InteractionRequiredAuthError) {
-                    console.log("Interaction required, using redirect flow");
-
-                    await msalInstance.acquireTokenRedirect({
-                        scopes: graphScopes,
-                        account: account
-                    });
-
-                    return undefined;
+                    console.log("Silent acquisition failed, interaction required");
+                    throw silentError; // Let the UI handle this
                 }
                 throw silentError;
             }
         } else {
-            if (isUsingAppServicesLogin) {
-                const appServicesToken = await getAppServicesToken();
-                if (appServicesToken?.user_claims) {
-                    const upn = appServicesToken.user_claims.preferred_username || appServicesToken.user_claims.email || appServicesToken.user_claims.upn;
-
-                    if (upn) {
-                        console.log("Using App Service auth info for MSAL login");
-
-                        await msalInstance.loginRedirect({
-                            scopes: ["openid", "profile"],
-                            loginHint: upn
-                        });
-
-                        return undefined;
-                    }
-                }
-            }
-
-            console.log("No account available, triggering redirect login");
-            await msalInstance.loginRedirect({
-                scopes: ["openid", "profile"]
-            });
-
-            return undefined;
+            // No account - user needs to login
+            throw new Error("No Microsoft account found. Please sign in to Microsoft.");
         }
     } catch (error) {
         console.error("Error getting Graph token:", error);
-        return undefined;
+        throw error;
     }
+};
+
+// Add a specific login function for Microsoft
+export const loginToMicrosoft = async (): Promise<void> => {
+    try {
+        const response = await msalInstance.loginPopup({
+            scopes: ["openid", "profile", "https://graph.microsoft.com/.default"],
+            prompt: "select_account" // Always show account picker
+        });
+
+        if (response.account) {
+            msalInstance.setActiveAccount(response.account);
+            console.log("Microsoft login successful");
+        }
+    } catch (error) {
+        console.error("Microsoft login failed:", error);
+        throw error;
+    }
+};
+
+// Add logout function
+export const logoutFromMicrosoft = async (): Promise<void> => {
+    const account = msalInstance.getActiveAccount();
+    if (account) {
+        await msalInstance.logoutPopup({
+            account: account
+        });
+    }
+};
+
+// Check if user is logged into Microsoft
+export const isMicrosoftAuthenticated = (): boolean => {
+    return msalInstance.getAllAccounts().length > 0;
 };
 
 /**
