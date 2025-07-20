@@ -287,7 +287,14 @@ const Chat = () => {
                 }
 
                 if (typeof parsedResponse.session_state === "string" && parsedResponse.session_state !== "") {
-                    const token = await getToken();
+                    try {
+                        token = await getGraphToken();
+                        console.log(token);
+                    } catch (error) {
+                        console.error("Failed to get Graph token:", error);
+                        // Continue without Graph token - the API can still work with App Service auth
+                        token = await getToken();
+                    }
                     historyManager.addItem(parsedResponse.session_state, [...answers, [question, parsedResponse]], token);
                 }
             } else {
@@ -303,7 +310,14 @@ const Chat = () => {
                 }
 
                 if (typeof parsedResponse.session_state === "string" && parsedResponse.session_state !== "") {
-                    const token = await getToken();
+                    try {
+                        token = await getGraphToken();
+                        console.log(token);
+                    } catch (error) {
+                        console.error("Failed to get Graph token:", error);
+                        // Continue without Graph token - the API can still work with App Service auth
+                        token = await getToken();
+                    }
                     historyManager.addItem(parsedResponse.session_state, [...answers, [question, parsedResponse as ChatAppResponse]], token);
                 }
             }

@@ -59,6 +59,10 @@ export async function chatApi(request: ChatAppRequest, shouldStream: boolean, id
     if (shouldStream) {
         url += "/stream";
     }
+
+    console.log("Requesting chat API with URL:", url);
+
+    console.log("Requesting chat API with idToken:", idToken);
     const headers = await getHeaders(idToken);
 
     console.log("Sending request to backend with botId:", request.context?.overrides?.bot_id);
