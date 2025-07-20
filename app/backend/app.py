@@ -930,12 +930,6 @@ def create_app():
     from chat_history.feedback_api import feedback_bp
     app.register_blueprint(feedback_bp)
 
-    # Add headers for Teams integration
-    @app.after_request
-    def add_teams_headers(response):
-        response.headers["X-Frame-Options"] = "ALLOW-FROM https://teams.microsoft.com"
-        response.headers["Content-Security-Policy"] = "frame-ancestors https://teams.microsoft.com;"
-        return response
 
     if os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):
         app.logger.info("APPLICATIONINSIGHTS_CONNECTION_STRING is set, enabling Azure Monitor")

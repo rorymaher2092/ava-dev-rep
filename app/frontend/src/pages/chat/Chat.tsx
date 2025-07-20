@@ -31,7 +31,7 @@ import { HistoryButton } from "../../components/HistoryButton";
 // import { SettingsButton } from "../../components/SettingsButton";
 import { ClearChatButton } from "../../components/ClearChatButton";
 import { UploadFile } from "../../components/UploadFile";
-import { useLogin, getToken, requireAccessControl, getUsername, getTokenClaims } from "../../authConfig";
+import { useLogin, getToken, requireAccessControl, getUsername, getTokenClaims, getGraphToken } from "../../authConfig";
 import { useMsal } from "@azure/msal-react";
 import { TokenClaimsDisplay } from "../../components/TokenClaimsDisplay";
 import { LoginContext } from "../../loginContext";
@@ -218,7 +218,7 @@ const Chat = () => {
         setActiveCitation(undefined);
         setActiveAnalysisPanelTab(undefined);
 
-        const token = await getToken();
+        const token = await getGraphToken();
 
         try {
             const messages: ResponseMessage[] = answers.flatMap(a => [

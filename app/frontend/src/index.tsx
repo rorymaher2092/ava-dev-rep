@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { createHashRouter, RouterProvider } from "react-router-dom";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { I18nextProvider } from "react-i18next";
 import { HelmetProvider } from "react-helmet-async";
 import { initializeIcons } from "@fluentui/react";
@@ -13,6 +13,7 @@ import Chat from "./pages/chat/Chat";
 import LayoutWrapper from "./layoutWrapper";
 import i18next from "./i18n/config";
 import AdminRoute from "./components/AdminRoute";
+import RedirectHandler from "./RedirectHandler"; // Add this import at the top
 
 // ✅ Import BotProvider
 import { BotProvider } from "./contexts/BotContext";
@@ -24,8 +25,8 @@ try {
     console.log("Teams initialization failed or not in Teams context");
 }
 initializeIcons();
-
-const router = createHashRouter([
+const router = createBrowserRouter([
+    // NOT createHashRouter
     {
         path: "/",
         element: <LayoutWrapper />,
@@ -33,6 +34,10 @@ const router = createHashRouter([
             {
                 index: true,
                 element: <Chat />
+            },
+            {
+                path: "redirect", // Add this route
+                element: <RedirectHandler />
             },
             {
                 path: "feedback",
