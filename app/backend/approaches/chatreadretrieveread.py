@@ -5,6 +5,7 @@ from azure.search.documents.agent.aio import KnowledgeAgentRetrievalClient
 from azure.search.documents.aio import SearchClient
 from azure.search.documents.models import VectorQuery
 from openai import AsyncOpenAI, AsyncStream
+from quart import current_app
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionChunk,
@@ -20,9 +21,12 @@ from core.authentication import AuthenticationHelper
 from bot_profiles import DEFAULT_BOT_ID, BOTS
 
 import logging
+import time
+import asyncio
 
 # Add this import at the top of your chatreadretrieveredread.py file
 from approaches.confluence_search import confluence_service
+from approaches.dual_search_helper import DualSearchHelper
 
 
 # Add these helper functions to convert dictionary results
@@ -51,6 +55,110 @@ def confluence_result_serialize_for_results(result: dict) -> dict:
         "rank": result.get("rank", 0),
         "source": "confluence"
     }
+
+def log_enhanced_search_results(confluence_results: list, user_email: str) -> None:
+    """Enhanced logging to show the quality of search results"""
+    if not confluence_results:
+        logging.warning(f"⚠️ No results found for {user_email}")
+        return
+    
+    logging.warning(f"✅ Enhanced search completed - found {len(confluence_results)} results for {user_email}")
+    
+    # Analyze result quality
+    results_with_content = sum(1 for r in confluence_results if len(r.get("content", "")) > 200)
+    results_with_titles = sum(1 for r in confluence_results if r.get("title", "Untitled") != "Untitled")
+    enhanced_results = sum(1 for r in confluence_results if r.get("content_enhanced", False))
+    
+    logging.warning(f"📊 Result Quality Analysis:")
+    logging.warning(f"   📄 Results with substantial content: {results_with_content}/{len(confluence_results)}")
+    logging.warning(f"   🏷️ Results with proper titles: {results_with_titles}/{len(confluence_results)}")
+    logging.warning(f"   🔧 Results enhanced with full content: {enhanced_results}/{len(confluence_results)}")
+    
+    # Log sample results with more detail
+    logging.warning(f"📋 Top results preview:")
+    for i, result in enumerate(confluence_results[:3], 1):
+        title = result.get("title", "No title")
+        content_length = len(result.get("content", ""))
+        content_source = result.get("content_source", "unknown")
+        relevance_score = result.get("relevance_score", 0)
+        
+        logging.warning(f"   {i}. {title}")
+        logging.warning(f"      📊 Content: {content_length} chars | Type: {content_source} | Score: {relevance_score}")
+        
+        # Show first few words of content if available
+        content = result.get("content", "")
+        if content:
+            preview = content[:100].replace('\n', ' ').strip()
+            logging.warning(f"      📄 Preview: {preview}...")
+        else:
+            summary = result.get("summary", "")
+            if summary:
+                preview = summary[:100].replace('\n', ' ').strip()
+                logging.warning(f"      📝 Summary: {preview}...")
+            else:
+                logging.warning(f"      ❌ No content or summary available")
+
+def confluence_result_to_text_source(result: dict) -> str:
+    """Convert Confluence search result dictionary to text source for RAG with full content"""
+    title = result.get("title", "Untitled")
+    summary = result.get("summary", "")
+    content = result.get("content", "")
+    url = result.get("url", "")
+    author = result.get("author", "")
+    last_modified = result.get("last_modified", "")
+    content_source = result.get("content_source", "")
+    file_type = result.get("file_type", "")
+    
+    # Build comprehensive text source for the LLM
+    text_source = f"**{title}**\n"
+    
+    # Add metadata
+    if url:
+        text_source += f"Source: {url}\n"
+    if author:
+        text_source += f"Author: {author}\n"
+    if last_modified:
+        text_source += f"Last Modified: {last_modified}\n"
+    if file_type:
+        text_source += f"File Type: {file_type}\n"
+    if content_source:
+        text_source += f"Content Type: {content_source}\n"
+    
+    text_source += "\n"  # Add separator
+    
+    # IMPROVEMENT: Use full content if available, otherwise fall back to summary
+    if content and len(content.strip()) > len(summary.strip()):
+        # We have full content - use it
+        text_source += f"**Full Content:**\n{content}\n"
+        if summary and summary != content[:len(summary)]:
+            text_source += f"\n**Summary:**\n{summary}\n"
+    elif summary:
+        # Only have summary
+        text_source += f"**Summary:**\n{summary}\n"
+    else:
+        # No content at all
+        text_source += "**Content:** [No content available]\n"
+    
+    return text_source.strip()
+
+def confluence_result_serialize_for_results(result: dict) -> dict:
+    """Convert Confluence search result to serialized format for thoughts/logging with enhanced info"""
+    return {
+        "title": result.get("title", "Untitled"),
+        "url": result.get("url", ""),
+        "summary": result.get("summary", "")[:200] + "..." if len(result.get("summary", "")) > 200 else result.get("summary", ""),
+        "content_length": len(result.get("content", "")),
+        "has_full_content": len(result.get("content", "")) > 200,
+        "content_enhanced": result.get("content_enhanced", False),
+        "rank": result.get("rank", 0),
+        "relevance_score": result.get("relevance_score", 0),
+        "source": result.get("content_source", "confluence"),
+        "author": result.get("author", ""),
+        "file_type": result.get("file_type", ""),
+        "last_modified": result.get("last_modified", "")
+    }
+
+
 
 class ChatReadRetrieveReadApproach(ChatApproach):
     """
@@ -106,6 +214,7 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         self.reasoning_effort = reasoning_effort
         self.include_token_usage = True
 
+
     async def run_until_final_call(
         self,
         messages: list[ChatCompletionMessageParam],
@@ -136,14 +245,21 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         overrides.setdefault("prompt_template", profile.system_prompt)
 
         # Get search strategy from bot profile
+        use_dual_search =  profile.dual_search
         use_confluence_search = profile.use_confluence_search  # THIS WAS MISSING!
         use_agentic_retrieval = True if overrides.get("use_agentic_retrieval") else False
+        
 
         logging.warning(f"Use Confluence search: {use_confluence_search}")
         logging.warning(f"Use agentic retrieval: {use_agentic_retrieval}")
 
         # Run the appropriate search approach (ONLY ONE!)
-        if use_confluence_search:
+        if use_dual_search:
+            # Use dual search approach
+            logging.info("Using dual search approach")
+            extra_info = await self.run_dual_search_approach(messages, overrides, auth_claims)
+
+        elif use_confluence_search:
             # Use Confluence search (configured in bot profile)
             logging.info("Using Confluence search approach (from bot profile)")
             extra_info = await self.run_confluence_search_approach(
@@ -195,18 +311,20 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         )
         return (extra_info, chat_coroutine)
     
-    # Add this method to your ChatReadRetrieveReadApproach class:
+    
+    # Add this method to your ChatReadRetrieveReadApproach class in chatreadretrieveredread.py
 
-    async def run_confluence_search_approach(
+    async def run_dual_search_approach(
         self, 
-        messages: list, 
+        messages: list[ChatCompletionMessageParam], 
         overrides: dict[str, Any], 
-        auth_claims: dict[str, Any],
+        auth_claims: dict[str, Any]
     ) -> ExtraInfo:
         """
-        Search Confluence content using Microsoft Graph with signed-in user's token
+        Dual search approach that combines results from both Confluence and Azure AI Search,
+        then reranks them using FAISS to return the best results regardless of source.
         """
-        logging.warning("Starting Confluence search approach")
+        logging.warning("🔍 Starting DUAL SEARCH approach (Confluence + Azure AI Search)")
         
         # Get the user query
         original_user_query = messages[-1]["content"]
@@ -216,78 +334,247 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         # Get user info for logging
         user_name = auth_claims.get("name", "Unknown")
         user_email = auth_claims.get("username", "Unknown")
-        logging.warning(f"👤 Confluence search requested by: {user_name} ({user_email})")
+        logging.warning(f"👤 Dual search requested by: {user_name} ({user_email})")
+        
+        # Get settings
+        top = overrides.get("top", 20)
+        dual_search_weight_confluence = overrides.get("dual_search_weight_confluence", 0.5)
+        dual_search_weight_azure = overrides.get("dual_search_weight_azure", 0.5)
+        
+        # Store original top value and temporarily increase for better reranking
+        original_top = overrides.get("top", 20)
+        overrides["top"] = top * 2  # Get more results for better reranking
+        
+        # Initialize tasks for parallel execution
+        tasks = []
+        
+        # Task 1: Confluence Search (reuse existing method)
+        confluence_graph_token = overrides.get("graph_token")
+        if confluence_graph_token:
+            logging.warning("   📚 Creating Confluence search task...")
+            confluence_task = self.run_confluence_search_approach(messages, overrides, auth_claims)
+            tasks.append(("confluence", confluence_task))
+        else:
+            logging.warning("   ⚠️ No Confluence Graph token available, skipping Confluence search")
+        
+        # Task 2: Azure AI Search (reuse existing method)
+        logging.warning("   🔷 Creating Azure AI Search task...")
+        azure_task = self.run_search_approach(messages, overrides, auth_claims)
+        tasks.append(("azure", azure_task))
+        
+        # Execute searches in parallel
+        logging.warning("   ⚡ Executing searches in parallel...")
+        search_start_time = time.time()
+        
+        confluence_extra_info = None
+        azure_extra_info = None
+        
+        if tasks:
+            results = await asyncio.gather(*[task[1] for task in tasks], return_exceptions=True)
+            
+            for i, (source, _) in enumerate(tasks):
+                if isinstance(results[i], Exception):
+                    logging.error(f"   ❌ {source} search failed: {results[i]}")
+                else:
+                    if source == "confluence":
+                        confluence_extra_info = results[i]
+                        logging.warning(f"   ✅ Confluence returned {len(confluence_extra_info.data_points.text or [])} results")
+                    else:
+                        azure_extra_info = results[i]
+                        logging.warning(f"   ✅ Azure AI Search returned {len(azure_extra_info.data_points.text or [])} results")
+        
+        search_time = time.time() - search_start_time
+        logging.warning(f"   ⏱️ Parallel search completed in {search_time:.2f}s")
+        
+        # Restore original top value
+        overrides["top"] = original_top
+        
+        # Extract results and text sources from ExtraInfo objects
+        confluence_results = []
+        confluence_text_sources = []
+        azure_results = []
+        azure_text_sources = []
+        
+        if confluence_extra_info:
+            # Get the already formatted text sources
+            confluence_text_sources = confluence_extra_info.data_points.text or []
+            # Extract raw results from thoughts for reranking
+            for thought in confluence_extra_info.thoughts or []:
+                if thought.title == "Enhanced Confluence search results with full content":
+                    confluence_results = thought.description or []
+                    break
+        
+        if azure_extra_info:
+            # Get the already formatted text sources
+            azure_text_sources = azure_extra_info.data_points.text or []
+            # Extract raw results from thoughts for reranking
+            for thought in azure_extra_info.thoughts or []:
+                if thought.title == "Search results":
+                    azure_results = thought.description or []
+                    break
+        
+        # Combine and rerank results using FAISS
+        all_results = []
+        final_text_sources = []
+        
+        if confluence_results or azure_results:
+            logging.warning("   🔄 Starting unified FAISS reranking...")
+            rerank_start_time = time.time()
+            
+            # Add source type and original index to results
+            for i, result in enumerate(confluence_results):
+                result["source_type"] = "confluence"
+                result["original_index"] = i
+            for i, result in enumerate(azure_results):
+                result["source_type"] = "azure"
+                result["original_index"] = i
+            
+            # Initialize dual search helper
+            dual_helper = DualSearchHelper(self.openai_client)
+            
+            # Combine results with source tracking
+            all_results = await dual_helper.combine_and_rerank_dual_results(
+                confluence_results,
+                azure_results,
+                original_user_query,
+                original_top,  # Use original top value for final results
+                dual_search_weight_confluence,
+                dual_search_weight_azure
+            )
+            
+            rerank_time = time.time() - rerank_start_time
+            logging.warning(f"   ⏱️ FAISS reranking completed in {rerank_time:.2f}s")
+            
+            # Map reranked results back to their original text sources
+            for result in all_results:
+                if result["source_type"] == "confluence":
+                    # Use the pre-formatted text source from Confluence
+                    idx = result["original_index"]
+                    if idx < len(confluence_text_sources):
+                        final_text_sources.append(confluence_text_sources[idx])
+                else:  # azure
+                    # Use the pre-formatted text source from Azure
+                    idx = result["original_index"]
+                    if idx < len(azure_text_sources):
+                        final_text_sources.append(azure_text_sources[idx])
+        
+        # Create combined ExtraInfo with comprehensive metadata
+        extra_info = ExtraInfo(
+            DataPoints(text=final_text_sources),
+            thoughts=[
+                ThoughtStep(
+                    "Dual search using Confluence and Azure AI Search",
+                    original_user_query,
+                    {
+                        "top": original_top,
+                        "confluence_results": len(confluence_results),
+                        "azure_results": len(azure_results),
+                        "combined_results": len(all_results),
+                        "search_time": f"{search_time:.2f}s",
+                        "rerank_time": f"{rerank_time:.2f}s",
+                        "weights": {
+                            "confluence": dual_search_weight_confluence,
+                            "azure": dual_search_weight_azure
+                        }
+                    }
+                ),
+                ThoughtStep(
+                    "Combined search results after FAISS reranking",
+                    [DualSearchHelper.serialize_dual_result(result) for result in all_results]
+                )
+            ]
+        )
+        
+        # Log analysis
+        self._log_dual_search_analysis(all_results, confluence_results, azure_results)
+        
+        return extra_info
 
-        # Get Confluence Graph token from auth_claims (this comes from the OBO flow)
-        confluence_graph_token = auth_claims.get("graph_token")
+    # Remove the _search_confluence_for_dual and _search_azure_for_dual methods as we're reusing existing one
+
+
+    # Also update your main search method to use the enhanced logging
+    async def run_confluence_search_approach(
+        self, 
+        messages: list, 
+        overrides: dict[str, Any], 
+        auth_claims: dict[str, Any],
+    ) -> ExtraInfo:
+        """
+        Enhanced Confluence search with better results and full content
+        """
+        logging.warning("Starting ENHANCED Confluence search approach")
+        
+        # Get the user query
+        original_user_query = messages[-1]["content"]
+        if not isinstance(original_user_query, str):
+            raise ValueError("The most recent message content must be a string.")
+        
+        # Get user info for logging
+        user_name = auth_claims.get("name", "Unknown")
+        user_email = auth_claims.get("username", "Unknown")
+        logging.warning(f"👤 Enhanced Confluence search requested by: {user_name} ({user_email})")
+
+        # Get Confluence Graph token from auth_claims
+        confluence_graph_token = overrides.get("graph_token")
 
         if not confluence_graph_token:
-            logging.warning("❌ No Confluence Graph token available in auth_claims")
-            logging.warning("   Check CONFLUENCE_GRAPH_CLIENT_ID and CONFLUENCE_GRAPH_CLIENT_SECRET")
+            logging.warning("❌ No Confluence Graph token available in overrides")
             return ExtraInfo(DataPoints(text=[]))
         
         logging.warning("✅ Confluence Graph token found in auth_claims")
             
         try:
-            # Search Confluence using the USER'S token (not app token)
+            # ENHANCED: Use improved search with better query processing and full content
             top = overrides.get("top", 20)
-            logging.warning(f"🔍 Searching for: '{original_user_query}' (top {top})")
+            logging.warning(f"🔍 Starting enhanced search for: '{original_user_query}' (top {top})")
             
-            # FIXED: Pass the user's Graph token to the service
+            # Pass the openai_client to the search method
             confluence_results = await confluence_service.search_all_microsoft_graph(
                 query=original_user_query,
-                user_graph_token=confluence_graph_token,  # User's token from OBO flow
-                top=top
+                user_graph_token=confluence_graph_token,
+                top=top,
+                openai_client=self.openai_client  # Pass the client here
             )
-            
+                
             if not confluence_results:
-                logging.warning(f"⚠️ No Confluence results found for query: '{original_user_query}'")
+                logging.warning(f"⚠️ No enhanced results found for query: '{original_user_query}'")
                 return ExtraInfo(DataPoints(text=[]))
             
-            # Convert results to text sources for RAG
+            # ENHANCED: Use improved helper functions
             text_sources = [confluence_result_to_text_source(result) for result in confluence_results]
 
-            # Initialize extra_info properly
-            extra_info = ExtraInfo(
-                DataPoints(text=text_sources)
-            )
-            
-            # Initialize thoughts as empty list if None
-            if extra_info.thoughts is None:
-                extra_info.thoughts = []
-
-            # Create ExtraInfo in the same format as your existing search
+            # Create ExtraInfo with enhanced metadata
             extra_info = ExtraInfo(
                 DataPoints(text=text_sources),
                 thoughts=[
                     ThoughtStep(
-                        "Search Confluence using signed-in user's Microsoft Graph token",
+                        "Enhanced Confluence search using signed-in user's Microsoft Graph token",
                         original_user_query,
                         {
                             "top": top,
                             "results_count": len(confluence_results),
-                            "search_type": "confluence_user_token",
+                            "search_type": "enhanced_confluence_user_token",
                             "user": user_email,
-                            "connector_auto_discovered": True
+                            "results_with_content": sum(1 for r in confluence_results if len(r.get("content", "")) > 200),
+                            "enhanced_results": sum(1 for r in confluence_results if r.get("content_enhanced", False)),
+                            "avg_content_length": sum(len(r.get("content", "")) for r in confluence_results) // len(confluence_results)
                         }
                     ),
                     ThoughtStep(
-                        "Confluence search results",
+                        "Enhanced Confluence search results with full content",
                         [confluence_result_serialize_for_results(result) for result in confluence_results]
                     )
                 ]
             )
             
-            logging.warning(f"✅ Confluence search completed - found {len(confluence_results)} results for {user_email}")
-            
-            # Log first few results for debugging
-            for i, result in enumerate(confluence_results[:3], 1):
-                logging.warning(f"   {i}. {result.title}")
+            # ENHANCED: Use improved logging
+            log_enhanced_search_results(confluence_results, user_email)
             
             return extra_info
             
         except Exception as e:
-            logging.warning(f"❌ Error in Confluence search for {user_email}: {e}")
+            logging.warning(f"❌ Error in enhanced Confluence search for {user_email}: {e}")
             import traceback
             logging.warning(f"Traceback: {traceback.format_exc()}")
             return ExtraInfo(DataPoints(text=[]))

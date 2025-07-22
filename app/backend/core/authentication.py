@@ -248,8 +248,7 @@ class AuthenticationHelper:
                 "oid": id_token_claims["oid"],
                 "username": id_token_claims.get("preferred_username", ""),
                 "name": id_token_claims.get("name", ""),
-                "groups": id_token_claims.get("groups", []),
-                "graph_token": graph_resource_access_token["access_token"]  # This is the main graph token
+                "groups": id_token_claims.get("groups", [])
             }
             
             logging.warning(f"DEBUG - Built initial auth_claims for user: {auth_claims.get('name', 'Unknown')}")

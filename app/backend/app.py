@@ -57,6 +57,7 @@ from approaches.chatreadretrievereadvision import ChatReadRetrieveReadVisionAppr
 from approaches.promptmanager import PromptyManager
 from approaches.retrievethenread import RetrieveThenReadApproach
 from approaches.retrievethenreadvision import RetrieveThenReadVisionApproach
+from approaches.confluence_search import ConfluenceSearchService  
 from chat_history.cosmosdb import chat_history_cosmosdb_bp
 from config import (
     CONFIG_AGENT_CLIENT,
@@ -803,6 +804,12 @@ async def setup_clients():
     current_app.config[CONFIG_AGENTIC_RETRIEVAL_ENABLED] = USE_AGENTIC_RETRIEVAL
 
     prompt_manager = PromptyManager()
+
+    
+    # Create the service with the configuration values
+    confluence_service = ConfluenceSearchService(openai_client=openai_client)
+    current_app.config["CONFLUENCE_SEARCH_SERVICE"] = confluence_service
+    
 
     # Set up the two default RAG approaches for /ask and /chat
     # RetrieveThenReadApproach is used by /ask for single-turn Q&A

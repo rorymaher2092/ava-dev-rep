@@ -14,6 +14,7 @@ class BotProfile:
         allowed_emails: List[str] | None = None,
         search_indexes: List[str] | None = None,  # Added this since I saw it in your "ba" bot
         use_confluence_search: bool = False,      # NEW: Enable Confluence search for this bot
+        use_dual_search: bool = False, 
     ):
         self.id = id
         self.label = label
@@ -23,6 +24,7 @@ class BotProfile:
         self.allowed_emails = allowed_emails or []
         self.search_indexes = search_indexes or []
         self.use_confluence_search = use_confluence_search  # NEW
+        self.dual_search = use_dual_search  # NEW: Dual search flag
 
 # ── define each bot once ───────────────────────────────────────────
 BOTS: Dict[str, BotProfile] = {
@@ -114,6 +116,7 @@ BOTS: Dict[str, BotProfile] = {
         ],
         allowed_emails=[],   # everyone
         use_confluence_search=True,  # Ava uses Azure AI Search by default
+        use_dual_search = True,
     ),
 
     "ba": BotProfile(
@@ -123,7 +126,8 @@ BOTS: Dict[str, BotProfile] = {
         system_prompt="You are BA-Buddy. Your job is to avoid answer questions as best you can. Make a lot of jokes",
         search_indexes=[],
         allowed_emails=["Rory.Maher@vocus.com.au", "Callum.Mayhook@vocus.com.au"],
-        use_confluence_search=False
+        use_confluence_search=False,
+        use_dual_search = False
     ),
     "tender": BotProfile(
         id="tender",
@@ -131,7 +135,9 @@ BOTS: Dict[str, BotProfile] = {
         model="gpt-4o",
         system_prompt="You are Tender Wizard. Your pretending to be a wizard. answer with riddles",
         allowed_emails=["rory.maher@vocus.com.au"],
-        use_confluence_search=False
+        use_confluence_search=False,
+        use_dual_search = False
+        
     ),
 }
 

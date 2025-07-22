@@ -219,14 +219,17 @@ const Chat = () => {
         setActiveCitation(undefined);
         setActiveAnalysisPanelTab(undefined);
 
-        let token;
+        // Get the regular auth token for backend authentication
+        const authToken = await getToken();
+
+        let graphtoken;
         try {
-            token = await getGraphToken();
-            console.log(token);
+            graphtoken = await getGraphToken();
+            console.log(graphtoken);
         } catch (error) {
             console.error("Failed to get Graph token:", error);
             // Continue without Graph token - the API can still work with App Service auth
-            token = await getToken();
+            graphtoken = await getToken();
         }
 
         try {
@@ -263,6 +266,7 @@ const Chat = () => {
                         use_agentic_retrieval: useAgenticRetrieval,
                         // bot_id: to select which bot is being used
                         bot_id: botId,
+                        graph_token: graphtoken,
                         ...(seed !== null ? { seed: seed } : {})
                     }
                 },
@@ -270,7 +274,7 @@ const Chat = () => {
                 session_state: answers.length ? answers[answers.length - 1][1].session_state : null
             };
 
-            const response = await chatApi(request, shouldStream, token);
+            const response = await chatApi(request, shouldStream, authToken);
             if (!response.body) {
                 throw Error("No response body");
             }
@@ -287,15 +291,8 @@ const Chat = () => {
                 }
 
                 if (typeof parsedResponse.session_state === "string" && parsedResponse.session_state !== "") {
-                    try {
-                        token = await getGraphToken();
-                        console.log(token);
-                    } catch (error) {
-                        console.error("Failed to get Graph token:", error);
-                        // Continue without Graph token - the API can still work with App Service auth
-                        token = await getToken();
-                    }
-                    historyManager.addItem(parsedResponse.session_state, [...answers, [question, parsedResponse]], token);
+                    const authToken = await getToken();
+                    historyManager.addItem(parsedResponse.session_state, [...answers, [question, parsedResponse]], authToken);
                 }
             } else {
                 const parsedResponse: ChatAppResponseOrError = await response.json();
@@ -310,15 +307,8 @@ const Chat = () => {
                 }
 
                 if (typeof parsedResponse.session_state === "string" && parsedResponse.session_state !== "") {
-                    try {
-                        token = await getGraphToken();
-                        console.log(token);
-                    } catch (error) {
-                        console.error("Failed to get Graph token:", error);
-                        // Continue without Graph token - the API can still work with App Service auth
-                        token = await getToken();
-                    }
-                    historyManager.addItem(parsedResponse.session_state, [...answers, [question, parsedResponse as ChatAppResponse]], token);
+                    const authToken = await getToken();
+                    historyManager.addItem(parsedResponse.session_state, [...answers, [question, parsedResponse as ChatAppResponse]], authToken);
                 }
             }
             setSpeechUrls([...speechUrls, null]);
