@@ -101,6 +101,8 @@ fixedint==0.1.6
 flask==3.0.3
     # via quart
 frozenlist==1.4.1
+
+faiss-cpu==1.7.4
     # via
     #   aiohttp
     #   aiosignal

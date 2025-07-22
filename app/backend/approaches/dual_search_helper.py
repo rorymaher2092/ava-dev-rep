@@ -15,8 +15,10 @@ logger = logging.getLogger(__name__)
 class DualSearchHelper:
     """Helper class for dual search operations"""
     
-    def __init__(self, openai_client):
+    def __init__(self, openai_client, embedding_model="text-embedding-3-small", embedding_dimensions=1536):
         self.openai_client = openai_client
+        self.embedding_model = embedding_model
+        self.embedding_dimensions = embedding_dimensions
     
     async def combine_and_rerank_dual_results(
         self,
@@ -53,7 +55,7 @@ class DualSearchHelper:
             if not all_results:
                 return []
             
-            logger.warning(f"   📊 Creating unified embeddings for {len(all_results)} results...")
+            logger.warning(f"   📊 Creating unified embeddings for {len(all_results)} results using {self.embedding_model}...")
             
             # Generate embeddings for all results
             embeddings = []
@@ -71,11 +73,17 @@ class DualSearchHelper:
                     embedding_text = f"{title}\n\n{content}"[:8000]
                 
                 try:
-                    # Generate embedding
-                    embedding_response = await self.openai_client.embeddings.create(
-                        model="text-embedding-ada-002",
-                        input=embedding_text
-                    )
+                    # Generate embedding with proper model configuration
+                    embedding_params = {
+                        "model": self.embedding_model,
+                        "input": embedding_text
+                    }
+                    
+                    # Add dimensions parameter for text-embedding-3 models
+                    if self.embedding_model in ["text-embedding-3-small", "text-embedding-3-large"]:
+                        embedding_params["dimensions"] = self.embedding_dimensions
+                    
+                    embedding_response = await self.openai_client.embeddings.create(**embedding_params)
                     embedding = embedding_response.data[0].embedding
                     embeddings.append(embedding)
                     valid_results.append(result)
@@ -88,11 +96,17 @@ class DualSearchHelper:
                 logger.warning("   ⚠️ No embeddings generated, returning original results")
                 return all_results[:top]
             
-            # Get query embedding
-            query_embedding_response = await self.openai_client.embeddings.create(
-                model="text-embedding-ada-002",
-                input=query
-            )
+            # Get query embedding with same model configuration
+            query_embedding_params = {
+                "model": self.embedding_model,
+                "input": query
+            }
+            
+            # Add dimensions parameter for text-embedding-3 models
+            if self.embedding_model in ["text-embedding-3-small", "text-embedding-3-large"]:
+                query_embedding_params["dimensions"] = self.embedding_dimensions
+            
+            query_embedding_response = await self.openai_client.embeddings.create(**query_embedding_params)
             query_embedding = np.array(query_embedding_response.data[0].embedding).astype('float32')
             
             # Build FAISS index

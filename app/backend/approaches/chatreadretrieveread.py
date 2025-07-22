@@ -27,6 +27,7 @@ import asyncio
 # Add this import at the top of your chatreadretrieveredread.py file
 from approaches.confluence_search import confluence_service
 from approaches.dual_search_helper import DualSearchHelper
+from approaches.confluence_search import SearchConfig
 
 
 # Add these helper functions to convert dictionary results
@@ -430,7 +431,11 @@ class ChatReadRetrieveReadApproach(ChatApproach):
                 result["original_index"] = i
             
             # Initialize dual search helper
-            dual_helper = DualSearchHelper(self.openai_client)
+            
+            dual_helper = DualSearchHelper(
+                self.openai_client,             
+                embedding_model=SearchConfig.EMBEDDING_MODEL,
+                embedding_dimensions=SearchConfig.EMBEDDING_DIMENSIONS)
             
             # Combine results with source tracking
             all_results = await dual_helper.combine_and_rerank_dual_results(
@@ -486,7 +491,7 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         )
         
         # Log analysis
-        self._log_dual_search_analysis(all_results, confluence_results, azure_results)
+        DualSearchHelper.log_dual_search_analysis(all_results, confluence_results, azure_results)
         
         return extra_info
 
@@ -530,7 +535,7 @@ class ChatReadRetrieveReadApproach(ChatApproach):
             logging.warning(f"🔍 Starting enhanced search for: '{original_user_query}' (top {top})")
             
             # Pass the openai_client to the search method
-            confluence_results = await confluence_service.search_all_microsoft_graph(
+            confluence_results = await confluence_service.search_with_microsoft_graph(
                 query=original_user_query,
                 user_graph_token=confluence_graph_token,
                 top=top,
