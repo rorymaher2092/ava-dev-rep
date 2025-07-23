@@ -1,4 +1,3 @@
-// MicrosoftSignIn.tsx
 import React, { useState, useEffect } from "react";
 import { loginToMicrosoft, logoutFromMicrosoft, isMicrosoftAuthenticated, getUsername } from "./authConfig";
 
@@ -12,7 +11,7 @@ export const MicrosoftSignIn: React.FC = () => {
     }, []);
 
     const checkMicrosoftAuth = async () => {
-        const isAuth = isMicrosoftAuthenticated();
+        const isAuth = await isMicrosoftAuthenticated();
         setIsMsAuthenticated(isAuth);
 
         if (isAuth) {
@@ -47,60 +46,35 @@ export const MicrosoftSignIn: React.FC = () => {
         }
     };
 
-    if (isMsAuthenticated && msUsername) {
+    if (!isMsAuthenticated) {
+        // Render Sign In button if the user is not authenticated
         return (
-            <div
+            <button
+                onClick={handleMicrosoftLogin}
+                disabled={loading}
                 style={{
-                    padding: "10px",
-                    backgroundColor: "#f0f0f0",
+                    padding: "10px 20px",
+                    backgroundColor: "#0078d4",
+                    color: "white",
+                    border: "none",
                     borderRadius: "5px",
+                    cursor: loading ? "not-allowed" : "pointer",
                     display: "flex",
                     alignItems: "center",
                     gap: "10px"
                 }}
             >
-                <span>Microsoft: {msUsername}</span>
-                <button
-                    onClick={handleMicrosoftLogout}
-                    disabled={loading}
-                    style={{
-                        padding: "5px 10px",
-                        backgroundColor: "#dc3545",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "3px",
-                        cursor: loading ? "not-allowed" : "pointer"
-                    }}
-                >
-                    Sign Out
-                </button>
-            </div>
+                <svg width="21" height="21" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+                    <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+                    <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+                    <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+                </svg>
+                {loading ? "Signing in..." : "Sign in with Microsoft"}
+            </button>
         );
     }
 
-    return (
-        <button
-            onClick={handleMicrosoftLogin}
-            disabled={loading}
-            style={{
-                padding: "10px 20px",
-                backgroundColor: "#0078d4",
-                color: "white",
-                border: "none",
-                borderRadius: "5px",
-                cursor: loading ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "10px"
-            }}
-        >
-            <svg width="21" height="21" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
-                <rect x="1" y="1" width="9" height="9" fill="#f25022" />
-                <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
-                <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
-                <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
-            </svg>
-            {loading ? "Signing in..." : "Sign in with Microsoft"}
-        </button>
-    );
+    // Render nothing or other content when signed in
+    return null;
 };

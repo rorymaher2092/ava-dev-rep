@@ -1,19 +1,23 @@
 """
-Dual Search Helper Module
+Dual Search Helper Module - CORRECTED VERSION WITH FAISS FALLBACK
 
-Contains utilities for combining and reranking results from multiple search sources
-(Confluence and Azure AI Search) using FAISS vector similarity.
+MAJOR CHANGES:
+- NO MORE re-embedding Azure results!
+- Direct score comparison between sources
+- FALLBACK: When FAISS fails, ensures equal representation from both sources
 """
 
 import logging
 from typing import List, Dict, Any
-import asyncio
+import time
 
 logger = logging.getLogger(__name__)
 
 
 class DualSearchHelper:
-    """Helper class for dual search operations"""
+    """
+    CORRECTED: Helper class with direct score comparison - no re-embedding!
+    """
     
     def __init__(self, openai_client, embedding_model="text-embedding-3-small", embedding_dimensions=1536):
         self.openai_client = openai_client
@@ -26,170 +30,312 @@ class DualSearchHelper:
         azure_results: List[Dict],
         query: str,
         top: int,
-        weight_confluence: float,
-        weight_azure: float
+        weight_confluence: float = 0.5,
+        weight_azure: float = 0.5
     ) -> List[Dict]:
         """
-        Combine results from both sources and rerank using unified FAISS index
-        
-        Args:
-            confluence_results: Results from Confluence search
-            azure_results: Results from Azure AI Search
-            query: Original user query
-            top: Number of top results to return
-            weight_confluence: Weight for Confluence results (0-1)
-            weight_azure: Weight for Azure results (0-1)
-            
-        Returns:
-            List of reranked results with metadata
+        CORRECTED: Direct score comparison - no re-embedding needed!
+        WITH FALLBACK: Equal representation when FAISS fails
         """
+        
+        logger.warning("🔍 USING CORRECTED DUAL SEARCH - NO RE-EMBEDDING!")
+        
         try:
-            import faiss
-            import numpy as np
+            if not confluence_results and not azure_results:
+                return []
+            
+            logger.warning(f"   📊 DIRECT score comparison: {len(confluence_results)} Confluence + {len(azure_results)} Azure results...")
+            
+            # STEP 1: Process Confluence results (already have FAISS scores)
+            processed_confluence = []
+            confluence_has_vectors = False
+            
+            for result in confluence_results:
+                result_copy = result.copy()
+                result_copy["source_type"] = "confluence"
+                
+                # Check if we have valid vector scores
+                vector_score = result.get("vector_score", result.get("faiss_score", 0.0))
+                if vector_score > 0:
+                    confluence_has_vectors = True
+                    
+                lexical_score = result.get("lexical_score", 1.0 / (result.get("rank", 1) + 1))
+                
+                result_copy["vector_score"] = vector_score
+                result_copy["lexical_score"] = lexical_score
+                result_copy["original_rank"] = result.get("rank", 0)
+                
+                processed_confluence.append(result_copy)
+            
+            logger.warning(f"   📚 Confluence: {len(processed_confluence)} results processed (has vectors: {confluence_has_vectors})")
+            
+            # STEP 2: Process Azure results
+            processed_azure = []
+            azure_has_vectors = False
+            
+            for result in azure_results:
+                result_copy = result.copy()
+                result_copy["source_type"] = "azure"
+                
+                # Extract vector score from Azure's actual response structure
+                vector_score = self._extract_azure_vector_score(result)
+                if vector_score > 0:
+                    azure_has_vectors = True
+                    
+                lexical_score = self._extract_azure_lexical_score(result)
+                
+                result_copy["vector_score"] = vector_score
+                result_copy["lexical_score"] = lexical_score
+                result_copy["original_rank"] = result.get("rank", result.get("@search.rank", 0))
+                
+                processed_azure.append(result_copy)
+            
+            logger.warning(f"   🔷 Azure: {len(processed_azure)} results processed (has vectors: {azure_has_vectors})")
+            
+            # CRITICAL DECISION POINT: Check if FAISS failed (Confluence has no vectors)
+            if not confluence_has_vectors and azure_has_vectors:
+                logger.warning("   ⚠️ FAISS FAILURE DETECTED - Using fallback strategy!")
+                return self._equal_representation_fallback(
+                    processed_confluence, 
+                    processed_azure, 
+                    top
+                )
+            
+            # NORMAL PATH: Both sources have scores, proceed with score-based ranking
+            self._log_extracted_scores(processed_confluence, processed_azure)
             
             # Combine all results
-            all_results = []
-            all_results.extend(confluence_results)
-            all_results.extend(azure_results)
+            all_results = processed_confluence + processed_azure
             
             if not all_results:
                 return []
             
-            logger.warning(f"   📊 Creating unified embeddings for {len(all_results)} results using {self.embedding_model}...")
+            # Normalize scores across both sources
+            self._normalize_scores(all_results)
             
-            # Generate embeddings for all results
-            embeddings = []
-            valid_results = []
-            
+            # Calculate final weighted scores
             for result in all_results:
-                # Create embedding text based on source type
-                if result["source_type"] == "confluence":
-                    title = result.get("title", "")
-                    content = result.get("content", result.get("summary", ""))
-                    embedding_text = f"{title}\n\n{content}"[:8000]
-                else:  # Azure
-                    title = result.get("title", result.get("sourcepage", ""))
-                    content = result.get("content", result.get("summary", ""))
-                    embedding_text = f"{title}\n\n{content}"[:8000]
+                normalized_lexical = result["normalized_lexical_score"]
+                normalized_vector = result["normalized_vector_score"]
                 
-                try:
-                    # Generate embedding with proper model configuration
-                    embedding_params = {
-                        "model": self.embedding_model,
-                        "input": embedding_text
-                    }
-                    
-                    # Add dimensions parameter for text-embedding-3 models
-                    if self.embedding_model in ["text-embedding-3-small", "text-embedding-3-large"]:
-                        embedding_params["dimensions"] = self.embedding_dimensions
-                    
-                    embedding_response = await self.openai_client.embeddings.create(**embedding_params)
-                    embedding = embedding_response.data[0].embedding
-                    embeddings.append(embedding)
-                    valid_results.append(result)
-                    
-                except Exception as e:
-                    logger.warning(f"Failed to generate embedding for result: {e}")
-                    continue
-            
-            if not embeddings:
-                logger.warning("   ⚠️ No embeddings generated, returning original results")
-                return all_results[:top]
-            
-            # Get query embedding with same model configuration
-            query_embedding_params = {
-                "model": self.embedding_model,
-                "input": query
-            }
-            
-            # Add dimensions parameter for text-embedding-3 models
-            if self.embedding_model in ["text-embedding-3-small", "text-embedding-3-large"]:
-                query_embedding_params["dimensions"] = self.embedding_dimensions
-            
-            query_embedding_response = await self.openai_client.embeddings.create(**query_embedding_params)
-            query_embedding = np.array(query_embedding_response.data[0].embedding).astype('float32')
-            
-            # Build FAISS index
-            logger.warning(f"   🎯 Building unified FAISS index with {len(embeddings)} embeddings...")
-            dimension = len(embeddings[0])
-            index = faiss.IndexFlatIP(dimension)  # Inner product (cosine similarity)
-            
-            # Normalize embeddings
-            embeddings_array = np.array(embeddings).astype('float32')
-            faiss.normalize_L2(embeddings_array)
-            index.add(embeddings_array)
-            
-            # Normalize query
-            query_embedding = query_embedding.reshape(1, -1)
-            faiss.normalize_L2(query_embedding)
-            
-            # Search
-            k = min(len(embeddings), top * 2)  # Get more results for final filtering
-            similarities, indices = index.search(query_embedding, k=k)
-            
-            # Apply source-specific weights and create final ranking
-            ranked_results = []
-            for i, (similarity, idx) in enumerate(zip(similarities[0], indices[0])):
-                result = valid_results[idx].copy()
+                # Combine lexical + vector (30% lexical, 70% vector)
+                combined_score = (0.3 * normalized_lexical + 0.7 * normalized_vector)
                 
-                # Apply source-specific weight
+                # Apply source-specific weights
                 if result["source_type"] == "confluence":
-                    weighted_score = float(similarity) * weight_confluence
-                    source_boost = 1.1  # Slight boost for Confluence as it's more specific
+                    source_weight = weight_confluence
+                    source_boost = 1.1  # Slight boost for Confluence specificity
                 else:
-                    weighted_score = float(similarity) * weight_azure
+                    source_weight = weight_azure
                     source_boost = 1.0
                 
-                result["faiss_score"] = float(similarity)
-                result["weighted_score"] = weighted_score * source_boost
-                result["unified_rank"] = i + 1
+                final_score = combined_score * source_weight * source_boost
                 
-                ranked_results.append(result)
+                result["combined_score"] = combined_score
+                result["final_weighted_score"] = final_score
             
-            # Sort by weighted score
-            ranked_results.sort(key=lambda x: x["weighted_score"], reverse=True)
+            # Sort by final weighted score
+            all_results.sort(key=lambda x: x["final_weighted_score"], reverse=True)
             
-            # Add final rank
-            for i, result in enumerate(ranked_results, 1):
+            # Add final rankings
+            for i, result in enumerate(all_results, 1):
                 result["final_rank"] = i
             
-            logger.warning(f"   ✅ Unified reranking complete, returning top {top} results")
+            logger.warning(f"   ✅ Direct score comparison complete, returning top {top}")
             
-            return ranked_results[:top]
-            
-        except ImportError:
-            logger.warning("   ⚠️ FAISS not available, using simple combination")
-            # Simple fallback: interleave results
-            combined = []
-            for i in range(max(len(confluence_results), len(azure_results))):
-                if i < len(confluence_results):
-                    combined.append(confluence_results[i])
-                if i < len(azure_results) and len(combined) < top:
-                    combined.append(azure_results[i])
-                if len(combined) >= top:
-                    break
-            return combined
+            return all_results[:top]
             
         except Exception as e:
-            logger.error(f"   ❌ Error in unified reranking: {e}")
+            logger.error(f"   ❌ Error in direct score comparison: {e}")
             import traceback
             logger.error(traceback.format_exc())
-            # Fallback: return confluence results first, then azure
-            return (confluence_results + azure_results)[:top]
+            return self._equal_representation_fallback(
+                confluence_results[:top//2 + 1], 
+                azure_results[:top//2 + 1], 
+                top*2
+            )
+    
+    def _equal_representation_fallback(
+        self, 
+        confluence_results: List[Dict], 
+        azure_results: List[Dict], 
+        top: int
+    ) -> List[Dict]:
+        """
+        FALLBACK STRATEGY: Ensure equal representation from both sources
+        when FAISS fails and Confluence has no vector scores
+        """
+        logger.warning("🚨 USING EQUAL REPRESENTATION FALLBACK")
+        
+        # Calculate how many from each source
+        confluence_count = min(len(confluence_results), (top + 1) // 2)  # Half (rounded up)
+        azure_count = min(len(azure_results), top - confluence_count)    # Remaining slots
+        
+        # If one source has fewer results, give extra slots to the other
+        if confluence_count < (top + 1) // 2 and len(azure_results) > azure_count:
+            azure_count = min(len(azure_results), top - confluence_count)
+        elif azure_count < top // 2 and len(confluence_results) > confluence_count:
+            confluence_count = min(len(confluence_results), top - azure_count)
+        
+        logger.warning(f"   📊 Taking top {confluence_count} from Confluence, top {azure_count} from Azure")
+        
+        # Take top results from each source
+        final_results = []
+        
+        # Add Confluence results (already sorted by their original ranking)
+        for i, result in enumerate(confluence_results[:confluence_count]):
+            result["final_rank"] = i * 2 + 1  # Odd ranks: 1, 3, 5...
+            result["fallback_mode"] = True
+            final_results.append(result)
+        
+        # Add Azure results (already sorted by their original ranking)
+        for i, result in enumerate(azure_results[:azure_count]):
+            result["final_rank"] = i * 2 + 2  # Even ranks: 2, 4, 6...
+            result["fallback_mode"] = True
+            final_results.append(result)
+        
+        # Sort by final rank to interleave results
+        final_results.sort(key=lambda x: x["final_rank"])
+        
+        # Renumber final ranks to be sequential
+        for i, result in enumerate(final_results, 1):
+            result["final_rank"] = i
+        
+        logger.warning(f"   ✅ Fallback complete: {len(final_results)} results")
+        logger.warning(f"   📋 Final distribution: {confluence_count} Confluence, {azure_count} Azure")
+        
+        return final_results[:top]
+    
+    def _extract_azure_vector_score(self, result: Dict) -> float:
+        """
+        Extract vector similarity score from Azure AI Search result
+        """
+        # Try various score fields in order of preference
+        
+        # Method 1: Look for explicit vector_score field
+        if "vector_score" in result:
+            return float(result["vector_score"])
+        
+        # Method 2: Look for semantic reranker score
+        reranker_score = result.get("@search.reranker_score", result.get("reranker_score"))
+        if reranker_score is not None:
+            # Reranker scores are typically 0-4, normalize to 0-1
+            return float(reranker_score) / 4.0
+        
+        # Method 3: Look for overall search score
+        search_score = result.get("@search.score", result.get("score"))
+        if search_score is not None:
+            # Search scores vary, but usually 0-10+, normalize
+            return min(float(search_score) / 10.0, 1.0)
+        
+        # Method 4: Rank-based fallback
+        rank = result.get("@search.rank", result.get("rank", 1))
+        return 1.0 / (rank + 1)
+    
+    def _extract_azure_lexical_score(self, result: Dict) -> float:
+        """Extract lexical/keyword matching score from Azure result"""
+        
+        # Method 1: Explicit lexical_score field
+        if "lexical_score" in result:
+            return float(result["lexical_score"])
+        
+        # Method 2: If we have BM25 or text score specifically
+        if "@search.text_score" in result:
+            return float(result["@search.text_score"])
+        
+        # Method 3: Use a portion of the overall search score as lexical
+        search_score = result.get("@search.score", result.get("score"))
+        if search_score is not None:
+            # Assume lexical is about 40% of total search score
+            return min(float(search_score) * 0.4 / 10.0, 1.0)
+        
+        # Method 4: Rank-based fallback
+        rank = result.get("@search.rank", result.get("rank", 1))
+        return 1.0 / (rank + 1)
+    
+    def _log_extracted_scores(self, confluence_results: List[Dict], azure_results: List[Dict]):
+        """DEBUG: Log the actual scores we extracted to verify they look correct"""
+        logger.warning("🔍 EXTRACTED SCORES DEBUG:")
+        
+        # Log Confluence scores
+        if confluence_results:
+            conf_vector_scores = [r.get("vector_score", 0) for r in confluence_results[:3]]
+            logger.warning(f"   📚 Confluence vector scores (top 3): {conf_vector_scores}")
+        
+        # Log Azure scores  
+        if azure_results:
+            azure_vector_scores = [r.get("vector_score", 0) for r in azure_results[:3]]
+            logger.warning(f"   🔷 Azure vector scores (top 3): {azure_vector_scores}")
+            
+            # Also log the raw Azure fields we found
+            if azure_results:
+                sample_azure = azure_results[0]
+                azure_fields = {k: v for k, v in sample_azure.items() 
+                              if k.startswith("@search") or "score" in k.lower() or k == "reranker_score"}
+                logger.warning(f"   🔍 Sample Azure score fields: {azure_fields}")
+    
+    def _normalize_scores(self, all_results: List[Dict]):
+        """Normalize vector and lexical scores across both sources to 0-1 range"""
+        
+        # Get all scores
+        vector_scores = [r["vector_score"] for r in all_results if r.get("vector_score") is not None]
+        lexical_scores = [r["lexical_score"] for r in all_results if r.get("lexical_score") is not None]
+        
+        # Normalize vector scores
+        if vector_scores:
+            max_vector = max(vector_scores)
+            min_vector = min(vector_scores)
+            vector_range = max_vector - min_vector if max_vector > min_vector else 1.0
+        else:
+            max_vector = min_vector = vector_range = 1.0
+        
+        # Normalize lexical scores  
+        if lexical_scores:
+            max_lexical = max(lexical_scores)
+            min_lexical = min(lexical_scores)
+            lexical_range = max_lexical - min_lexical if max_lexical > min_lexical else 1.0
+        else:
+            max_lexical = min_lexical = lexical_range = 1.0
+        
+        for result in all_results:
+            # Normalize to 0-1 range
+            vector_score = result.get("vector_score", 0)
+            lexical_score = result.get("lexical_score", 0)
+            
+            if vector_range > 0:
+                result["normalized_vector_score"] = (vector_score - min_vector) / vector_range
+            else:
+                result["normalized_vector_score"] = vector_score
+                
+            if lexical_range > 0:
+                result["normalized_lexical_score"] = (lexical_score - min_lexical) / lexical_range
+            else:
+                result["normalized_lexical_score"] = lexical_score
     
     @staticmethod
     def serialize_dual_result(result: Dict) -> Dict:
-        """Serialize dual search result for thoughts/logging"""
-        return {
+        """Serialize dual search result with vector_score instead of faiss_score"""
+        serialized = {
             "title": result.get("title", "Untitled"),
             "url": result.get("url", ""),
             "source_type": result.get("source_type", "unknown"),
-            "faiss_score": result.get("faiss_score", 0),
-            "weighted_score": result.get("weighted_score", 0),
-            "unified_rank": result.get("unified_rank", 0),
+            "vector_score": result.get("vector_score", 0),
+            "lexical_score": result.get("lexical_score", 0),
+            "normalized_vector_score": result.get("normalized_vector_score", 0),
+            "normalized_lexical_score": result.get("normalized_lexical_score", 0),
+            "combined_score": result.get("combined_score", 0),
+            "final_weighted_score": result.get("final_weighted_score", 0),
             "final_rank": result.get("final_rank", 0),
-            "has_content": len(result.get("content", "")) > 100
+            "original_rank": result.get("original_rank", 0),
+            "has_content": len(result.get("content", "")) > 100,
+            "content_length": len(result.get("content", ""))
         }
+        
+        # Add fallback indicator if present
+        if result.get("fallback_mode"):
+            serialized["fallback_mode"] = True
+            
+        return serialized
     
     @staticmethod
     def log_dual_search_analysis(
@@ -197,28 +343,45 @@ class DualSearchHelper:
         confluence_results: List[Dict], 
         azure_results: List[Dict]
     ) -> None:
-        """Log analysis of dual search results"""
+        """Enhanced logging for direct score comparison analysis"""
         if not combined_results:
             logger.warning("⚠️ No combined results to analyze")
             return
         
-        # Source distribution in final results
+        # Check if we're in fallback mode
+        fallback_mode = any(r.get("fallback_mode") for r in combined_results)
+        
+        # Source distribution
         confluence_in_final = sum(1 for r in combined_results if r.get("source_type") == "confluence")
         azure_in_final = sum(1 for r in combined_results if r.get("source_type") == "azure")
         
-        logger.warning(f"📊 Dual Search Analysis:")
-        logger.warning(f"   📚 Original results: {len(confluence_results)} Confluence, {len(azure_results)} Azure")
-        logger.warning(f"   🎯 Final distribution: {confluence_in_final} Confluence, {azure_in_final} Azure")
-        logger.warning(f"   📈 Total combined results: {len(combined_results)}")
+        # Score analysis
+        confluence_final = [r for r in combined_results if r.get("source_type") == "confluence"]
+        azure_final = [r for r in combined_results if r.get("source_type") == "azure"]
         
-        # Top results breakdown
-        logger.warning(f"📋 Top 5 Combined Results:")
+        avg_confluence_vector = sum(r.get("vector_score", 0) for r in confluence_final) / max(len(confluence_final), 1)
+        avg_azure_vector = sum(r.get("vector_score", 0) for r in azure_final) / max(len(azure_final), 1)
+        
+        logger.warning(f"📊 CORRECTED Dual Search Analysis:")
+        logger.warning(f"   📚 Original: {len(confluence_results)} Confluence, {len(azure_results)} Azure")
+        logger.warning(f"   🎯 Final: {confluence_in_final} Confluence, {azure_in_final} Azure")
+        logger.warning(f"   📈 Avg vector scores: Confluence {avg_confluence_vector:.3f}, Azure {avg_azure_vector:.3f}")
+        
+        if fallback_mode:
+            logger.warning(f"   🚨 FALLBACK MODE: Equal representation enforced (FAISS failure)")
+        else:
+            logger.warning(f"   ✅ Using direct score comparison (NO re-embedding!)")
+        
+        # Enhanced top results
+        logger.warning(f"📋 Top 5 Results:")
         for i, result in enumerate(combined_results[:5], 1):
             title = result.get("title", "No title")[:50]
             source = result.get("source_type", "unknown")
-            faiss_score = result.get("faiss_score", 0)
-            weighted_score = result.get("weighted_score", 0)
+            vector_score = result.get("vector_score", 0)
+            final_score = result.get("final_weighted_score", 0)
+            original_rank = result.get("original_rank", 0)
             source_emoji = "📚" if source == "confluence" else "🔷"
+            fallback_indicator = " [FALLBACK]" if result.get("fallback_mode") else ""
             
-            logger.warning(f"   {i}. {source_emoji} {title}")
-            logger.warning(f"      Source: {source} | FAISS: {faiss_score:.3f} | Weighted: {weighted_score:.3f}")
+            logger.warning(f"   {i}. {source_emoji} {title}{fallback_indicator}")
+            logger.warning(f"      Vector: {vector_score:.3f} | Final: {final_score:.3f} | Orig Rank: {original_rank}")

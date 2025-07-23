@@ -13,46 +13,15 @@ from bs4 import BeautifulSoup
 from quart import current_app
 from langchain_openai import AzureChatOpenAI
 
-
-###
-#  Configuration Toggles
-###
-class SearchConfig:
-    # Search strategy toggles
-    USE_EXACT_QUERY_SEARCH = False  # If True, search with exact user query; if False, break into keywords
-    MAX_KEYWORDS = 2  # Maximum number of keywords to generate
-    MAX_RETURNED_ITEMS = 10
-    
-    # Confluence connector configuration
-    CONFLUENCE_CONNECTOR_ID = "ConfluenceCloud2"  # Your Graph connector ID
-    
-    # Confluence API toggles (for future use)
-    USE_CONFLUENCE_API = True  # Toggle to False for testing with summaries
-    CONFLUENCE_API_TIMEOUT = 10  # Timeout for Confluence API calls
-    
-    # Embedding model configuration
-    EMBEDDING_MODEL = "text-embedding-ada-002"  # Options: "text-embedding-3-small", "text-embedding-3-large", "text-embedding-ada-002"
-    EMBEDDING_DIMENSIONS = 1536  # Dimensions for text-embedding-3 models (can be reduced for efficiency)
-    
-    # FAISS configuration
-    EMBEDDING_BATCH_SIZE = 5  # Number of embeddings to process in parallel
-    FAISS_WEIGHT_LEXICAL = 0.3  # Weight for lexical search score
-    FAISS_WEIGHT_VECTOR = 0.7  # Weight for vector similarity score
-    
-    # Pipeline optimization
-    MAX_CONCURRENT_API_CALLS = 10  # Max concurrent Confluence API calls
-    EMBEDDING_QUEUE_MAX_SIZE = 100  # Max items in embedding queue
-
-    #Confluence API setup
-    CONFLUENCE_BASE_URL = "https://vocus.atlassian.net/wiki/rest/api"
-    CONFLUENCE_EMAIL = "svc.atlassian@vocus.com.au"
-    CONFLUENCE_TOKEN = "REDACTED_TOKEN"
-    # Build Basic Auth header
-    CONFLUENCE_AUTH = "Basic " + base64.b64encode(
-        f"{CONFLUENCE_EMAIL}:{CONFLUENCE_TOKEN}".encode()
-    ).decode()
-    
-
+# GRACEFUL FAISS IMPORT - Won't crash if FAISS not available
+try:
+    from faiss_manager import FAISSManager
+    FAISS_AVAILABLE = True
+    logging.info("✅ FAISS available - vector search enabled")
+except ImportError:
+    logging.warning("⚠️ FAISS not available - falling back to lexical search only")
+    FAISS_AVAILABLE = False
+    FAISSManager = None
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -64,14 +33,217 @@ if not any(isinstance(handler, logging.StreamHandler) for handler in logger.hand
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
 
-class ConfluenceSearchService:
-    """Enhanced service with pipelined embedding generation and FAISS vector similarity"""
+
+import sys
+import os
+import subprocess
+import importlib.util
+from pathlib import Path
+import logging
+
+def run_comprehensive_faiss_diagnostic():
+    """Run a comprehensive diagnostic to identify FAISS issues"""
     
-    def __init__(self, openai_client=None):
+    logging.warning("🚨 COMPREHENSIVE FAISS DIAGNOSTIC")
+    logging.warning("=" * 60)
+    
+    # 1. Environment Information
+    logging.warning("1️⃣ ENVIRONMENT INFO:")
+    logging.warning(f"   🐍 Python version: {sys.version}")
+    logging.warning(f"   📂 Python executable: {sys.executable}")
+    logging.warning(f"   📦 Site packages: {[p for p in sys.path if 'site-packages' in p]}")
+    
+    # 2. Check if faiss-cpu is installed via pip
+    logging.warning("\n2️⃣ PIP PACKAGE CHECK:")
+    try:
+        result = subprocess.run([sys.executable, "-m", "pip", "show", "faiss-cpu"], 
+                              capture_output=True, text=True)
+        if result.returncode == 0:
+            logging.warning("   ✅ faiss-cpu is installed via pip:")
+            for line in result.stdout.split('\n'):
+                if line.strip():
+                    logging.warning(f"      {line}")
+        else:
+            logging.warning("   ❌ faiss-cpu is NOT installed via pip")
+            logging.warning(f"   📋 Error: {result.stderr}")
+    except Exception as e:
+        logging.warning(f"   ❌ Failed to check pip: {e}")
+    
+    # 3. Check numpy version and compatibility
+    logging.warning("\n3️⃣ NUMPY CHECK:")
+    try:
+        import numpy as np
+        logging.warning(f"   ✅ NumPy version: {np.__version__}")
+        logging.warning(f"   📍 NumPy location: {np.__file__}")
+        
+        # Check if numpy version is compatible
+        numpy_version = tuple(map(int, np.__version__.split('.')[:2]))
+        if numpy_version >= (1, 21) and numpy_version < (1, 25):
+            logging.warning(f"   ✅ NumPy version {np.__version__} is compatible")
+        else:
+            logging.warning(f"   ⚠️ NumPy version {np.__version__} might have compatibility issues")
+            
+    except Exception as e:
+        logging.warning(f"   ❌ NumPy import failed: {e}")
+        return "NUMPY_FAIL"
+    
+    # 4. Try different ways to import faiss
+    logging.warning("\n4️⃣ FAISS IMPORT ATTEMPTS:")
+    
+    # Attempt 1: Direct import
+    logging.warning("   📍 Attempt 1: import faiss")
+    try:
+        import faiss
+        logging.warning(f"      ✅ Success! FAISS location: {faiss.__file__}")
+        logging.warning(f"      ✅ FAISS version: {getattr(faiss, '__version__', 'version not available')}")
+        
+        # Test basic functionality
+        try:
+            index = faiss.IndexFlatIP(64)
+            logging.warning(f"      ✅ FAISS IndexFlatIP test: SUCCESS")
+            return "SUCCESS"
+        except Exception as e:
+            logging.warning(f"      ❌ FAISS functionality test failed: {e}")
+            return "FAISS_FUNCTIONAL_ERROR"
+            
+    except ImportError as e:
+        logging.warning(f"      ❌ ImportError: {e}")
+        logging.warning(f"      📋 Full error: {str(e)}")
+    except Exception as e:
+        logging.warning(f"      ❌ Other error: {type(e).__name__}: {e}")
+    
+    # Attempt 2: Check if faiss module exists
+    logging.warning("\n   📍 Attempt 2: Check module spec")
+    faiss_spec = importlib.util.find_spec("faiss")
+    if faiss_spec:
+        logging.warning(f"      ✅ FAISS module found at: {faiss_spec.origin}")
+    else:
+        logging.warning("      ❌ FAISS module spec not found")
+    
+    # 5. Check for common issues
+    logging.warning("\n5️⃣ COMMON ISSUES CHECK:")
+    
+    # Check for libgomp (common Linux issue)
+    if sys.platform.startswith('linux'):
+        logging.warning("   🐧 Linux system detected")
+        try:
+            result = subprocess.run(["ldconfig", "-p"], capture_output=True, text=True)
+            if "libgomp" in result.stdout:
+                logging.warning("   ✅ libgomp found (required for FAISS on Linux)")
+            else:
+                logging.warning("   ⚠️ libgomp might be missing (required for FAISS)")
+                logging.warning("   💡 Fix: apt-get install libgomp1")
+        except:
+            logging.warning("   ⚠️ Could not check for libgomp")
+    
+    # 6. Check faiss_manager.py
+    logging.warning("\n6️⃣ FAISS_MANAGER.PY CHECK:")
+    faiss_manager_path = Path("faiss_manager.py")
+    if faiss_manager_path.exists():
+        logging.warning(f"   ✅ faiss_manager.py exists ({faiss_manager_path.stat().st_size} bytes)")
+        
+        # Try to import it
+        try:
+            import faiss_manager
+            logging.warning("   ✅ faiss_manager module imports successfully")
+        except Exception as e:
+            logging.warning(f"   ❌ faiss_manager import failed: {e}")
+    else:
+        logging.warning("   ❌ faiss_manager.py not found")
+    
+    # 7. Final diagnosis
+    logging.warning("\n7️⃣ DIAGNOSIS SUMMARY:")
+    logging.warning("   ❌ FAISS is not working properly")
+    logging.warning("   💡 POSSIBLE SOLUTIONS:")
+    logging.warning("      1. Rebuild container/restart environment")
+    logging.warning("      2. Try: pip uninstall faiss-cpu && pip install faiss-cpu==1.7.4")
+    logging.warning("      3. Check numpy compatibility: pip install 'numpy>=1.21.0,<1.25.0'")
+    logging.warning("      4. On Linux: Install libgomp1")
+    logging.warning("      5. Try alternative: pip install faiss-cpu==1.8.0")
+    
+    return "FAISS_NOT_WORKING"
+
+# Add this to your confluence_search.py file, replacing the existing diagnostic
+diagnostic_result = run_comprehensive_faiss_diagnostic()
+logging.warning(f"\n🎯 FINAL DIAGNOSTIC RESULT: {diagnostic_result}")
+
+###
+#  Configuration Toggles
+###
+class SearchConfig:
+    # Search strategy toggles
+    USE_EXACT_QUERY_SEARCH = False
+    MAX_KEYWORDS = 2
+    MAX_RETURNED_ITEMS = 3
+    
+    # Confluence connector configuration
+    CONFLUENCE_CONNECTOR_ID = "ConfluenceCloud2"
+    
+    # Confluence API toggles
+    USE_CONFLUENCE_API = True
+    CONFLUENCE_API_TIMEOUT = 8
+    
+    # Embedding model configuration
+    EMBEDDING_MODEL = "text-embedding-3-large"
+    EMBEDDING_DIMENSIONS = 1536
+    
+    # FAISS configuration
+    FAISS_WEIGHT_LEXICAL = 0.3
+    FAISS_WEIGHT_VECTOR = 0.7
+    
+    # Pipeline optimization
+    MAX_CONCURRENT_SEARCHES = 5
+    MAX_CONCURRENT_API_CALLS = 15
+    MAX_CONCURRENT_EMBEDDINGS = 8
+    PROGRESSIVE_RANKING_ENABLED = True
+    
+    # Confluence API setup
+    CONFLUENCE_BASE_URL = "https://vocus.atlassian.net/wiki/rest/api"
+    CONFLUENCE_EMAIL = os.environ.get("CONFLUENCE_EMAIL", "svc.atlassian@vocus.com.au")
+    CONFLUENCE_TOKEN = os.environ.get("CONFLUENCE_TOKEN", "REDACTED_TOKEN")
+    
+    @staticmethod
+    def get_confluence_auth():
+        return "Basic " + base64.b64encode(
+            f"{SearchConfig.CONFLUENCE_EMAIL}:{SearchConfig.CONFLUENCE_TOKEN}".encode()
+        ).decode()
+
+
+class ConfluenceSearchService:
+    """
+    SAFE VERSION: Confluence search with graceful FAISS fallback
+    
+    - Works with or without FAISS installed
+    - Automatically disables vector search if FAISS unavailable
+    - Maintains full functionality with lexical search
+    """
+    
+    def __init__(self, openai_client=None, faiss_manager: Optional[Any] = None):
         self.openai_client = openai_client
-        self.embedding_cache = {}  # Cache to avoid re-computing same content
-        self.embedding_queue = asyncio.Queue(maxsize=SearchConfig.EMBEDDING_QUEUE_MAX_SIZE)
-        self.embedding_results = {}  # Store completed embeddings
+
+        logger.warning("🔍 DEBUG: Starting ConfluenceSearchService init...")
+        
+        # Initialize FAISS manager only if available
+        if FAISS_AVAILABLE and FAISSManager:
+            try:
+                self.faiss_manager = faiss_manager or FAISSManager(
+                    embedding_dimensions=SearchConfig.EMBEDDING_DIMENSIONS,
+                    lexical_weight=SearchConfig.FAISS_WEIGHT_LEXICAL,
+                    vector_weight=SearchConfig.FAISS_WEIGHT_VECTOR
+                )
+                self.vector_search_enabled = True
+                logger.info("✅ FAISS manager initialized - vector search enabled")
+            except Exception as e:
+                logger.warning(f"⚠️ FAISS manager initialization failed: {e}")
+                self.faiss_manager = None
+                self.vector_search_enabled = False
+        else:
+            self.faiss_manager = None
+            self.vector_search_enabled = False
+            logger.warning(f"📝 FAISS disabled - FAISS_AVAILABLE: {FAISS_AVAILABLE}, FAISSManager: {FAISSManager}")
+        
+        # Semaphores for rate limiting
+        self.search_semaphore = asyncio.Semaphore(SearchConfig.MAX_CONCURRENT_SEARCHES)
         self.confluence_api_semaphore = asyncio.Semaphore(SearchConfig.MAX_CONCURRENT_API_CALLS)
         
     async def search_with_microsoft_graph(
@@ -83,18 +255,18 @@ class ConfluenceSearchService:
         use_exact_query: Optional[bool] = None
     ) -> List[Any]:
         """
-        MAIN SEARCH METHOD: Enhanced Confluence search with FAISS vector similarity
-        
-        This is the public interface that chatreadretrieveredread.py will call.
+        MAIN SEARCH METHOD: Works with or without FAISS
         """
         use_exact = use_exact_query if use_exact_query is not None else SearchConfig.USE_EXACT_QUERY_SEARCH
+        
+        client = openai_client or self.openai_client
         
         return await self.search_confluence_connector(
             query=query,
             user_graph_token=user_graph_token,
             top=top,
-            openai_client=openai_client,
-            use_faiss_reranking=True,
+            openai_client=client,
+            use_faiss_reranking=self.vector_search_enabled,  # Automatically disable if FAISS unavailable
             use_exact_query=use_exact
         )
         
@@ -108,24 +280,16 @@ class ConfluenceSearchService:
         use_exact_query: bool = False
     ) -> List[Any]:
         """
-        Enhanced Confluence search with FAISS vector similarity
-        
-        Flow:
-        1. Generate search keywords using OpenAI (or use exact query)
-        2. Start background embedding worker
-        3. Search Graph API with each keyword (lexical search)
-        4. Pipeline: Queue results for embedding as soon as they're found
-        5. Fetch full content (or use summary as temporary workaround)
-        6. Wait for all embeddings to complete
-        7. Calculate FAISS similarity scores between results and query
-        8. Rerank using combined lexical + vector scores
-        9. Return top results
+        SAFE VERSION: Confluence search with automatic FAISS fallback
         """
-        logger.warning(f"🔗 Starting ENHANCED Confluence search for: '{query}' (top {top})")
+        search_mode = "PARALLEL+FAISS" if (use_faiss_reranking and self.vector_search_enabled) else "PARALLEL"
+        logger.warning(f"🚀 Starting {search_mode} Confluence search for: '{query}' (top {top})")
         start_time = time.time()
         
-        # Use the provided client or fall back to the instance client
         client = openai_client or self.openai_client
+        if not client:
+            logger.error("No OpenAI client available!")
+            return []
         
         # Step 1: Generate search keywords or use exact query
         if use_exact_query:
@@ -135,65 +299,277 @@ class ConfluenceSearchService:
             keywords = await self.generate_search_keywords(query, client)
             logger.warning(f"   Generated {len(keywords)} keywords: {keywords}")
         
-        # Step 2: Start background embedding worker if FAISS reranking is enabled
-        embedding_task = None
-        if use_faiss_reranking and client:
-            embedding_task = asyncio.create_task(self._embedding_worker(client))
-            logger.warning("   🧠 Started background embedding worker")
+        # Step 2: Launch ALL keyword searches in parallel
+        logger.warning("   🎯 Launching ALL keyword searches in parallel...")
+        search_tasks = []
         
-        all_results = []
-        
-        # Step 3: Search with each keyword and pipeline embeddings
         for i, keyword in enumerate(keywords):
-            logger.warning(f"   🎯 Searching with keyword {i+1}/{len(keywords)}: '{keyword}'")
-            
-            # Search Confluence via Graph API (lexical search)
-            keyword_results = await self._search_confluence_with_keyword(
-                keyword, user_graph_token, top
+            task = self._search_and_process_keyword(
+                keyword, user_graph_token, query, client, 
+                use_faiss_reranking and self.vector_search_enabled,  # Auto-disable if FAISS unavailable
+                f"batch_{i}"
             )
-            
-            if keyword_results:
-                logger.warning(f"   ✅ Found {len(keyword_results)} results with keyword '{keyword}'")
-                
-                # Step 4: Fetch full content or use summary (concurrent processing)
-                await self._enhance_results_with_content(keyword_results)
-                
-                all_results.extend(keyword_results)
-                
-                # Step 5: Queue these results for embedding immediately
-                if use_faiss_reranking and client:
-                    await self._queue_results_for_embedding(keyword_results, f"batch_{i}")
-            else:
-                logger.warning(f"   ❌ No results with keyword '{keyword}'")
+            search_tasks.append(task)
         
-        # Step 6: Signal embedding worker to finish and wait for completion
-        if embedding_task:
-            await self.embedding_queue.put(None)  # Sentinel to stop worker
-            await embedding_task  # Wait for all embeddings to complete
-            logger.warning("   ✅ All embeddings completed")
+        # Step 3: Collect results as they complete
+        all_results = []
+        completed_count = 0
         
-        # Step 7: Remove duplicates (same URL/title combinations)
-        unique_results = self._deduplicate_confluence_results(all_results)
-        logger.warning(f"   📋 After deduplication: {len(unique_results)} unique results")
+        for task_future in asyncio.as_completed(search_tasks):
+            try:
+                keyword_results = await task_future
+                if keyword_results:
+                    all_results.extend(keyword_results)
+                    completed_count += 1
+                    logger.warning(f"   ✅ Completed search {completed_count}/{len(keywords)} - {len(keyword_results)} results")
+                    
+                    # Progressive ranking (only if we have vector search)
+                    if (SearchConfig.PROGRESSIVE_RANKING_ENABLED and 
+                        self.vector_search_enabled and 
+                        len(all_results) >= top * 2):
+                        
+                        logger.warning(f"   🏃 Early ranking with {len(all_results)} results...")
+                        early_results = await self._rank_and_finalize_results(
+                            all_results, query, top, client, use_faiss_reranking and self.vector_search_enabled
+                        )
+                        if len(early_results) >= top:
+                            # Cancel remaining searches
+                            for remaining_task in search_tasks:
+                                if not remaining_task.done():
+                                    remaining_task.cancel()
+                            
+                            total_time = time.time() - start_time
+                            logger.warning(f"🏁 EARLY COMPLETION in {total_time:.2f}s: {len(early_results)} documents")
+                            return early_results
+                            
+            except Exception as e:
+                logger.warning(f"   ⚠️ Keyword search failed: {e}")
+                completed_count += 1
         
-        # Step 8: Add FAISS similarity scores and rerank
-        if use_faiss_reranking and client:
-            enhanced_results = await self._add_faiss_scores_and_rerank(unique_results, query, client)
-        else:
-            enhanced_results = unique_results
-            # Add default scores for non-FAISS mode
-            for result in enhanced_results:
-                result["faiss_score"] = 0.0
-                result["combined_score"] = result.get("rank", 0)
-        
-        # Step 9: Final ranking and limiting
-        final_results = self._rank_and_limit_results(enhanced_results, query, top)
+        # Step 4: Final ranking of all results
+        final_results = await self._rank_and_finalize_results(
+            all_results, query, top, client, use_faiss_reranking and self.vector_search_enabled
+        )
         
         total_time = time.time() - start_time
-        logger.warning(f"✅ Enhanced Confluence search completed in {total_time:.2f}s: {len(final_results)} documents")
+        logger.warning(f"✅ {search_mode} Confluence search completed in {total_time:.2f}s: {len(final_results)} documents")
         self._log_confluence_content_analysis(final_results)
         
         return final_results
+
+    async def _search_and_process_keyword(
+        self,
+        keyword: str,
+        user_graph_token: str,
+        original_query: str,
+        openai_client,
+        use_faiss_reranking: bool,
+        batch_id: str
+    ) -> List[Dict]:
+        """Process a single keyword completely in parallel"""
+        async with self.search_semaphore:
+            logger.warning(f"   🔍 Processing keyword: '{keyword}'")
+            
+            try:
+                # Step 1: Search with keyword
+                results = await self._search_confluence_with_keyword(
+                    keyword, user_graph_token, SearchConfig.MAX_RETURNED_ITEMS
+                )
+                
+                if not results:
+                    logger.warning(f"   ❌ No results for keyword '{keyword}'")
+                    return []
+                
+                logger.warning(f"   📄 Found {len(results)} results for '{keyword}'")
+                
+                # Step 2: Enhance content in parallel
+                await self._enhance_results_with_content_parallel(results)
+                
+                # Step 3: Generate embeddings only if FAISS is available
+                if use_faiss_reranking and self.vector_search_enabled and openai_client:
+                    await self._generate_embeddings_parallel(results, openai_client, original_query)
+                else:
+                    # Add default scores for non-FAISS mode
+                    for result in results:
+                        result["has_embedding"] = False
+                        result["in_faiss"] = False
+                
+                return results
+                
+            except Exception as e:
+                logger.warning(f"   ⚠️ Failed to process keyword '{keyword}': {e}")
+                return []
+
+    async def _enhance_results_with_content_parallel(self, results: List[Dict]):
+        """Enhance all results in parallel"""
+        if SearchConfig.USE_CONFLUENCE_API:
+            enhancement_tasks = []
+            for result in results:
+                if result.get("url"):
+                    task = self._fetch_single_confluence_content(result)
+                    enhancement_tasks.append(task)
+            
+            if enhancement_tasks:
+                logger.warning(f"     🔄 Enhancing {len(enhancement_tasks)} results in parallel...")
+                await asyncio.gather(*enhancement_tasks, return_exceptions=True)
+        else:
+            await self._use_summary_as_content(results)
+
+    async def _generate_embeddings_parallel(self, results: List[Dict], openai_client, query: str):
+        """Generate embeddings only if FAISS is available"""
+        if not self.vector_search_enabled:
+            return
+        
+        embedding_tasks = []
+        
+        for result in results:
+            content = result.get("content", "")
+            title = result.get("title", "")
+            
+            if len(content.strip()) > 20:
+                full_text = f"{title}\n\n{content}"[:8000]
+                doc_id = result.get("hit_id", result.get("url", ""))
+                
+                # Check if we already have this in FAISS
+                if doc_id not in self.faiss_manager.document_metadata:
+                    task = self._generate_single_embedding_and_add(
+                        result, full_text, doc_id, openai_client
+                    )
+                    embedding_tasks.append(task)
+                else:
+                    result["has_embedding"] = True
+                    result["in_faiss"] = True
+        
+        if embedding_tasks:
+            logger.warning(f"     🧠 Generating {len(embedding_tasks)} embeddings in parallel...")
+            await asyncio.gather(*embedding_tasks, return_exceptions=True)
+
+    async def _generate_single_embedding_and_add(self, result: Dict, text: str, doc_id: str, openai_client):
+        """Generate embedding and add to FAISS (only if available)"""
+        if not self.vector_search_enabled:
+            result["has_embedding"] = False
+            result["in_faiss"] = False
+            return
+        
+        try:
+            documents = [{
+                "id": doc_id,
+                "text": text,
+                "title": result.get("title", ""),
+                "url": result.get("url", ""),
+                "space": result.get("space_title", ""),
+                "author": result.get("author", "")
+            }]
+            
+            added_count = await self.faiss_manager.add_documents(
+                documents=documents,
+                openai_client=openai_client,
+                model_name=self._get_embedding_model_name(),
+                dimensions=SearchConfig.EMBEDDING_DIMENSIONS if "text-embedding-3" in SearchConfig.EMBEDDING_MODEL else None,
+                metadata_fields=["title", "url", "space", "author"]
+            )
+            
+            if added_count > 0:
+                result["has_embedding"] = True
+                result["in_faiss"] = True
+                logger.debug(f"     ✅ Added to FAISS: {result.get('title', 'Unknown')}")
+            else:
+                result["has_embedding"] = False
+                result["in_faiss"] = False
+                
+        except Exception as e:
+            logger.warning(f"     ⚠️ Failed to generate embedding for {doc_id}: {e}")
+            result["has_embedding"] = False
+            result["in_faiss"] = False
+
+    async def _rank_and_finalize_results(
+        self,
+        all_results: List[Dict],
+        query: str,
+        top: int,
+        openai_client,
+        use_faiss_reranking: bool
+    ) -> List[Dict]:
+        """Ranking with graceful FAISS fallback"""
+        logger.warning(f"   📊 Ranking {len(all_results)} total results...")
+        
+        # Remove duplicates
+        unique_results = self._deduplicate_confluence_results(all_results)
+        logger.warning(f"   📋 After deduplication: {len(unique_results)} unique results")
+        
+        if use_faiss_reranking and self.vector_search_enabled and openai_client:
+            try:
+                # Use FAISS manager for vector search
+                vector_results = await self.faiss_manager.search(
+                    query_text=query,
+                    openai_client=openai_client,
+                    model_name=self._get_embedding_model_name(),
+                    dimensions=SearchConfig.EMBEDDING_DIMENSIONS if "text-embedding-3" in SearchConfig.EMBEDDING_MODEL else None,
+                    top_k=min(100, len(unique_results) * 2)
+                )
+                
+                # Map FAISS scores back to results
+                faiss_scores = {}
+                for doc_id, similarity, metadata in vector_results:
+                    faiss_scores[doc_id] = similarity
+                
+                # Add FAISS scores to results
+                for result in unique_results:
+                    doc_id = result.get("hit_id", result.get("url", ""))
+                    if doc_id in faiss_scores:
+                        result["faiss_score"] = faiss_scores[doc_id]
+                        result["has_embedding"] = True
+                    else:
+                        result["faiss_score"] = 0.0
+                        result["has_embedding"] = False
+                
+                # Use FAISS manager to combine scores
+                enhanced_results = self.faiss_manager.combine_scores(
+                    unique_results,
+                    id_field="hit_id",
+                    lexical_score_field="lexical_score",
+                    vector_score_field="faiss_score"
+                )
+                
+                logger.warning("   ✅ FAISS ranking completed")
+                
+            except Exception as e:
+                logger.warning(f"   ⚠️ FAISS ranking failed, using lexical ranking: {e}")
+                enhanced_results = self._apply_lexical_ranking(unique_results)
+        else:
+            # Pure lexical ranking
+            enhanced_results = self._apply_lexical_ranking(unique_results)
+            logger.warning("   📝 Using lexical ranking only")
+        
+        # Final ranking and limiting
+        final_results = self._rank_and_limit_results(enhanced_results, query, top)
+        
+        # Save FAISS data if available
+        if self.vector_search_enabled:
+            self.faiss_manager.save()
+        
+        return final_results
+
+    def _apply_lexical_ranking(self, results: List[Dict]) -> List[Dict]:
+        """Apply simple lexical ranking when FAISS is not available"""
+        for result in results:
+            result["faiss_score"] = 0.0
+            result["has_embedding"] = False
+            result["combined_score"] = 1.0 / (result.get("rank", 1) + 1)
+        return results
+
+    def _get_embedding_model_name(self) -> str:
+        """Get the correct model/deployment name for embeddings"""
+        azure_deployment = os.environ.get('AZURE_OPENAI_EMBEDDING_DEPLOYMENT')
+        if azure_deployment:
+            return azure_deployment
+        return SearchConfig.EMBEDDING_MODEL
+
+    # [Include all the other methods from the original file - they remain the same]
+    # generate_search_keywords, _search_confluence_with_keyword, _parse_confluence_search_results,
+    # _combine_content_parts, _use_summary_as_content, _fetch_single_confluence_content,
+    # _extract_page_id_from_url, _deduplicate_confluence_results, _rank_and_limit_results,
+    # _log_confluence_content_analysis
 
     async def generate_search_keywords(self, query: str, openai_client=None) -> list:
         """Generate optimized search keywords using OpenAI"""
@@ -215,11 +591,7 @@ class ConfluenceSearchService:
             )
 
             keywords_text = response.choices[0].message.content.strip()
-            
-            # Parse keywords
             keywords = [kw.strip() for kw in keywords_text.split(",")]
-            
-            # Clean and limit keywords
             keywords = [kw for kw in keywords if kw][:SearchConfig.MAX_KEYWORDS]
             keywords = keywords if keywords else [query]
             
@@ -230,14 +602,8 @@ class ConfluenceSearchService:
             logger.error(f"Error generating keywords with OpenAI: {e}")
             return [query]
 
-    async def _search_confluence_with_keyword(
-        self, 
-        keyword: str, 
-        user_graph_token: str, 
-        top: int
-    ) -> List[Any]:
+    async def _search_confluence_with_keyword(self, keyword: str, user_graph_token: str, top: int) -> List[Any]:
         """Search Confluence connector with a specific keyword via Microsoft Graph"""
-        # Request comprehensive fields from Graph Connectors
         fields = [
             "title", "url", "summary", "lastModifiedDateTime", "createdDateTime",
             "content", "body", "excerpt", "description", 
@@ -249,7 +615,7 @@ class ConfluenceSearchService:
         search_request = {
             "requests": [{
                 "entityTypes": ["externalItem"],
-                "contentSources": ["/external/connections/ConfluenceCloud2"],
+                "contentSources": [f"/external/connections/{SearchConfig.CONFLUENCE_CONNECTOR_ID}"],
                 "query": {
                     "queryString": keyword
                 },
@@ -301,7 +667,6 @@ class ConfluenceSearchService:
                         resource = hit.get("resource", {})
                         properties = resource.get("properties", {})
                         
-                        # Extract title and URL
                         title = (
                             properties.get("title") or 
                             properties.get("name") or 
@@ -314,7 +679,7 @@ class ConfluenceSearchService:
                             ""
                         )
                         
-                        # Extract all possible content fields
+                        # Extract content
                         content_parts = []
                         content_fields = [
                             "content", "body", "fullContent", "indexedContent", 
@@ -329,10 +694,11 @@ class ConfluenceSearchService:
                         if summary and len(summary.strip()) > 10:
                             content_parts.append(summary.strip())
                         
-                        # Combine content intelligently
                         combined_content = self._combine_content_parts(content_parts)
                         
-                        # Build result object
+                        # Calculate lexical score
+                        lexical_score = 1.0 / (rank + 1)
+                        
                         result = {
                             "hit_id": hit_id,
                             "title": title,
@@ -340,6 +706,7 @@ class ConfluenceSearchService:
                             "content": combined_content,
                             "summary": summary,
                             "rank": rank,
+                            "lexical_score": lexical_score,
                             "last_modified": properties.get("lastModifiedDateTime"),
                             "created": properties.get("createdDateTime"),
                             "content_source": "confluence_connector",
@@ -349,10 +716,9 @@ class ConfluenceSearchService:
                             "page_type": properties.get("pageType", ""),
                             "labels": properties.get("labels", ""),
                             "content_length": len(combined_content),
-                            "content_enhanced": False  # Will be set to True after enhancement
+                            "content_enhanced": False
                         }
                         
-                        # Only include results with meaningful content or title
                         if title != "Untitled" or len(combined_content) > 50:
                             results.append(result)
             
@@ -367,7 +733,6 @@ class ConfluenceSearchService:
         if not content_parts:
             return ""
         
-        # Remove duplicates while preserving order
         unique_parts = []
         seen_content = set()
         
@@ -380,77 +745,37 @@ class ConfluenceSearchService:
         
         combined = "\n\n".join(unique_parts)
         
-        # Limit length to prevent token overflow
         if len(combined) > 10000:
             combined = combined[:10000] + "... [content truncated]"
         
         return combined
 
-    async def _enhance_results_with_content(self, results: List[Dict]):
-        """
-        Enhance results with full content from Confluence API
-        For testing: uses summary as content when API is not available
-        """
-        if SearchConfig.USE_CONFLUENCE_API:
-            # Future: Real Confluence API implementation
-            await self._fetch_confluence_content_batch(results)
-        else:
-            # Testing workaround: Use summary as content
-            await self._use_summary_as_content(results)
-
     async def _use_summary_as_content(self, results: List[Dict]):
-        """Testing workaround: Use summary as content when Confluence API is not available"""
+        """Use summary as content when Confluence API is not available"""
         logger.warning("   📝 Using summary as content (Confluence API not available)")
         
         for result in results:
             if not result.get("content") or len(result.get("content", "")) < 100:
-                # If we don't have good content, use the summary
                 summary = result.get("summary", "")
                 if summary:
-                    # Enhance the summary to make it more content-like
                     enhanced_content = f"""
-                    Document: {result.get('title', 'Untitled')}
-                    URL: {result.get('url', '')}
-                    Author: {result.get('author', 'Unknown')}
-                    Space: {result.get('space_title', 'Unknown')}
-                    Last Modified: {result.get('last_modified', 'Unknown')}
+Document: {result.get('title', 'Untitled')}
+URL: {result.get('url', '')}
+Author: {result.get('author', 'Unknown')}
+Space: {result.get('space_title', 'Unknown')}
+Last Modified: {result.get('last_modified', 'Unknown')}
 
-                    Summary:
-                    {summary}
+Summary:
+{summary}
 
-                    [Note: This is a summary. Full content will be available when Confluence API is integrated.]
+[Note: This is a summary. Full content will be available when Confluence API is integrated.]
 """
                     result["content"] = enhanced_content
                     result["content_enhanced"] = True
                     result["content_length"] = len(enhanced_content)
-                    logger.debug(f"     ✅ Enhanced content for: {result.get('title', 'Untitled')}")
-
-    async def make_basic_auth_header():
-        email  = os.environ["CONFLUENCE_EMAIL"]
-        token  = os.environ["CONFLUENCE_TOKEN"]
-        pair   = f"{email}:{token}".encode()
-        return "Basic " + base64.b64encode(pair).decode()
-
-
-    async def _fetch_confluence_content_batch(self, results: List[Dict]):
-        """
-        Future implementation: Fetch full content from Confluence API
-        This will be implemented when the Confluence API is ready
-        """
-        logger.warning("   🔄 Fetching full content from Confluence API...")
-        
-        # Create tasks for concurrent API calls
-        tasks = []
-        for result in results:
-            if result.get("url"):
-                task = self._fetch_single_confluence_content(result)
-                tasks.append(task)
-        
-        # Execute all tasks concurrently with rate limiting
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _fetch_single_confluence_content(self, result: Dict):
+        """Fetch content for a single page from Confluence API"""
         async with self.confluence_api_semaphore:
             try: 
                 page_id = self._extract_page_id_from_url(result.get("url", ""))
@@ -460,12 +785,11 @@ class ConfluenceSearchService:
                 api_url = (f"{SearchConfig.CONFLUENCE_BASE_URL}/content/{page_id}"
                         "?expand=body.storage")
                 headers = {
-                    "Authorization": SearchConfig.CONFLUENCE_AUTH,
+                    "Authorization": SearchConfig.get_confluence_auth(),
                     "Accept": "application/json"
                 }
 
-                timeout = aiohttp.ClientTimeout(
-                    total=SearchConfig.CONFLUENCE_API_TIMEOUT)
+                timeout = aiohttp.ClientTimeout(total=SearchConfig.CONFLUENCE_API_TIMEOUT)
                 async with aiohttp.ClientSession(timeout=timeout) as session:
                     async with session.get(api_url, headers=headers) as resp:
                         if resp.status != 200:
@@ -473,12 +797,8 @@ class ConfluenceSearchService:
                             return
                         data = await resp.json()
 
-                # --- NEW: convert storage XHTML → plain text ------------------------
-                storage_html = data.get("body", {}) \
-                                .get("storage", {}) \
-                                .get("value", "")
-                text = BeautifulSoup(storage_html, "html.parser") \
-                    .get_text(separator="\n")
+                storage_html = data.get("body", {}).get("storage", {}).get("value", "")
+                text = BeautifulSoup(storage_html, "html.parser").get_text(separator="\n")
 
                 result["content"] = text.strip()
                 result["content_enhanced"] = True
@@ -488,9 +808,7 @@ class ConfluenceSearchService:
                 logger.warning(f"Failed Confluence fetch for {result.get('title')}: {e}")
     
     def _extract_page_id_from_url(self, url: str) -> Optional[str]:
-        """
-        Works with either .../pages/123456789/Title or ...viewpage.action?pageId=123456789
-        """
+        """Extract page ID from Confluence URL"""
         if not url:
             return None
         m = re.search(r"[?&]pageId=(\d+)", url)
@@ -500,209 +818,6 @@ class ConfluenceSearchService:
         if m:
             return m.group(1)
         return None
-
-
-    async def _queue_results_for_embedding(self, results: List[Dict], batch_id: str):
-        """Queue search results for immediate embedding generation"""
-        for i, result in enumerate(results):
-            content = result.get("content", "")
-            title = result.get("title", "")
-            
-            if len(content.strip()) > 20:  # Only embed meaningful content
-                # Create text for embedding (title + content)
-                full_text = f"{title}\n\n{content}"[:8000]  # Limit to 8k chars
-                content_hash = hashlib.md5(full_text.encode()).hexdigest()
-                
-                # Check if we already have this embedding cached
-                if content_hash not in self.embedding_cache:
-                    embedding_task = {
-                        "text": full_text,
-                        "content_hash": content_hash,
-                        "result_id": f"{batch_id}_{i}",
-                        "original_result": result
-                    }
-                    await self.embedding_queue.put(embedding_task)
-
-    async def _embedding_worker(self, openai_client):
-        """Background worker that generates embeddings concurrently"""
-        logger.warning("     🧠 Embedding worker started...")
-        
-        embedding_count = 0
-        batch_tasks = []
-        
-        while True:
-            try:
-                # Get embedding task from queue
-                task = await self.embedding_queue.get()
-                
-                if task is None:  # Sentinel value to stop
-                    # Process any remaining batch
-                    if batch_tasks:
-                        await self._process_embedding_batch(batch_tasks, openai_client)
-                        embedding_count += len(batch_tasks)
-                    break
-                
-                batch_tasks.append(task)
-                
-                # Process in batches for efficiency
-                if len(batch_tasks) >= SearchConfig.EMBEDDING_BATCH_SIZE:
-                    await self._process_embedding_batch(batch_tasks, openai_client)
-                    embedding_count += len(batch_tasks)
-                    logger.warning(f"     📊 Embedded {embedding_count} documents so far...")
-                    batch_tasks = []
-                
-            except Exception as e:
-                logger.warning(f"     ⚠️ Embedding worker error: {e}")
-                continue
-        
-        logger.warning(f"     ✅ Embedding worker completed: {embedding_count} total embeddings")
-
-    async def _process_embedding_batch(self, batch_tasks: List[Dict], openai_client):
-        """Process a batch of embedding tasks concurrently"""
-        if not batch_tasks:
-            return
-        
-        # Create concurrent embedding tasks
-        embedding_coroutines = []
-        for task in batch_tasks:
-            if task["content_hash"] not in self.embedding_cache:
-                embedding_coroutines.append(
-                    self._generate_single_embedding(task, openai_client)
-                )
-        
-        # Execute all embeddings concurrently
-        if embedding_coroutines:
-            await asyncio.gather(*embedding_coroutines, return_exceptions=True)
-
-    async def _generate_single_embedding(self, task: Dict, openai_client):
-        """Generate a single embedding and cache it"""
-        try:
-            # Support for text-embedding-3 models with dimensions parameter
-            embedding_params = {
-                "model": SearchConfig.EMBEDDING_MODEL,
-                "input": task["text"]
-            }
-            
-            # Add dimensions parameter for text-embedding-3 models
-            if SearchConfig.EMBEDDING_MODEL in ["text-embedding-3-small", "text-embedding-3-large"]:
-                embedding_params["dimensions"] = SearchConfig.EMBEDDING_DIMENSIONS
-            
-            embedding_response = await openai_client.embeddings.create(**embedding_params)
-            
-            embedding = embedding_response.data[0].embedding
-            self.embedding_cache[task["content_hash"]] = embedding
-            
-            logger.debug(f"     ✅ Generated embedding for {task['result_id']} using {SearchConfig.EMBEDDING_MODEL}")
-            
-        except Exception as e:
-            logger.warning(f"     ⚠️ Failed to embed {task['result_id']}: {e}")
-            # Use zero vector as fallback (matching configured dimensions)
-            self.embedding_cache[task["content_hash"]] = [0.0] * SearchConfig.EMBEDDING_DIMENSIONS
-
-    async def _add_faiss_scores_and_rerank(self, results: List[Dict], query: str, openai_client) -> List[Dict]:
-        """
-        Add FAISS similarity scores to results and rerank them
-        
-        This is the key reranking step that combines:
-        - Original lexical search rank from Graph API
-        - Vector similarity score from FAISS
-        """
-        logger.warning(f"   📊 Adding FAISS scores to {len(results)} results...")
-        
-        if not results:
-            return results
-        
-        try:
-            # Import FAISS and numpy
-            import faiss
-            import numpy as np
-            
-            # Step 1: Get query embedding
-            query_embedding_params = {
-                "model": SearchConfig.EMBEDDING_MODEL,
-                "input": query
-            }
-            
-            # Add dimensions parameter for text-embedding-3 models
-            if SearchConfig.EMBEDDING_MODEL in ["text-embedding-3-small", "text-embedding-3-large"]:
-                query_embedding_params["dimensions"] = SearchConfig.EMBEDDING_DIMENSIONS
-            
-            query_embedding_response = await openai_client.embeddings.create(**query_embedding_params)
-            query_embedding = np.array(query_embedding_response.data[0].embedding).astype('float32')
-            
-            # Step 2: Collect cached embeddings for results
-            embeddings = []
-            embedded_results = []
-            
-            for result in results:
-                content = result.get("content", "")
-                title = result.get("title", "")
-                full_text = f"{title}\n\n{content}"[:8000]
-                content_hash = hashlib.md5(full_text.encode()).hexdigest()
-                
-                if content_hash in self.embedding_cache:
-                    embedding = self.embedding_cache[content_hash]
-                    embeddings.append(embedding)
-                    embedded_results.append(result)
-                    result["has_embedding"] = True
-                else:
-                    # No embedding available
-                    result["has_embedding"] = False
-                    result["faiss_score"] = 0.0
-            
-            # Step 3: Calculate FAISS similarity scores
-            if embeddings and embedded_results:
-                logger.warning(f"   🎯 Calculating FAISS scores for {len(embeddings)} embedded results...")
-                
-                # Build FAISS index
-                dimension = len(embeddings[0])
-                index = faiss.IndexFlatIP(dimension)  # Inner product (cosine similarity)
-                
-                # Normalize embeddings for cosine similarity
-                embeddings_array = np.array(embeddings).astype('float32')
-                faiss.normalize_L2(embeddings_array)
-                index.add(embeddings_array)
-                
-                # Normalize query embedding
-                query_embedding = query_embedding.reshape(1, -1)
-                faiss.normalize_L2(query_embedding)
-                
-                # Calculate similarities
-                similarities, indices = index.search(query_embedding, k=len(embeddings))
-                
-                # Add FAISS scores to results
-                for i, similarity_score in enumerate(similarities[0]):
-                    result_idx = indices[0][i]
-                    embedded_results[result_idx]["faiss_score"] = float(similarity_score)
-                    embedded_results[result_idx]["faiss_rank"] = i + 1
-            
-            # Step 4: Calculate combined scores (lexical + vector)
-            for result in results:
-                lexical_score = 1.0 / (result.get("rank", 1) + 1)  # Higher rank = lower score
-                vector_score = result.get("faiss_score", 0.0)
-                
-                # Weighted combination
-                combined_score = (SearchConfig.FAISS_WEIGHT_LEXICAL * lexical_score) + (SearchConfig.FAISS_WEIGHT_VECTOR * vector_score)
-                result["combined_score"] = combined_score
-            
-            logger.warning(f"   ✅ FAISS scoring completed for {len(results)} results")
-            return results
-            
-        except ImportError:
-            logger.warning("   ⚠️ FAISS not available, skipping vector similarity")
-            # Add default scores
-            for result in results:
-                result["faiss_score"] = 0.0
-                result["combined_score"] = 1.0 / (result.get("rank", 1) + 1)
-            return results
-            
-        except Exception as e:
-            logger.warning(f"   ⚠️ FAISS scoring failed: {e}")
-            # Add default scores
-            for result in results:
-                result["faiss_score"] = 0.0
-                result["combined_score"] = 1.0 / (result.get("rank", 1) + 1)
-            return results
 
     def _deduplicate_confluence_results(self, results: List[dict]) -> List[dict]:
         """Remove duplicate results based on URL and title"""
@@ -720,10 +835,8 @@ class ConfluenceSearchService:
 
     def _rank_and_limit_results(self, results: List[dict], query: str, top: int) -> List[dict]:
         """Final ranking using combined scores and limit to top N"""
-        # Sort by combined score (highest first)
         sorted_results = sorted(results, key=lambda x: x.get("combined_score", 0), reverse=True)
         
-        # Add final ranking info
         for i, result in enumerate(sorted_results, 1):
             result["final_rank"] = i
         
@@ -735,7 +848,6 @@ class ConfluenceSearchService:
             logger.warning("⚠️ No results to analyze")
             return
         
-        # Content quality analysis
         substantial_content = sum(1 for r in results if len(r.get("content", "")) > 1000)
         good_content = sum(1 for r in results if 500 < len(r.get("content", "")) <= 1000)
         limited_content = sum(1 for r in results if 100 < len(r.get("content", "")) <= 500)
@@ -752,7 +864,6 @@ class ConfluenceSearchService:
         logger.warning(f"   🧠 Results with embeddings: {embedded_results}/{len(results)}")
         logger.warning(f"   🔧 Results enhanced: {enhanced_results}/{len(results)}")
         
-        # Show top results with scores
         logger.warning(f"📋 Top Results with Scores:")
         for i, result in enumerate(results[:5], 1):
             title = result.get("title", "No title")[:50]
@@ -761,10 +872,22 @@ class ConfluenceSearchService:
             combined_score = result.get("combined_score", 0)
             original_rank = result.get("rank", 0)
             enhanced = "✓" if result.get("content_enhanced", False) else "✗"
+            has_embedding = "✓" if result.get("has_embedding", False) else "✗"
             
             logger.warning(f"   {i}. {title}")
-            logger.warning(f"      📊 Content: {content_length} chars | Enhanced: {enhanced} | Original rank: {original_rank}")
-            logger.warning(f"      🎯 FAISS: {faiss_score:.3f} | Combined: {combined_score:.3f}")
+            logger.warning(f"      📊 Content: {content_length} chars | Enhanced: {enhanced} | Has embedding: {has_embedding}")
+            logger.warning(f"      🎯 Original rank: {original_rank} | FAISS: {faiss_score:.3f} | Combined: {combined_score:.3f}")
+        
+        # FAISS index status (only if available)
+        if self.vector_search_enabled:
+            faiss_stats = self.faiss_manager.get_stats()
+            logger.warning(f"📈 FAISS Index Status:")
+            logger.warning(f"   Total vectors in index: {faiss_stats['index_size']}")
+            logger.warning(f"   Total documents tracked: {faiss_stats['documents_tracked']}")
+            logger.warning(f"   Cache size: {faiss_stats['cache_size']} embeddings")
+        else:
+            logger.warning(f"📝 Running in lexical-only mode (FAISS disabled)")
 
-# Create service instance
+
+# Create service instance - SAFE VERSION
 confluence_service = ConfluenceSearchService()

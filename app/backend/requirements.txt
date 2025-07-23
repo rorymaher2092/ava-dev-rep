@@ -103,6 +103,7 @@ flask==3.0.3
 frozenlist==1.4.1
 
 faiss-cpu==1.7.4
+
     # via
     #   aiohttp
     #   aiosignal
@@ -203,6 +204,8 @@ multidict==6.0.5
     # via
     #   aiohttp
     #   yarl
+numpy>=1.21.0,<1.25.0
+
 oauthlib==3.2.2
     # via requests-oauthlib
 openai==1.86.0

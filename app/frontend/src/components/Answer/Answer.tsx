@@ -48,9 +48,7 @@ export const Answer = ({
     showSpeechOutputBrowser
 }: Props) => {
     const followupQuestions = answer.context?.followup_questions;
-    const parsedAnswer = useMemo(() => parseAnswerToHtml(answer, isStreaming, onCitationClicked), [answer]);
     const { t } = useTranslation();
-    const sanitizedAnswerHtml = DOMPurify.sanitize(parsedAnswer.answerHtml);
     const [copied, setCopied] = useState(false);
 
     //select correct bot image
@@ -63,6 +61,46 @@ export const Answer = ({
     const [feedbackType, setFeedbackType] = useState<"positive" | "negative" | null>(null);
     const [feedbackComments, setFeedbackComments] = useState("");
     const { instance } = useMsal();
+
+    // Helper function to parse citation details
+    const getCitationDetails = (citation: string): { url: string; title: string; isUrl: boolean } => {
+        // Check for our special format: "url|||title"
+        if (citation.includes("|||")) {
+            const [url, title] = citation.split("|||");
+            return { url, title, isUrl: true };
+        }
+
+        // Check if it's a plain URL
+        try {
+            new URL(citation);
+            if (citation.startsWith("http://") || citation.startsWith("https://")) {
+                return { url: citation, title: "Confluence Page", isUrl: true };
+            }
+        } catch {
+            // Not a URL
+        }
+
+        // It's a file citation - extract filename
+        const filename = citation.split("/").pop() || citation;
+        return { url: citation, title: filename, isUrl: false };
+    };
+
+    // Update the handleCitationClick function
+    const handleCitationClick = (citation: string) => {
+        const details = getCitationDetails(citation);
+
+        if (details.isUrl) {
+            // Open URLs in a new tab
+            window.open(details.url, "_blank", "noopener,noreferrer");
+        } else {
+            // Handle file citations with existing handler
+            const path = getCitationFilePath(citation);
+            onCitationClicked(path);
+        }
+    };
+
+    const parsedAnswer = useMemo(() => parseAnswerToHtml(answer, isStreaming, handleCitationClick), [answer, isStreaming]);
+    const sanitizedAnswerHtml = DOMPurify.sanitize(parsedAnswer.answerHtml);
 
     const handleCopy = () => {
         // Single replace to remove all HTML tags to remove the citations
@@ -373,13 +411,9 @@ export const Answer = ({
                     </div>
                 )}
 
-                {/* Citations */}
+                {/* Citations with URL support */}
                 {!!parsedAnswer.citations.length && (
-                    <div
-                        style={{
-                            marginTop: "16px"
-                        }}
-                    >
+                    <div style={{ marginTop: "16px" }}>
                         <div
                             style={{
                                 color: "var(--text-secondary)",
@@ -393,40 +427,53 @@ export const Answer = ({
                             {t("citationWithColon")}
                         </div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                            {parsedAnswer.citations.map((x, i) => {
-                                const path = getCitationFilePath(x);
+                            {parsedAnswer.citations.map((citation, i) => {
+                                const details = getCitationDetails(citation);
+                                const icon = details.isUrl ? "🔗" : "📄";
+
                                 return (
                                     <button
                                         key={i}
-                                        onClick={() => onCitationClicked(path)}
-                                        title={x}
+                                        onClick={() => handleCitationClick(citation)}
+                                        title={details.isUrl ? `Open ${details.title} in new tab` : details.title}
                                         style={{
                                             backgroundColor: "var(--surface-hover)",
                                             border: "1px solid var(--border)",
                                             borderRadius: "12px",
-                                            padding: "4px 8px",
+                                            padding: "6px 12px",
                                             color: "var(--primary)",
                                             cursor: "pointer",
-                                            fontSize: "12px",
+                                            fontSize: "13px",
                                             fontWeight: "500",
-                                            transition: "all 0.2s ease"
+                                            transition: "all 0.2s ease",
+                                            maxWidth: "400px",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                            whiteSpace: "nowrap",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "6px"
                                         }}
                                         onMouseEnter={e => {
                                             e.currentTarget.style.backgroundColor = "var(--primary)";
                                             e.currentTarget.style.color = "white";
+                                            e.currentTarget.style.transform = "translateY(-1px)";
                                         }}
                                         onMouseLeave={e => {
                                             e.currentTarget.style.backgroundColor = "var(--surface-hover)";
                                             e.currentTarget.style.color = "var(--primary)";
+                                            e.currentTarget.style.transform = "translateY(0)";
                                         }}
                                     >
-                                        {`${++i}. ${x}`}
+                                        <span>{icon}</span>
+                                        <span>{`${i + 1}. ${details.title}`}</span>
                                     </button>
                                 );
                             })}
                         </div>
                     </div>
                 )}
+
                 {/* Feedback dialog */}
                 <Dialog
                     hidden={!showFeedbackDialog}

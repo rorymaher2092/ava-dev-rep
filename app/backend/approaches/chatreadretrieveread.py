@@ -32,20 +32,50 @@ from approaches.confluence_search import SearchConfig
 
 # Add these helper functions to convert dictionary results
 
+
 def confluence_result_to_text_source(result: dict) -> str:
-    """Convert Confluence search result dictionary to text source for RAG"""
+    """Convert Confluence search result to text source with URL and title"""
     title = result.get("title", "Untitled")
     summary = result.get("summary", "")
+    content = result.get("content", "")
     url = result.get("url", "")
+    author = result.get("author", "")
+    last_modified = result.get("last_modified", "")
     
-    # Format as text source that the LLM can use
-    text_source = f"**{title}**\n"
+    # Create a special citation format that includes both URL and title
+    # Format: "url|||title" - using ||| as a delimiter that won't appear in URLs or titles
+    if url and title:
+        citation_source = f"{url}|||{title}"
+    elif url:
+        citation_source = url
+    else:
+        citation_source = title
+    
+    # Build the text source content
+    text_content = f"**{title}**\n"
+    
+    # Add metadata
+    if author:
+        text_content += f"Author: {author}\n"
+    if last_modified:
+        text_content += f"Last Modified: {last_modified}\n"
     if url:
-        text_source += f"Source: {url}\n"
-    if summary:
-        text_source += f"{summary}\n"
+        text_content += f"URL: {url}\n"
     
-    return text_source.strip()
+    text_content += "\n"
+    
+    # Add the main content
+    if content and len(content.strip()) > len(summary.strip()):
+        text_content += f"Content:\n{content}\n"
+        if summary and summary not in content:
+            text_content += f"\nSummary:\n{summary}\n"
+    elif summary:
+        text_content += f"Summary:\n{summary}\n"
+    else:
+        text_content += "Content: [No content available]\n"
+    
+    # The format must start with the citation source
+    return f"{citation_source}\n\n{text_content.strip()}"
 
 def confluence_result_serialize_for_results(result: dict) -> dict:
     """Convert Confluence search result to serialized format for thoughts/logging"""
@@ -243,7 +273,7 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         # Access the profile's properties and set overrides
         overrides.setdefault("model_override", profile.model)
         overrides.setdefault("examples", profile.examples)
-        overrides.setdefault("prompt_template", profile.system_prompt)
+        #overrides.setdefault("prompt_template", profile.system_prompt)
 
         # Get search strategy from bot profile
         use_dual_search =  profile.dual_search
@@ -495,9 +525,6 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         
         return extra_info
 
-    # Remove the _search_confluence_for_dual and _search_azure_for_dual methods as we're reusing existing one
-
-
     # Also update your main search method to use the enhanced logging
     async def run_confluence_search_approach(
         self, 
@@ -514,11 +541,6 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         original_user_query = messages[-1]["content"]
         if not isinstance(original_user_query, str):
             raise ValueError("The most recent message content must be a string.")
-        
-        # Get user info for logging
-        user_name = auth_claims.get("name", "Unknown")
-        user_email = auth_claims.get("username", "Unknown")
-        logging.warning(f"👤 Enhanced Confluence search requested by: {user_name} ({user_email})")
 
         # Get Confluence Graph token from auth_claims
         confluence_graph_token = overrides.get("graph_token")
