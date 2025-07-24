@@ -1,10 +1,5 @@
 """
-Dual Search Helper Module - CORRECTED VERSION WITH FAISS FALLBACK
-
-MAJOR CHANGES:
-- NO MORE re-embedding Azure results!
-- Direct score comparison between sources
-- FALLBACK: When FAISS fails, ensures equal representation from both sources
+Dual Search Helper Module - with FAISS Fallback
 """
 
 import logging
@@ -33,9 +28,18 @@ class DualSearchHelper:
         weight_confluence: float = 0.5,
         weight_azure: float = 0.5
     ) -> List[Dict]:
+         
         """
-        CORRECTED: Direct score comparison - no re-embedding needed!
-        WITH FALLBACK: Equal representation when FAISS fails
+        Combines results from Confluence and Azure, ranks them based on their vector and lexical scores.
+        - confluence_results: List of results from Confluence search.
+        - azure_results: List of results from Azure search.
+        - query: The search query used to retrieve the results.
+        - top: The number of top results to return.
+        - weight_confluence: Weight applied to Confluence results in the final ranking.
+        - weight_azure: Weight applied to Azure results in the final ranking.
+        
+        This method uses direct score comparison between sources and includes a fallback mechanism 
+        if FAISS (vector search) fails. It ensures equal representation from both sources in the case of failure.
         """
         
         logger.warning("🔍 USING CORRECTED DUAL SEARCH - NO RE-EMBEDDING!")
@@ -150,62 +154,53 @@ class DualSearchHelper:
             import traceback
             logger.error(traceback.format_exc())
             return self._equal_representation_fallback(
-                confluence_results[:top//2 + 1], 
-                azure_results[:top//2 + 1], 
-                top*2
+                confluence_results,
+                azure_results,
+                top
             )
     
     def _equal_representation_fallback(
         self, 
         confluence_results: List[Dict], 
         azure_results: List[Dict], 
-        top: int
+        top: int  # This is your 'n' - documents per source
     ) -> List[Dict]:
         """
-        FALLBACK STRATEGY: Ensure equal representation from both sources
+        FALLBACK STRATEGY: Send top n from EACH source (total 2n documents)
         when FAISS fails and Confluence has no vector scores
         """
-        logger.warning("🚨 USING EQUAL REPRESENTATION FALLBACK")
+        logger.warning("🚨 USING EQUAL REPRESENTATION FALLBACK - SENDING 2n DOCUMENTS")
         
-        # Calculate how many from each source
-        confluence_count = min(len(confluence_results), (top + 1) // 2)  # Half (rounded up)
-        azure_count = min(len(azure_results), top - confluence_count)    # Remaining slots
-        
-        # If one source has fewer results, give extra slots to the other
-        if confluence_count < (top + 1) // 2 and len(azure_results) > azure_count:
-            azure_count = min(len(azure_results), top - confluence_count)
-        elif azure_count < top // 2 and len(confluence_results) > confluence_count:
-            confluence_count = min(len(confluence_results), top - azure_count)
+        # Take top n from each source (not splitting the total)
+        confluence_count = min(len(confluence_results), top)  # Take top n from Confluence
+        azure_count = min(len(azure_results), top)            # Take top n from Azure
         
         logger.warning(f"   📊 Taking top {confluence_count} from Confluence, top {azure_count} from Azure")
+        logger.warning(f"   📋 Total documents to LLM: {confluence_count + azure_count} (instead of {top})")
         
         # Take top results from each source
         final_results = []
         
-        # Add Confluence results (already sorted by their original ranking)
+        # Add ALL top n Confluence results
         for i, result in enumerate(confluence_results[:confluence_count]):
-            result["final_rank"] = i * 2 + 1  # Odd ranks: 1, 3, 5...
+            result["final_rank"] = i + 1  # Ranks 1, 2, 3... for Confluence
             result["fallback_mode"] = True
+            result["source_priority"] = "confluence"  # Mark source priority
             final_results.append(result)
         
-        # Add Azure results (already sorted by their original ranking)
+        # Add ALL top n Azure results 
         for i, result in enumerate(azure_results[:azure_count]):
-            result["final_rank"] = i * 2 + 2  # Even ranks: 2, 4, 6...
+            result["final_rank"] = confluence_count + i + 1  # Continue ranking after Confluence
             result["fallback_mode"] = True
+            result["source_priority"] = "azure"
             final_results.append(result)
         
-        # Sort by final rank to interleave results
-        final_results.sort(key=lambda x: x["final_rank"])
+        logger.warning(f"   ✅ Fallback complete: {len(final_results)} documents total")
+        logger.warning(f"   📋 Distribution: {confluence_count} Confluence + {azure_count} Azure = {len(final_results)} total")
         
-        # Renumber final ranks to be sequential
-        for i, result in enumerate(final_results, 1):
-            result["final_rank"] = i
+        # Return ALL results (2n documents)
+        return final_results
         
-        logger.warning(f"   ✅ Fallback complete: {len(final_results)} results")
-        logger.warning(f"   📋 Final distribution: {confluence_count} Confluence, {azure_count} Azure")
-        
-        return final_results[:top]
-    
     def _extract_azure_vector_score(self, result: Dict) -> float:
         """
         Extract vector similarity score from Azure AI Search result

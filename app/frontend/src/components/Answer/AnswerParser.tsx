@@ -4,45 +4,43 @@ import { ChatAppResponse, getCitationFilePath } from "../../api";
 type HtmlParsedAnswer = {
     answerHtml: string;
     citations: string[];
-    citationDetails: Map<string, { url: string; title: string; isUrl: boolean }>;
+    citationDetails: Map<string, { url: string; title: string; isConfluence: boolean }>; // Changed from isUrl to isConfluence
 };
 
-// Helper function to determine if a citation is a URL
-function isUrl(citation: string): boolean {
+// Helper function to check if a string is a URL (for validation purposes)
+function isUrl(str: string): boolean {
     try {
-        // Check if it's our special format first
-        if (citation.includes("|||")) {
-            const [url] = citation.split("|||");
-            new URL(url);
-            return true;
-        }
-        // Otherwise check if it's a plain URL
-        new URL(citation);
-        return citation.startsWith("http://") || citation.startsWith("https://");
+        new URL(str);
+        return str.startsWith("http://") || str.startsWith("https://");
     } catch {
         return false;
     }
 }
 
 // Parse citation to extract URL and title
-function parseCitation(citation: string): { url: string; title: string; isUrl: boolean } {
-    // Check for our special format: "url|||title"
-    if (citation.includes("|||")) {
-        const [url, title] = citation.split("|||");
-        return { url, title, isUrl: true };
+function parseCitation(citation: string): { url: string; title: string; isConfluence: boolean } {
+    // Check for Confluence link marker
+    if (citation.startsWith("CONFLUENCE_LINK|||")) {
+        const parts = citation.substring("CONFLUENCE_LINK|||".length).split("|||");
+        if (parts.length >= 2) {
+            const url = parts[0];
+            let title = parts[1];
+
+            try {
+                title = decodeURIComponent(title.replace(/\+/g, " "));
+            } catch (e) {
+                title = title.replace(/\+/g, " ");
+            }
+
+            return { url, title, isConfluence: true };
+        }
     }
 
-    // Check if it's a plain URL
-    if (isUrl(citation)) {
-        const title = citation.split("/").pop() || "Confluence Page"; // Extract title or default to "Confluence Page"
-        return { url: citation, title, isUrl: true };
-    }
-
-    // It's a file citation
-    return { url: citation, title: citation, isUrl: false };
+    // Everything else is Azure PDF
+    const filename = citation.split("/").pop() || citation;
+    return { url: citation, title: filename, isConfluence: false };
 }
 
-// Function to validate citation format and check if dataPoint contains the citation
 function isCitationValid(contextDataPoints: any, citationCandidate: string): boolean {
     console.log("Validating citation:", citationCandidate);
 
@@ -59,19 +57,33 @@ function isCitationValid(contextDataPoints: any, citationCandidate: string): boo
 
     console.log("Data points array length:", dataPointsArray.length);
 
-    // For any citation format, check if it exists in data points
-    const isValid = dataPointsArray.some(dataPoint => {
-        // Check if the data point contains or starts with the citation
-        const contains =
-            dataPoint.includes(citationCandidate) ||
-            dataPoint.startsWith(citationCandidate) ||
-            // Also check if citation is part of a larger format
-            (citationCandidate.includes("|||") && dataPoint.includes(citationCandidate.split("|||")[0]));
-
-        if (contains) {
-            console.log("Found matching data point for citation:", citationCandidate);
+    // Special handling for Confluence links
+    if (citationCandidate.startsWith("CONFLUENCE_LINK|||")) {
+        const isValid = dataPointsArray.some(dataPoint => {
+            return dataPoint.startsWith(citationCandidate) || dataPoint.includes(citationCandidate);
+        });
+        if (isValid) {
+            console.log("Found matching Confluence link");
+            return true;
         }
-        return contains;
+    }
+
+    // For citations with |||, check if any part matches
+    if (citationCandidate.includes("|||")) {
+        const parts = citationCandidate.split("|||");
+        const url = parts[0];
+        const isValid = dataPointsArray.some(dataPoint => {
+            return dataPoint.startsWith(citationCandidate) || dataPoint.includes(url) || dataPoint.startsWith(url);
+        });
+        if (isValid) {
+            console.log("Found matching data point for ||| citation");
+            return true;
+        }
+    }
+
+    // Rest of the validation logic remains the same...
+    const isValid = dataPointsArray.some(dataPoint => {
+        return dataPoint.includes(citationCandidate) || dataPoint.startsWith(citationCandidate);
     });
 
     // If not found but it's a file format, do the regex check
@@ -89,7 +101,7 @@ function isCitationValid(contextDataPoints: any, citationCandidate: string): boo
 export function parseAnswerToHtml(answer: ChatAppResponse, isStreaming: boolean, onCitationClicked: (citationFilePath: string) => void): HtmlParsedAnswer {
     const contextDataPoints = answer.context.data_points;
     const citations: string[] = [];
-    const citationDetails = new Map<string, { url: string; title: string; isUrl: boolean }>();
+    const citationDetails = new Map<string, { url: string; title: string; isConfluence: boolean }>(); // Changed from isUrl to isConfluence
 
     console.log("Raw answer content:", answer.message.content);
     console.log("Context data points:", contextDataPoints);
@@ -145,12 +157,7 @@ export function parseAnswerToHtml(answer: ChatAppResponse, isStreaming: boolean,
 
             // Create the citation link
             return renderToStaticMarkup(
-                <a
-                    className="supContainer"
-                    title={details.isUrl ? details.title : part}
-                    onClick={() => onCitationClicked(part)}
-                    data-citation-index={citationIndex}
-                >
+                <a className="supContainer" title={details.title} onClick={() => onCitationClicked(part)} data-citation-index={citationIndex}>
                     <sup>{citationIndex}</sup>
                 </a>
             );

@@ -7,6 +7,8 @@ import readNDJSONStream from "ndjson-readablestream";
 import { MicrosoftSignIn } from "../../MicrosoftSignIn"; // Add this with other imports
 
 import appLogo from "../../assets/ava.svg";
+import confluencelogo from "../../assets/confluenec-logo.png";
+import defendersheild from "../../assets/defender-sheild.png";
 import styles from "./Chat.module.css";
 
 import {
@@ -674,17 +676,24 @@ const Chat = () => {
                                 >
                                     <div
                                         style={{
-                                            fontSize: "32px",
                                             marginBottom: "12px",
-                                            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
+                                            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))",
+                                            display: "flex",
+                                            justifyContent: "center",
+                                            alignItems: "center"
                                         }}
                                     >
-                                        💬
+                                        <img
+                                            src={defendersheild}
+                                            alt="Search"
+                                            style={{
+                                                width: "32px",
+                                                height: "32px"
+                                            }}
+                                        />
                                     </div>
-                                    <div style={{ color: "var(--text)", fontWeight: "700", fontSize: "16px", marginBottom: "4px" }}>Ask Anything</div>
-                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>
-                                        Get instant answers to your questions
-                                    </div>
+                                    <div style={{ color: "var(--text)", fontWeight: "700", fontSize: "16px", marginBottom: "4px" }}>Secure</div>
+                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>Microsoft Entperise Security</div>
                                 </div>
                                 <div
                                     style={{
@@ -704,15 +713,26 @@ const Chat = () => {
                                 >
                                     <div
                                         style={{
-                                            fontSize: "32px",
                                             marginBottom: "12px",
-                                            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
+                                            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))",
+                                            display: "flex",
+                                            justifyContent: "center",
+                                            alignItems: "center"
                                         }}
                                     >
-                                        🔍
+                                        <img
+                                            src={confluencelogo}
+                                            alt="Search"
+                                            style={{
+                                                width: "32px",
+                                                height: "32px"
+                                            }}
+                                        />
                                     </div>
-                                    <div style={{ color: "var(--text)", fontWeight: "700", fontSize: "16px", marginBottom: "4px" }}>Smart Search</div>
-                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>Find information quickly</div>
+                                    <div style={{ color: "var(--text)", fontWeight: "700", fontSize: "16px", marginBottom: "4px" }}>Live Search</div>
+                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>
+                                        Realtime Access to Confluence Data
+                                    </div>
                                 </div>
                                 <div
                                     style={{
@@ -740,7 +760,7 @@ const Chat = () => {
                                         ⚡
                                     </div>
                                     <div style={{ color: "var(--text)", fontWeight: "700", fontSize: "16px", marginBottom: "4px" }}>Fast Response</div>
-                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>Powered by advanced AI</div>
+                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>Powered by GPT-4o</div>
                                 </div>
                             </div>
 

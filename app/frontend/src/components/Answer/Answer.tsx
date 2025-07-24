@@ -63,37 +63,39 @@ export const Answer = ({
     const { instance } = useMsal();
 
     // Helper function to parse citation details
-    const getCitationDetails = (citation: string): { url: string; title: string; isUrl: boolean } => {
-        // Check for our special format: "url|||title"
-        if (citation.includes("|||")) {
-            const [url, title] = citation.split("|||");
-            return { url, title, isUrl: true };
-        }
+    const getCitationDetails = (citation: string): { url: string; title: string; isConfluence: boolean } => {
+        // Check for Confluence link marker
+        if (citation.startsWith("CONFLUENCE_LINK|||")) {
+            const parts = citation.substring("CONFLUENCE_LINK|||".length).split("|||");
+            if (parts.length >= 2) {
+                const url = parts[0];
+                let title = parts[1];
 
-        // Check if it's a plain URL
-        try {
-            new URL(citation);
-            if (citation.startsWith("http://") || citation.startsWith("https://")) {
-                return { url: citation, title: "Confluence Page", isUrl: true };
+                // Decode URL-encoded characters
+                try {
+                    title = decodeURIComponent(title.replace(/\+/g, " "));
+                } catch (e) {
+                    title = title.replace(/\+/g, " ");
+                }
+
+                return { url, title, isConfluence: true };
             }
-        } catch {
-            // Not a URL
         }
 
-        // It's a file citation - extract filename
+        // Everything else is Azure PDF
         const filename = citation.split("/").pop() || citation;
-        return { url: citation, title: filename, isUrl: false };
+        return { url: citation, title: filename, isConfluence: false };
     };
 
     // Update the handleCitationClick function
     const handleCitationClick = (citation: string) => {
         const details = getCitationDetails(citation);
 
-        if (details.isUrl) {
-            // Open URLs in a new tab
+        if (details.isConfluence) {
+            // Open Confluence links in a new tab
             window.open(details.url, "_blank", "noopener,noreferrer");
         } else {
-            // Handle file citations with existing handler
+            // Handle Azure PDFs with existing handler
             const path = getCitationFilePath(citation);
             onCitationClicked(path);
         }
@@ -429,13 +431,22 @@ export const Answer = ({
                         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                             {parsedAnswer.citations.map((citation, i) => {
                                 const details = getCitationDetails(citation);
-                                const icon = details.isUrl ? "🔗" : "📄";
+                                const icon = details.isConfluence ? "🔗" : "📄";
+
+                                // Truncate long titles
+                                const maxTitleLength = 50;
+                                let displayTitle = details.title;
+                                if (displayTitle.length > maxTitleLength) {
+                                    displayTitle = displayTitle.substring(0, maxTitleLength - 3) + "...";
+                                }
+
+                                const tooltipText = details.isConfluence ? `Open ${details.title} in new tab` : `View ${details.title}`;
 
                                 return (
                                     <button
                                         key={i}
                                         onClick={() => handleCitationClick(citation)}
-                                        title={details.isUrl ? `Open ${details.title} in new tab` : details.title}
+                                        title={tooltipText}
                                         style={{
                                             backgroundColor: "var(--surface-hover)",
                                             border: "1px solid var(--border)",
@@ -466,7 +477,7 @@ export const Answer = ({
                                         }}
                                     >
                                         <span>{icon}</span>
-                                        <span>{`${i + 1}. ${details.title}`}</span>
+                                        <span>{`${i + 1}. ${displayTitle}`}</span>
                                     </button>
                                 );
                             })}

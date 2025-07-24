@@ -41,111 +41,23 @@ def confluence_result_to_text_source(result: dict) -> str:
     url = result.get("url", "")
     author = result.get("author", "")
     last_modified = result.get("last_modified", "")
-    
-    # Create a special citation format that includes both URL and title
-    # Format: "url|||title" - using ||| as a delimiter that won't appear in URLs or titles
-    if url and title:
-        citation_source = f"{url}|||{title}"
-    elif url:
-        citation_source = url
-    else:
-        citation_source = title
-    
-    # Build the text source content
-    text_content = f"**{title}**\n"
-    
-    # Add metadata
-    if author:
-        text_content += f"Author: {author}\n"
-    if last_modified:
-        text_content += f"Last Modified: {last_modified}\n"
-    if url:
-        text_content += f"URL: {url}\n"
-    
-    text_content += "\n"
-    
-    # Add the main content
-    if content and len(content.strip()) > len(summary.strip()):
-        text_content += f"Content:\n{content}\n"
-        if summary and summary not in content:
-            text_content += f"\nSummary:\n{summary}\n"
-    elif summary:
-        text_content += f"Summary:\n{summary}\n"
-    else:
-        text_content += "Content: [No content available]\n"
-    
-    # The format must start with the citation source
-    return f"{citation_source}\n\n{text_content.strip()}"
-
-def confluence_result_serialize_for_results(result: dict) -> dict:
-    """Convert Confluence search result to serialized format for thoughts/logging"""
-    return {
-        "title": result.get("title", "Untitled"),
-        "url": result.get("url", ""),
-        "summary": result.get("summary", "")[:200] + "..." if len(result.get("summary", "")) > 200 else result.get("summary", ""),
-        "rank": result.get("rank", 0),
-        "source": "confluence"
-    }
-
-def log_enhanced_search_results(confluence_results: list, user_email: str) -> None:
-    """Enhanced logging to show the quality of search results"""
-    if not confluence_results:
-        logging.warning(f"⚠️ No results found for {user_email}")
-        return
-    
-    logging.warning(f"✅ Enhanced search completed - found {len(confluence_results)} results for {user_email}")
-    
-    # Analyze result quality
-    results_with_content = sum(1 for r in confluence_results if len(r.get("content", "")) > 200)
-    results_with_titles = sum(1 for r in confluence_results if r.get("title", "Untitled") != "Untitled")
-    enhanced_results = sum(1 for r in confluence_results if r.get("content_enhanced", False))
-    
-    logging.warning(f"📊 Result Quality Analysis:")
-    logging.warning(f"   📄 Results with substantial content: {results_with_content}/{len(confluence_results)}")
-    logging.warning(f"   🏷️ Results with proper titles: {results_with_titles}/{len(confluence_results)}")
-    logging.warning(f"   🔧 Results enhanced with full content: {enhanced_results}/{len(confluence_results)}")
-    
-    # Log sample results with more detail
-    logging.warning(f"📋 Top results preview:")
-    for i, result in enumerate(confluence_results[:3], 1):
-        title = result.get("title", "No title")
-        content_length = len(result.get("content", ""))
-        content_source = result.get("content_source", "unknown")
-        relevance_score = result.get("relevance_score", 0)
-        
-        logging.warning(f"   {i}. {title}")
-        logging.warning(f"      📊 Content: {content_length} chars | Type: {content_source} | Score: {relevance_score}")
-        
-        # Show first few words of content if available
-        content = result.get("content", "")
-        if content:
-            preview = content[:100].replace('\n', ' ').strip()
-            logging.warning(f"      📄 Preview: {preview}...")
-        else:
-            summary = result.get("summary", "")
-            if summary:
-                preview = summary[:100].replace('\n', ' ').strip()
-                logging.warning(f"      📝 Summary: {preview}...")
-            else:
-                logging.warning(f"      ❌ No content or summary available")
-
-def confluence_result_to_text_source(result: dict) -> str:
-    """Convert Confluence search result dictionary to text source for RAG with full content"""
-    title = result.get("title", "Untitled")
-    summary = result.get("summary", "")
-    content = result.get("content", "")
-    url = result.get("url", "")
-    author = result.get("author", "")
-    last_modified = result.get("last_modified", "")
     content_source = result.get("content_source", "")
     file_type = result.get("file_type", "")
     
-    # Build comprehensive text source for the LLM
-    text_source = f"**{title}**\n"
+    # Create special Confluence citation marker
+    if url and title:
+        citation_marker = f"CONFLUENCE_LINK|||{url}|||{title}"
+    elif url:
+        citation_marker = f"CONFLUENCE_LINK|||{url}|||Confluence Page"
+    else:
+        citation_marker = title  # Fallback to original behavior
     
-    # Add metadata
-    if url:
-        text_source += f"Source: {url}\n"
+    # Build the text source with citation marker at the beginning
+    text_source = f"{citation_marker}\n\n"
+    
+    # Add metadata header
+    text_source += f"**{title}**\n"
+    
     if author:
         text_source += f"Author: {author}\n"
     if last_modified:
@@ -155,19 +67,16 @@ def confluence_result_to_text_source(result: dict) -> str:
     if content_source:
         text_source += f"Content Type: {content_source}\n"
     
-    text_source += "\n"  # Add separator
+    text_source += "\n"  # Separator
     
-    # IMPROVEMENT: Use full content if available, otherwise fall back to summary
+    # Add content
     if content and len(content.strip()) > len(summary.strip()):
-        # We have full content - use it
         text_source += f"**Full Content:**\n{content}\n"
         if summary and summary != content[:len(summary)]:
             text_source += f"\n**Summary:**\n{summary}\n"
     elif summary:
-        # Only have summary
         text_source += f"**Summary:**\n{summary}\n"
     else:
-        # No content at all
         text_source += "**Content:** [No content available]\n"
     
     return text_source.strip()
@@ -541,6 +450,11 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         original_user_query = messages[-1]["content"]
         if not isinstance(original_user_query, str):
             raise ValueError("The most recent message content must be a string.")
+        
+        # Get user info for logging
+        user_name = auth_claims.get("name", "Unknown")
+        user_email = auth_claims.get("username", "Unknown")
+        logging.warning(f"👤 Enhanced Confluence search requested by: {user_name} ({user_email})")
 
         # Get Confluence Graph token from auth_claims
         confluence_graph_token = overrides.get("graph_token")
@@ -594,10 +508,7 @@ class ChatReadRetrieveReadApproach(ChatApproach):
                     )
                 ]
             )
-            
-            # ENHANCED: Use improved logging
-            log_enhanced_search_results(confluence_results, user_email)
-            
+                  
             return extra_info
             
         except Exception as e:

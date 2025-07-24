@@ -1,3 +1,54 @@
+"""
+This code implements a comprehensive Confluence search service using a combination of lexical search 
+and FAISS-based vector search for enhanced ranking and retrieval. It integrates with Microsoft Graph 
+for accessing Confluence data and uses OpenAI for generating search keywords. The service is designed 
+to work in both FAISS-enabled and FAISS-disabled modes, providing graceful fallbacks.
+
+Key Features:
+1. **FAISS Integration**: Enables vector-based search ranking when FAISS is available.
+2. **Microsoft Graph API**: Fetches Confluence data using the Microsoft Graph connector.
+3. **Concurrent Search**: Supports parallel keyword searches to reduce latency.
+4. **OpenAI Keyword Generation**: Uses OpenAI to generate optimized search keywords from user queries.
+5. **Result Enhancement**: Fetches detailed content for search results using the Confluence API.
+6. **Error Handling and Diagnostics**: Includes a diagnostic function for troubleshooting FAISS installation issues.
+
+Configuration Options:
+- **FAISS and Lexical Weighting**: Configurable weighting between lexical and FAISS-based rankings.
+- **Keyword Generation**: Control over whether to use exact query search or dynamically generated keywords.
+- **API Limits**: Max number of concurrent API calls, searches, and embeddings.
+- **Confluence API Authentication**: Secure authentication for fetching Confluence data.
+
+Steps Followed:
+1. **Check FAISS Availability**: 
+   - Attempts to import `faiss_manager`. If unavailable, it logs a warning and uses lexical search only.
+
+2. **Initialize ConfluenceSearchService**:
+   - Creates the `ConfluenceSearchService` class. Initializes FAISS manager if available, otherwise falls back to lexical search.
+
+3. **Search with Microsoft Graph**:
+   - The main search method, which sends the query to Microsoft Graph and fetches results from Confluence.
+   - Keywords are generated either from the exact query or using OpenAI for optimization.
+
+4. **Parallel Keyword Search**:
+   - Executes searches for each keyword in parallel, improving efficiency and reducing latency.
+
+5. **FAISS Ranking and Embedding Generation**:
+   - If FAISS is available, generates embeddings for results and ranks them based on vector similarity.
+   - If FAISS is not available, uses lexical search for ranking.
+
+6. **Progressive Ranking**:
+   - Optionally, performs early ranking once a sufficient number of results are gathered, cancelling remaining searches.
+
+7. **Final Ranking**:
+   - Final ranking of results based on lexical and FAISS scores. Deduplicates results and limits to the top results.
+
+8. **Confluence Content Enhancement**:
+    - Fetches additional content / page content from the Confluence API for each result to provide detailed information.
+
+9. **Return Final Results**:
+    - Returns the final ranked results with all relevant metadata and content.
+"""
+
 import asyncio
 import aiohttp
 import json
@@ -40,132 +91,6 @@ import subprocess
 import importlib.util
 from pathlib import Path
 import logging
-
-def run_comprehensive_faiss_diagnostic():
-    """Run a comprehensive diagnostic to identify FAISS issues"""
-    
-    logging.warning("🚨 COMPREHENSIVE FAISS DIAGNOSTIC")
-    logging.warning("=" * 60)
-    
-    # 1. Environment Information
-    logging.warning("1️⃣ ENVIRONMENT INFO:")
-    logging.warning(f"   🐍 Python version: {sys.version}")
-    logging.warning(f"   📂 Python executable: {sys.executable}")
-    logging.warning(f"   📦 Site packages: {[p for p in sys.path if 'site-packages' in p]}")
-    
-    # 2. Check if faiss-cpu is installed via pip
-    logging.warning("\n2️⃣ PIP PACKAGE CHECK:")
-    try:
-        result = subprocess.run([sys.executable, "-m", "pip", "show", "faiss-cpu"], 
-                              capture_output=True, text=True)
-        if result.returncode == 0:
-            logging.warning("   ✅ faiss-cpu is installed via pip:")
-            for line in result.stdout.split('\n'):
-                if line.strip():
-                    logging.warning(f"      {line}")
-        else:
-            logging.warning("   ❌ faiss-cpu is NOT installed via pip")
-            logging.warning(f"   📋 Error: {result.stderr}")
-    except Exception as e:
-        logging.warning(f"   ❌ Failed to check pip: {e}")
-    
-    # 3. Check numpy version and compatibility
-    logging.warning("\n3️⃣ NUMPY CHECK:")
-    try:
-        import numpy as np
-        logging.warning(f"   ✅ NumPy version: {np.__version__}")
-        logging.warning(f"   📍 NumPy location: {np.__file__}")
-        
-        # Check if numpy version is compatible
-        numpy_version = tuple(map(int, np.__version__.split('.')[:2]))
-        if numpy_version >= (1, 21) and numpy_version < (1, 25):
-            logging.warning(f"   ✅ NumPy version {np.__version__} is compatible")
-        else:
-            logging.warning(f"   ⚠️ NumPy version {np.__version__} might have compatibility issues")
-            
-    except Exception as e:
-        logging.warning(f"   ❌ NumPy import failed: {e}")
-        return "NUMPY_FAIL"
-    
-    # 4. Try different ways to import faiss
-    logging.warning("\n4️⃣ FAISS IMPORT ATTEMPTS:")
-    
-    # Attempt 1: Direct import
-    logging.warning("   📍 Attempt 1: import faiss")
-    try:
-        import faiss
-        logging.warning(f"      ✅ Success! FAISS location: {faiss.__file__}")
-        logging.warning(f"      ✅ FAISS version: {getattr(faiss, '__version__', 'version not available')}")
-        
-        # Test basic functionality
-        try:
-            index = faiss.IndexFlatIP(64)
-            logging.warning(f"      ✅ FAISS IndexFlatIP test: SUCCESS")
-            return "SUCCESS"
-        except Exception as e:
-            logging.warning(f"      ❌ FAISS functionality test failed: {e}")
-            return "FAISS_FUNCTIONAL_ERROR"
-            
-    except ImportError as e:
-        logging.warning(f"      ❌ ImportError: {e}")
-        logging.warning(f"      📋 Full error: {str(e)}")
-    except Exception as e:
-        logging.warning(f"      ❌ Other error: {type(e).__name__}: {e}")
-    
-    # Attempt 2: Check if faiss module exists
-    logging.warning("\n   📍 Attempt 2: Check module spec")
-    faiss_spec = importlib.util.find_spec("faiss")
-    if faiss_spec:
-        logging.warning(f"      ✅ FAISS module found at: {faiss_spec.origin}")
-    else:
-        logging.warning("      ❌ FAISS module spec not found")
-    
-    # 5. Check for common issues
-    logging.warning("\n5️⃣ COMMON ISSUES CHECK:")
-    
-    # Check for libgomp (common Linux issue)
-    if sys.platform.startswith('linux'):
-        logging.warning("   🐧 Linux system detected")
-        try:
-            result = subprocess.run(["ldconfig", "-p"], capture_output=True, text=True)
-            if "libgomp" in result.stdout:
-                logging.warning("   ✅ libgomp found (required for FAISS on Linux)")
-            else:
-                logging.warning("   ⚠️ libgomp might be missing (required for FAISS)")
-                logging.warning("   💡 Fix: apt-get install libgomp1")
-        except:
-            logging.warning("   ⚠️ Could not check for libgomp")
-    
-    # 6. Check faiss_manager.py
-    logging.warning("\n6️⃣ FAISS_MANAGER.PY CHECK:")
-    faiss_manager_path = Path("faiss_manager.py")
-    if faiss_manager_path.exists():
-        logging.warning(f"   ✅ faiss_manager.py exists ({faiss_manager_path.stat().st_size} bytes)")
-        
-        # Try to import it
-        try:
-            import faiss_manager
-            logging.warning("   ✅ faiss_manager module imports successfully")
-        except Exception as e:
-            logging.warning(f"   ❌ faiss_manager import failed: {e}")
-    else:
-        logging.warning("   ❌ faiss_manager.py not found")
-    
-    # 7. Final diagnosis
-    logging.warning("\n7️⃣ DIAGNOSIS SUMMARY:")
-    logging.warning("   ❌ FAISS is not working properly")
-    logging.warning("   💡 POSSIBLE SOLUTIONS:")
-    logging.warning("      1. Rebuild container/restart environment")
-    logging.warning("      2. Try: pip uninstall faiss-cpu && pip install faiss-cpu==1.7.4")
-    logging.warning("      3. Check numpy compatibility: pip install 'numpy>=1.21.0,<1.25.0'")
-    logging.warning("      4. On Linux: Install libgomp1")
-    logging.warning("      5. Try alternative: pip install faiss-cpu==1.8.0")
-    
-    return "FAISS_NOT_WORKING"
-
-# Add this to your confluence_search.py file, replacing the existing diagnostic
-diagnostic_result = run_comprehensive_faiss_diagnostic()
-logging.warning(f"\n🎯 FINAL DIAGNOSTIC RESULT: {diagnostic_result}")
 
 ###
 #  Configuration Toggles
