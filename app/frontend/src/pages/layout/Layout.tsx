@@ -132,7 +132,7 @@ const Layout = () => {
                         <BotSelector userEmail={userEmail} onChange={handleBotChange} className={styles.botSelect} />
 
                         <button onClick={toggleTheme} className={styles.headerButton}>
-                            <span>📊</span>
+                            <span>{theme === "dark" ? "🌞" : "🌙"}</span>
                             <span className={styles.buttonText}>{theme === "dark" ? "Light" : "Dark"}</span>
                         </button>
 

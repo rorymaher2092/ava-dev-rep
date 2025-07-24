@@ -125,7 +125,7 @@ class SearchConfig:
     # Confluence API setup
     CONFLUENCE_BASE_URL = "https://vocus.atlassian.net/wiki/rest/api"
     CONFLUENCE_EMAIL = os.environ.get("CONFLUENCE_EMAIL", "svc.atlassian@vocus.com.au")
-    CONFLUENCE_TOKEN = os.environ.get("CONFLUENCE_TOKEN", "ADD IN API KEY")
+    CONFLUENCE_TOKEN = os.environ.get("CONFLUENCE_TOKEN", "REDACTED_TOKEN")
     
     @staticmethod
     def get_confluence_auth():
