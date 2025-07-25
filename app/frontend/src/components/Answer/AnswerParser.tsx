@@ -101,7 +101,7 @@ function isCitationValid(contextDataPoints: any, citationCandidate: string): boo
 export function parseAnswerToHtml(answer: ChatAppResponse, isStreaming: boolean, onCitationClicked: (citationFilePath: string) => void): HtmlParsedAnswer {
     const contextDataPoints = answer.context.data_points;
     const citations: string[] = [];
-    const citationDetails = new Map<string, { url: string; title: string; isConfluence: boolean }>(); // Changed from isUrl to isConfluence
+    const citationDetails = new Map<string, { url: string; title: string; isConfluence: boolean }>();
 
     console.log("Raw answer content:", answer.message.content);
     console.log("Context data points:", contextDataPoints);
@@ -133,10 +133,49 @@ export function parseAnswerToHtml(answer: ChatAppResponse, isStreaming: boolean,
         if (index % 2 === 0) {
             return part;
         } else {
-            let citationIndex: number;
-
             console.log("Processing potential citation:", part);
 
+            // Check if this contains multiple citations (common error pattern)
+            if (part.includes(", CONFLUENCE_LINK|||") || (part.includes(".pdf") && part.includes("CONFLUENCE_LINK|||"))) {
+                console.warn("WARNING: Found combined citations, attempting to split:", part);
+
+                // Try to split combined citations
+                const splitCitations = part.split(/,\s*/);
+                const fragmentParts: string[] = [];
+
+                splitCitations.forEach(subCitation => {
+                    subCitation = subCitation.trim();
+                    if (isCitationValid(contextDataPoints, subCitation)) {
+                        const details = parseCitation(subCitation);
+                        let citationIndex: number;
+
+                        if (citations.indexOf(subCitation) !== -1) {
+                            citationIndex = citations.indexOf(subCitation) + 1;
+                        } else {
+                            citations.push(subCitation);
+                            citationIndex = citations.length;
+                            citationDetails.set(subCitation, details);
+                        }
+
+                        fragmentParts.push(
+                            renderToStaticMarkup(
+                                <a
+                                    className="supContainer"
+                                    title={details.title}
+                                    onClick={() => onCitationClicked(subCitation)}
+                                    data-citation-index={citationIndex}
+                                >
+                                    <sup>{citationIndex}</sup>
+                                </a>
+                            )
+                        );
+                    }
+                });
+
+                return fragmentParts.join("");
+            }
+
+            // Single citation processing (existing logic)
             if (!isCitationValid(contextDataPoints, part)) {
                 console.log("Citation validation failed, keeping as text:", part);
                 return `[${part}]`;
@@ -144,6 +183,7 @@ export function parseAnswerToHtml(answer: ChatAppResponse, isStreaming: boolean,
 
             // Parse the citation to get details
             const details = parseCitation(part);
+            let citationIndex: number;
 
             // Store citation details for later use
             if (citations.indexOf(part) !== -1) {

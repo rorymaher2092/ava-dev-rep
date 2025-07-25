@@ -18,6 +18,10 @@ import { SpeechOutputAzure } from "./SpeechOutputAzure";
 import { BotProfile, BOTS } from "../../config/botConfig";
 import { useBot } from "../../contexts/BotContext";
 
+// ADD THESE IMPORTS FOR YOUR NEW ICONS
+import confluenceLogo from "../../assets/confluenec-logo.png";
+import pdfIcon from "../../assets/pdf-icon.png"; // Replace with your actual PDF icon path
+
 interface Props {
     answer: ChatAppResponse;
     index: number;
@@ -172,7 +176,8 @@ export const Answer = ({
             style={{
                 display: "flex",
                 justifyContent: "flex-start",
-                marginBottom: "16px"
+                marginBottom: "16px",
+                minWidth: "webkit-fill-available"
             }}
         >
             <div
@@ -183,7 +188,8 @@ export const Answer = ({
                     padding: "20px",
                     maxWidth: "85%",
                     boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-                    position: "relative"
+                    position: "relative",
+                    width: "85%"
                 }}
             >
                 {/* Header with logo and actions */}
@@ -431,7 +437,27 @@ export const Answer = ({
                         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                             {parsedAnswer.citations.map((citation, i) => {
                                 const details = getCitationDetails(citation);
-                                const icon = details.isConfluence ? "🔗" : "📄";
+                                const icon = details.isConfluence ? (
+                                    <img
+                                        src={confluenceLogo}
+                                        alt="Confluence"
+                                        style={{
+                                            width: "16px",
+                                            height: "16px",
+                                            objectFit: "contain" // This ensures the image scales properly
+                                        }}
+                                    />
+                                ) : (
+                                    <img
+                                        src={pdfIcon}
+                                        alt="PDF"
+                                        style={{
+                                            width: "16px",
+                                            height: "16px",
+                                            objectFit: "contain" // This ensures the image scales properly
+                                        }}
+                                    />
+                                );
 
                                 // Truncate long titles
                                 const maxTitleLength = 50;

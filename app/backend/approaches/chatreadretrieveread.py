@@ -129,6 +129,8 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         query_speller: str,
         prompt_manager: PromptManager,
         reasoning_effort: Optional[str] = None,
+        confluence_token: str = "",
+        confluence_email: str = "",
     ):
         self.search_client = search_client
         self.search_index_name = search_index_name
@@ -153,6 +155,8 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         self.answer_prompt = self.prompt_manager.load_prompt("chat_answer_question.prompty")
         self.reasoning_effort = reasoning_effort
         self.include_token_usage = True
+        self.confluence_token = confluence_token
+        self.confluence_email = confluence_email
 
 
     async def run_until_final_call(
@@ -192,6 +196,8 @@ class ChatReadRetrieveReadApproach(ChatApproach):
 
         logging.warning(f"Use Confluence search: {use_confluence_search}")
         logging.warning(f"Use agentic retrieval: {use_agentic_retrieval}")
+
+        logging.warning(f"API Token: {self.confluence_token}")
 
         # Run the appropriate search approach (ONLY ONE!)
         if use_dual_search:

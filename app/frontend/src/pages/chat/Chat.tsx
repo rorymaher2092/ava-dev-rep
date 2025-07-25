@@ -34,7 +34,16 @@ import { HistoryButton } from "../../components/HistoryButton";
 // import { SettingsButton } from "../../components/SettingsButton";
 import { ClearChatButton } from "../../components/ClearChatButton";
 import { UploadFile } from "../../components/UploadFile";
-import { useLogin, getToken, requireAccessControl, getUsername, getTokenClaims, getGraphToken } from "../../authConfig";
+import {
+    useLogin,
+    getToken,
+    requireAccessControl,
+    getUsername,
+    getTokenClaims,
+    getGraphToken,
+    isMicrosoftAuthenticated,
+    loginToMicrosoft
+} from "../../authConfig";
 import { useMsal } from "@azure/msal-react";
 import { TokenClaimsDisplay } from "../../components/TokenClaimsDisplay";
 import { LoginContext } from "../../loginContext";
@@ -220,6 +229,30 @@ const Chat = () => {
         setIsLoading(true);
         setActiveCitation(undefined);
         setActiveAnalysisPanelTab(undefined);
+
+        // Check if user is authenticated with Microsoft before proceeding
+        if (!isMicrosoftAuthenticated()) {
+            setIsLoading(false);
+
+            // Show a user-friendly message
+            const confirmLogin = window.confirm("You need to sign in with Microsoft to use the chat feature. Would you like to sign in now?");
+
+            if (confirmLogin) {
+                try {
+                    await loginToMicrosoft();
+                    // After successful login, proceed with the API request
+                    return makeApiRequest(question); // Recursively call after login
+                } catch (error) {
+                    console.error("Microsoft login failed:", error);
+                    setError(new Error("Failed to sign in to Microsoft. Please try again."));
+                    return;
+                }
+            } else {
+                // User cancelled login
+                setError(new Error("Microsoft sign-in is required to use the chat feature."));
+                return;
+            }
+        }
 
         // Get the regular auth token for backend authentication
         const authToken = await getToken();
