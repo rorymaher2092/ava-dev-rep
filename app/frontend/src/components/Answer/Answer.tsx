@@ -91,17 +91,67 @@ export const Answer = ({
         return { url: citation, title: filename, isConfluence: false };
     };
 
-    // Update the handleCitationClick function
+    // Add this enhanced handleCitationClick function to your Answer component
     const handleCitationClick = (citation: string) => {
+        console.log("Citation clicked:", citation);
+
+        // Additional validation before processing
+        if (!citation || citation.trim().length === 0) {
+            console.error("Empty citation clicked");
+            return;
+        }
+
         const details = getCitationDetails(citation);
 
+        // Validate the citation format one more time
         if (details.isConfluence) {
-            // Open Confluence links in a new tab
-            window.open(details.url, "_blank", "noopener,noreferrer");
+            // Validate Confluence URL
+            try {
+                const url = new URL(details.url);
+                if (url.protocol !== "http:" && url.protocol !== "https:") {
+                    console.error("Invalid Confluence URL protocol:", details.url);
+                    return;
+                }
+
+                // Check for valid Confluence domains (customize this list)
+                const validDomains = ["atlassian.net", "confluence.com", "vocus.atlassian.net"];
+                const isValidDomain = validDomains.some(domain => url.hostname.includes(domain));
+
+                if (!isValidDomain) {
+                    console.warn(`Opening external URL: ${url.hostname}`);
+                    // You might want to show a confirmation dialog here
+                }
+
+                // Open Confluence links in a new tab
+                window.open(details.url, "_blank", "noopener,noreferrer");
+            } catch (error) {
+                console.error("Invalid Confluence URL:", details.url, error);
+                // Optionally show an error message to the user
+                alert("Unable to open this link. The URL appears to be invalid.");
+            }
         } else {
+            // Validate Azure PDF citation
+            const pdfRegex = /^[^\/\\]+\.pdf(?:#page=\d+)?$/i;
+            if (!pdfRegex.test(citation)) {
+                console.error("Invalid PDF citation format:", citation);
+                return;
+            }
+
+            // Check if the citation looks like a URL (common mistake)
+            if (citation.includes("http://") || citation.includes("https://") || citation.includes("|||")) {
+                console.error("PDF citation contains invalid characters:", citation);
+                return;
+            }
+
             // Handle Azure PDFs with existing handler
-            const path = getCitationFilePath(citation);
-            onCitationClicked(path);
+            try {
+                const path = getCitationFilePath(citation);
+                onCitationClicked(path);
+            } catch (error) {
+                console.error("Error getting citation file path:", citation, error);
+                // Optionally show an error message to the user
+                alert("Unable to open this document. Please try again later.");
+            }
         }
     };
 

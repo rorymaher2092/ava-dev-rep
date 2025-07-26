@@ -4,17 +4,71 @@ import { ChatAppResponse, getCitationFilePath } from "../../api";
 type HtmlParsedAnswer = {
     answerHtml: string;
     citations: string[];
-    citationDetails: Map<string, { url: string; title: string; isConfluence: boolean }>; // Changed from isUrl to isConfluence
+    citationDetails: Map<string, { url: string; title: string; isConfluence: boolean }>;
 };
 
-// Helper function to check if a string is a URL (for validation purposes)
-function isUrl(str: string): boolean {
+// Helper function to validate URL format
+function isValidUrl(str: string): boolean {
     try {
-        new URL(str);
-        return str.startsWith("http://") || str.startsWith("https://");
+        const url = new URL(str);
+        return url.protocol === "http:" || url.protocol === "https:";
     } catch {
         return false;
     }
+}
+
+// Enhanced citation validation
+function validateCitationFormat(citation: string): { isValid: boolean; type: "confluence" | "azure" | "invalid"; reason?: string } {
+    // Check for Confluence format
+    if (citation.startsWith("CONFLUENCE_LINK|||")) {
+        const parts = citation.substring("CONFLUENCE_LINK|||".length).split("|||");
+
+        // Must have exactly 2 parts: URL and title
+        if (parts.length !== 2) {
+            return { isValid: false, type: "invalid", reason: "Confluence citation must have exactly 2 parts" };
+        }
+
+        const [url, title] = parts;
+
+        // URL must be valid
+        if (!isValidUrl(url)) {
+            return { isValid: false, type: "invalid", reason: "Invalid URL in Confluence citation" };
+        }
+
+        // Title must exist and be non-empty
+        if (!title || title.trim().length === 0) {
+            return { isValid: false, type: "invalid", reason: "Confluence citation missing title" };
+        }
+
+        // Check for common Confluence domains (add your domains here)
+        const validDomains = ["atlassian.net", "confluence.com"];
+        const urlObj = new URL(url);
+        const isValidDomain = validDomains.some(domain => urlObj.hostname.includes(domain));
+
+        if (!isValidDomain) {
+            console.warn(`Confluence URL domain ${urlObj.hostname} not in whitelist`);
+        }
+
+        return { isValid: true, type: "confluence" };
+    }
+
+    // Check for Azure PDF format
+    const pdfRegex = /^[^\/\\]+\.pdf(?:#page=\d+)?$/i;
+    if (pdfRegex.test(citation)) {
+        // Additional validation: filename shouldn't contain URL-like patterns
+        if (citation.includes("http://") || citation.includes("https://") || citation.includes("|||")) {
+            return { isValid: false, type: "invalid", reason: "PDF citation contains invalid characters" };
+        }
+
+        return { isValid: true, type: "azure" };
+    }
+
+    // Check if it's a misplaced URL trying to be an Azure citation
+    if (isValidUrl(citation)) {
+        return { isValid: false, type: "invalid", reason: "Raw URL cannot be used as Azure citation" };
+    }
+
+    return { isValid: false, type: "invalid", reason: "Unknown citation format" };
 }
 
 // Parse citation to extract URL and title
@@ -41,8 +95,16 @@ function parseCitation(citation: string): { url: string; title: string; isConflu
     return { url: citation, title: filename, isConfluence: false };
 }
 
+// Enhanced citation validation against data points
 function isCitationValid(contextDataPoints: any, citationCandidate: string): boolean {
     console.log("Validating citation:", citationCandidate);
+
+    // First, check if the citation format is valid
+    const formatValidation = validateCitationFormat(citationCandidate);
+    if (!formatValidation.isValid) {
+        console.warn(`Citation format invalid: ${formatValidation.reason}`, citationCandidate);
+        return false;
+    }
 
     // Check if contextDataPoints is an object with a text property that is an array
     let dataPointsArray: string[];
@@ -57,45 +119,80 @@ function isCitationValid(contextDataPoints: any, citationCandidate: string): boo
 
     console.log("Data points array length:", dataPointsArray.length);
 
-    // Special handling for Confluence links
-    if (citationCandidate.startsWith("CONFLUENCE_LINK|||")) {
+    // For Confluence citations, ensure they exist in data points
+    if (formatValidation.type === "confluence") {
         const isValid = dataPointsArray.some(dataPoint => {
-            return dataPoint.startsWith(citationCandidate) || dataPoint.includes(citationCandidate);
+            // Check if the data point starts with or contains the exact citation
+            return dataPoint.startsWith(citationCandidate) || (dataPoint.includes("CONFLUENCE_LINK|||") && dataPoint.includes(citationCandidate));
         });
-        if (isValid) {
-            console.log("Found matching Confluence link");
-            return true;
+
+        if (!isValid) {
+            console.warn("Confluence citation not found in data points:", citationCandidate);
         }
+        return isValid;
     }
 
-    // For citations with |||, check if any part matches
-    if (citationCandidate.includes("|||")) {
-        const parts = citationCandidate.split("|||");
-        const url = parts[0];
+    // For Azure citations, be more flexible with matching
+    if (formatValidation.type === "azure") {
         const isValid = dataPointsArray.some(dataPoint => {
-            return dataPoint.startsWith(citationCandidate) || dataPoint.includes(url) || dataPoint.startsWith(url);
+            // Check various matching patterns
+            return (
+                dataPoint.includes(citationCandidate) ||
+                dataPoint.startsWith(citationCandidate) ||
+                dataPoint.toLowerCase().includes(citationCandidate.toLowerCase())
+            );
         });
-        if (isValid) {
-            console.log("Found matching data point for ||| citation");
-            return true;
+
+        if (!isValid) {
+            console.warn("Azure citation not found in data points:", citationCandidate);
         }
+        return isValid;
     }
 
-    // Rest of the validation logic remains the same...
-    const isValid = dataPointsArray.some(dataPoint => {
-        return dataPoint.includes(citationCandidate) || dataPoint.startsWith(citationCandidate);
+    return false;
+}
+
+// Helper function to fix common citation formatting issues
+function preprocessCitations(content: string): string {
+    // Fix pattern: [citation1, citation2] -> [citation1][citation2]
+    return content.replace(/\[([^\]]+)\]/g, (match, citations) => {
+        // Check if this contains multiple citations separated by comma
+        if (citations.includes(", ")) {
+            // Look for patterns that indicate multiple citations
+            const hasMultipleCitations =
+                (citations.includes(".pdf") && citations.includes("CONFLUENCE_LINK|||")) ||
+                citations.split(", ").every((part: string) => part.includes(".pdf") || part.includes("CONFLUENCE_LINK|||"));
+
+            if (hasMultipleCitations) {
+                // Split by comma and reformat
+                const parts = citations.split(/,\s*/);
+                return parts.map((part: string) => `[${part.trim()}]`).join("");
+            }
+        }
+        return match;
     });
+}
 
-    // If not found but it's a file format, do the regex check
-    if (!isValid && !isUrl(citationCandidate)) {
-        const regex = /.+\.\w{1,}(?:#\S*)?$/;
-        if (regex.test(citationCandidate)) {
-            return dataPointsArray.some(dataPoint => dataPoint.startsWith(citationCandidate));
-        }
+// Clean up hallucinated or malformed citations
+function cleanCitation(citation: string): string | null {
+    // Remove any leading/trailing whitespace
+    citation = citation.trim();
+
+    // Fix common malformations
+    // Remove quotes that might wrap citations
+    citation = citation.replace(/^["']|["']$/g, "");
+
+    // Fix double prefixes
+    citation = citation.replace(/^CONFLUENCE_LINK\|\|\|CONFLUENCE_LINK\|\|\|/, "CONFLUENCE_LINK|||");
+
+    // Validate after cleaning
+    const validation = validateCitationFormat(citation);
+    if (!validation.isValid) {
+        console.warn(`Removing invalid citation after cleaning: ${citation} (${validation.reason})`);
+        return null;
     }
 
-    console.log("Citation valid:", isValid);
-    return isValid;
+    return citation;
 }
 
 export function parseAnswerToHtml(answer: ChatAppResponse, isStreaming: boolean, onCitationClicked: (citationFilePath: string) => void): HtmlParsedAnswer {
@@ -106,8 +203,8 @@ export function parseAnswerToHtml(answer: ChatAppResponse, isStreaming: boolean,
     console.log("Raw answer content:", answer.message.content);
     console.log("Context data points:", contextDataPoints);
 
-    // Trim any whitespace from the end of the answer
-    let parsedAnswer = answer.message.content.trim();
+    // Preprocess to fix common citation issues
+    let parsedAnswer = preprocessCitations(answer.message.content.trim());
 
     // Omit a citation that is still being typed during streaming
     if (isStreaming) {
@@ -129,32 +226,37 @@ export function parseAnswerToHtml(answer: ChatAppResponse, isStreaming: boolean,
     const parts = parsedAnswer.split(/\[([^\]]+)\]/g);
     console.log("Split parts:", parts);
 
-    const fragments: string[] = parts.map((part, index) => {
+    const fragments: string[] = parts.map((part: string, index: number) => {
         if (index % 2 === 0) {
             return part;
         } else {
             console.log("Processing potential citation:", part);
 
             // Check if this contains multiple citations (common error pattern)
-            if (part.includes(", CONFLUENCE_LINK|||") || (part.includes(".pdf") && part.includes("CONFLUENCE_LINK|||"))) {
+            if (part.includes(", ")) {
                 console.warn("WARNING: Found combined citations, attempting to split:", part);
 
                 // Try to split combined citations
                 const splitCitations = part.split(/,\s*/);
                 const fragmentParts: string[] = [];
 
-                splitCitations.forEach(subCitation => {
-                    subCitation = subCitation.trim();
-                    if (isCitationValid(contextDataPoints, subCitation)) {
-                        const details = parseCitation(subCitation);
+                splitCitations.forEach((subCitation: string) => {
+                    // Clean the citation first
+                    const cleanedCitation = cleanCitation(subCitation);
+                    if (!cleanedCitation) {
+                        return; // Skip invalid citations
+                    }
+
+                    if (isCitationValid(contextDataPoints, cleanedCitation)) {
+                        const details = parseCitation(cleanedCitation);
                         let citationIndex: number;
 
-                        if (citations.indexOf(subCitation) !== -1) {
-                            citationIndex = citations.indexOf(subCitation) + 1;
+                        if (citations.indexOf(cleanedCitation) !== -1) {
+                            citationIndex = citations.indexOf(cleanedCitation) + 1;
                         } else {
-                            citations.push(subCitation);
+                            citations.push(cleanedCitation);
                             citationIndex = citations.length;
-                            citationDetails.set(subCitation, details);
+                            citationDetails.set(cleanedCitation, details);
                         }
 
                         fragmentParts.push(
@@ -162,42 +264,58 @@ export function parseAnswerToHtml(answer: ChatAppResponse, isStreaming: boolean,
                                 <a
                                     className="supContainer"
                                     title={details.title}
-                                    onClick={() => onCitationClicked(subCitation)}
+                                    onClick={() => onCitationClicked(cleanedCitation)}
                                     data-citation-index={citationIndex}
+                                    data-citation-type={details.isConfluence ? "confluence" : "azure"}
                                 >
                                     <sup>{citationIndex}</sup>
                                 </a>
                             )
                         );
+                    } else {
+                        console.warn("Citation validation failed for split citation:", cleanedCitation);
                     }
                 });
 
-                return fragmentParts.join("");
+                return fragmentParts.join("") || `[${part}]`; // Return original if all citations invalid
             }
 
-            // Single citation processing (existing logic)
-            if (!isCitationValid(contextDataPoints, part)) {
-                console.log("Citation validation failed, keeping as text:", part);
+            // Single citation processing
+            // Clean the citation first
+            const cleanedCitation = cleanCitation(part);
+            if (!cleanedCitation) {
+                console.warn("Citation cleaning failed, keeping as text:", part);
+                return `[${part}]`;
+            }
+
+            if (!isCitationValid(contextDataPoints, cleanedCitation)) {
+                console.log("Citation validation failed, keeping as text:", cleanedCitation);
                 return `[${part}]`;
             }
 
             // Parse the citation to get details
-            const details = parseCitation(part);
+            const details = parseCitation(cleanedCitation);
             let citationIndex: number;
 
             // Store citation details for later use
-            if (citations.indexOf(part) !== -1) {
-                citationIndex = citations.indexOf(part) + 1;
+            if (citations.indexOf(cleanedCitation) !== -1) {
+                citationIndex = citations.indexOf(cleanedCitation) + 1;
             } else {
-                citations.push(part);
+                citations.push(cleanedCitation);
                 citationIndex = citations.length;
-                citationDetails.set(part, details);
-                console.log("Added new citation:", part, "with index:", citationIndex, "details:", details);
+                citationDetails.set(cleanedCitation, details);
+                console.log("Added new citation:", cleanedCitation, "with index:", citationIndex, "details:", details);
             }
 
-            // Create the citation link
+            // Create the citation link with type attribute for debugging
             return renderToStaticMarkup(
-                <a className="supContainer" title={details.title} onClick={() => onCitationClicked(part)} data-citation-index={citationIndex}>
+                <a
+                    className="supContainer"
+                    title={details.title}
+                    onClick={() => onCitationClicked(cleanedCitation)}
+                    data-citation-index={citationIndex}
+                    data-citation-type={details.isConfluence ? "confluence" : "azure"}
+                >
                     <sup>{citationIndex}</sup>
                 </a>
             );
