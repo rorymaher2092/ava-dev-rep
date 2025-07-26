@@ -55,10 +55,10 @@ interface Props {
 const pickRandomFromCategories = (categories: Record<string, ExampleQuestion[]>, count = 6): ExampleQuestion[] => {
     const allExamples = Object.values(categories).flat();
     if (allExamples.length <= count) return allExamples;
-    
+
     const chosen: ExampleQuestion[] = [];
     const used = new Set<number>();
-    
+
     while (chosen.length < count) {
         const idx = Math.floor(Math.random() * allExamples.length);
         if (!used.has(idx)) {
@@ -70,81 +70,89 @@ const pickRandomFromCategories = (categories: Record<string, ExampleQuestion[]>,
 };
 
 export const ExampleList = ({ onExampleClicked, useGPT4V = false }: Props) => {
-    const [examples] = useState<ExampleQuestion[]>(() => 
-        useGPT4V && GPT4V_EXAMPLES.length 
-            ? GPT4V_EXAMPLES.slice(0, 3)
-            : pickRandomFromCategories(EXAMPLE_CATEGORIES, 6)
+    const [examples] = useState<ExampleQuestion[]>(() =>
+        useGPT4V && GPT4V_EXAMPLES.length ? GPT4V_EXAMPLES.slice(0, 3) : pickRandomFromCategories(EXAMPLE_CATEGORIES, 6)
     );
 
     return (
-        <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-            <h3 style={{ 
-                color: 'var(--text)', 
-                textAlign: 'center', 
-                marginBottom: '24px',
-                fontSize: '20px',
-                fontWeight: '600'
-            }}>
+        <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
+            <h3
+                style={{
+                    color: "var(--text)",
+                    textAlign: "center",
+                    marginBottom: "24px",
+                    fontSize: "20px",
+                    fontWeight: "600"
+                }}
+            >
                 Try asking about...
             </h3>
-            
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-                gap: '16px',
-                padding: '0 20px'
-            }}>
+
+            <div
+                style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+                    gap: "16px",
+                    padding: "0 20px"
+                }}
+            >
                 {examples.map((example, i) => (
                     <div
                         key={i}
                         onClick={() => onExampleClicked(example.text)}
                         style={{
-                            backgroundColor: 'var(--surface)',
-                            border: '1px solid var(--border)',
-                            borderRadius: '12px',
-                            padding: '20px',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: '12px'
+                            backgroundColor: "var(--surface)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "12px",
+                            padding: "20px",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: "12px"
                         }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'translateY(-2px)';
-                            e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)';
-                            e.currentTarget.style.borderColor = 'var(--primary)';
+                        onMouseEnter={e => {
+                            e.currentTarget.style.transform = "translateY(-2px)";
+                            e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.1)";
+                            e.currentTarget.style.borderColor = "var(--brand-80)";
                         }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.05)';
-                            e.currentTarget.style.borderColor = 'var(--border)';
+                        onMouseLeave={e => {
+                            e.currentTarget.style.transform = "translateY(0)";
+                            e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.05)";
+                            e.currentTarget.style.borderColor = "var(--border)";
                         }}
                     >
-                        <div style={{
-                            fontSize: '24px',
-                            flexShrink: 0,
-                            marginTop: '2px'
-                        }}>
+                        <div
+                            style={{
+                                fontSize: "24px",
+                                flexShrink: 0,
+                                marginTop: "2px"
+                            }}
+                        >
                             {example.icon}
                         </div>
                         <div>
-                            <div style={{
-                                fontSize: '12px',
-                                color: 'var(--primary)',
-                                fontWeight: '600',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.5px',
-                                marginBottom: '6px'
-                            }}>
+                            <div
+                                style={{
+                                    fontSize: "12px",
+                                    color: "var(--brand-80)",
+                                    fontWeight: "600",
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.5px",
+                                    marginBottom: "6px"
+                                }}
+                            >
                                 {example.category}
                             </div>
-                            <div style={{
-                                color: 'var(--text)',
-                                fontSize: '14px',
-                                lineHeight: '1.4',
-                                fontWeight: '500'
-                            }}>
+                            <div
+                                style={{
+                                    color: "var(--text)",
+                                    fontSize: "14px",
+                                    lineHeight: "1.4",
+                                    fontWeight: "500"
+                                }}
+                            >
                                 {example.text}
                             </div>
                         </div>

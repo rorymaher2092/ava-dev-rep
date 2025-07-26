@@ -1,6 +1,15 @@
 const BACKEND_URI = "";
 
-import { ChatAppResponse, ChatAppResponseOrError, ChatAppRequest, Config, SimpleAPIResponse, HistoryListApiResponse, HistoryApiResponse, FeedbackType } from "./models";
+import {
+    ChatAppResponse,
+    ChatAppResponseOrError,
+    ChatAppRequest,
+    Config,
+    SimpleAPIResponse,
+    HistoryListApiResponse,
+    HistoryApiResponse,
+    FeedbackType
+} from "./models";
 import { useLogin, getToken, isUsingAppServicesLogin } from "../authConfig";
 
 export async function getHeaders(idToken: string | undefined): Promise<Record<string, string>> {
@@ -24,6 +33,9 @@ export async function configApi(): Promise<Config> {
 
 export async function askApi(request: ChatAppRequest, idToken: string | undefined): Promise<ChatAppResponse> {
     const headers = await getHeaders(idToken);
+
+    console.log("Sending request to backend with botId:", request.context?.overrides?.bot_id);
+
     const response = await fetch(`${BACKEND_URI}/ask`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
@@ -43,10 +55,17 @@ export async function askApi(request: ChatAppRequest, idToken: string | undefine
 
 export async function chatApi(request: ChatAppRequest, shouldStream: boolean, idToken: string | undefined): Promise<Response> {
     let url = `${BACKEND_URI}/chat`;
+
     if (shouldStream) {
         url += "/stream";
     }
+
+    console.log("Requesting chat API with URL:", url);
+
+    console.log("Requesting chat API with idToken:", idToken);
     const headers = await getHeaders(idToken);
+
+    console.log("Sending request to backend with botId:", request.context?.overrides?.bot_id);
     return await fetch(url, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
@@ -190,7 +209,12 @@ export async function deleteChatHistoryApi(id: string, idToken: string): Promise
     }
 }
 
-export async function submitFeedbackApi(responseId: string, feedback: FeedbackType, comments: string = "", idToken: string | undefined): Promise<SimpleAPIResponse> {
+export async function submitFeedbackApi(
+    responseId: string,
+    feedback: FeedbackType,
+    comments: string = "",
+    idToken: string | undefined
+): Promise<SimpleAPIResponse> {
     const headers = await getHeaders(idToken);
     const response = await fetch(`${BACKEND_URI}/feedback`, {
         method: "POST",

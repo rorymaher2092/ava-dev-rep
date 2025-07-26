@@ -42,6 +42,10 @@ export type ChatAppRequestOverrides = {
     vector_fields: VectorFields;
     language: string;
     use_agentic_retrieval: boolean;
+    bot_id?: string; // Optional bot ID to override the default bot
+    graph_token?: string; // Optional Graph token for Microsoft Graph API
+    model?: string; // Optional model override
+    examples?: Array<{ role: string; content: string }>; // Optional examples override
 };
 
 export type ResponseMessage = {

@@ -1,5 +1,6 @@
-import { AccountInfo, EventType, PublicClientApplication } from "@azure/msal-browser";
-import { checkLoggedIn, msalConfig, useLogin, loginRequest } from "./authConfig";
+// LayoutWrapper.tsx
+import { EventType } from "@azure/msal-browser";
+import { checkLoggedIn, useLogin, msalInstance, initializeMsal } from "./authConfig";
 import { useEffect, useState } from "react";
 import { MsalProvider } from "@azure/msal-react";
 import { LoginContext } from "./loginContext";
@@ -7,79 +8,113 @@ import Layout from "./pages/layout/Layout";
 
 const LayoutWrapper = () => {
     const [loggedIn, setLoggedIn] = useState(false);
-    if (useLogin) {
-        var msalInstance = new PublicClientApplication(msalConfig);
+    const [msalReady, setMsalReady] = useState(false);
+    const [initError, setInitError] = useState<Error | null>(null);
 
-        // Default to using the first account if no account is active on page load
-        if (!msalInstance.getActiveAccount() && msalInstance.getAllAccounts().length > 0) {
-            // Set the first account as active
-            msalInstance.setActiveAccount(msalInstance.getAllAccounts()[0]);
-        }
-
-        // Listen for sign-in event and set active account
-        msalInstance.addEventCallback(event => {
-            if (event.eventType === EventType.LOGIN_SUCCESS && event.payload) {
-                const account = event.payload as AccountInfo;
-                msalInstance.setActiveAccount(account);
-            }
-        });
-
-        useEffect(() => {
-            const initializeAuth = async () => {
-                // Always check for existing accounts first
-                const accounts = msalInstance.getAllAccounts();
-                console.log("Accounts found:", accounts.length);
-                
-                if (accounts.length > 0) {
-                    console.log("Setting logged in to true - accounts exist");
-                    setLoggedIn(true);
-                    return;
-                }
-                
-                // If no accounts, try silent authentication
+    // Initialize MSAL
+    useEffect(() => {
+        const initMsal = async () => {
+            if (useLogin) {
                 try {
-                    const response = await msalInstance.ssoSilent({
-                        ...loginRequest,
-                        redirectUri: window.location.origin + "/redirect"
+                    await initializeMsal();
+                    setMsalReady(true);
+                    console.log("MSAL initialization complete");
+
+                    // Check if already logged in to Microsoft
+                    const accounts = msalInstance.getAllAccounts();
+                    if (accounts.length > 0) {
+                        console.log("Microsoft account found");
+                        msalInstance.setActiveAccount(accounts[0]);
+                    }
+
+                    // Set up event callbacks
+                    const callbackId = msalInstance.addEventCallback(event => {
+                        if (event.eventType === EventType.LOGIN_SUCCESS) {
+                            console.log("Microsoft login success");
+                        }
+                        if (event.eventType === EventType.LOGOUT_SUCCESS) {
+                            console.log("Microsoft logout success");
+                        }
                     });
-                    console.log("Silent SSO successful");
-                    setLoggedIn(true);
+
+                    return () => {
+                        if (callbackId) {
+                            msalInstance.removeEventCallback(callbackId);
+                        }
+                    };
                 } catch (error) {
-                    console.log("Silent SSO failed:", error);
-                    // Check if user is actually logged in via other means
-                    const isLoggedIn = await checkLoggedIn();
-                    console.log("Final login state:", isLoggedIn);
-                    setLoggedIn(isLoggedIn);
+                    console.error("Failed to initialize MSAL:", error);
+                    setInitError(error as Error);
                 }
-            };
+            } else {
+                setMsalReady(true);
+            }
+        };
 
-            initializeAuth();
-        }, []);
+        initMsal();
+    }, []);
 
+    // Check App Service auth status
+    useEffect(() => {
+        const checkAuth = async () => {
+            try {
+                const isLoggedIn = await checkLoggedIn();
+                setLoggedIn(isLoggedIn);
+                if (isLoggedIn) {
+                    console.log("User logged in via App Service auth (Okta)");
+                }
+            } catch (error) {
+                console.error("Error checking auth:", error);
+            }
+        };
+
+        checkAuth();
+    }, []);
+
+    // Show loading state
+    if (useLogin && !msalReady && !initError) {
         return (
-            <MsalProvider instance={msalInstance}>
-                <LoginContext.Provider
-                    value={{
-                        loggedIn,
-                        setLoggedIn
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
+                <div>Initializing...</div>
+            </div>
+        );
+    }
+
+    // Show error state
+    if (initError) {
+        return (
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", flexDirection: "column", gap: "1rem" }}>
+                <div>Initialization failed</div>
+                <div style={{ color: "red" }}>{initError.message}</div>
+                <button
+                    onClick={() => {
+                        sessionStorage.clear();
+                        window.location.reload();
                     }}
                 >
+                    Retry
+                </button>
+            </div>
+        );
+    }
+
+    // Render with MSAL provider
+    if (useLogin) {
+        return (
+            <MsalProvider instance={msalInstance}>
+                <LoginContext.Provider value={{ loggedIn, setLoggedIn }}>
                     <Layout />
                 </LoginContext.Provider>
             </MsalProvider>
         );
-    } else {
-        return (
-            <LoginContext.Provider
-                value={{
-                    loggedIn,
-                    setLoggedIn
-                }}
-            >
-                <Layout />
-            </LoginContext.Provider>
-        );
     }
+
+    // Render without MSAL
+    return (
+        <LoginContext.Provider value={{ loggedIn, setLoggedIn }}>
+            <Layout />
+        </LoginContext.Provider>
+    );
 };
 
 export default LayoutWrapper;

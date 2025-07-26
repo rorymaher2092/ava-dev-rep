@@ -13,14 +13,25 @@ import { IconButton } from "@fluentui/react";
 import { List24Regular } from "@fluentui/react-icons";
 import { BUILD_VERSION, BUILD_TIME } from "../../buildInfo";
 
+// ✨ Import BotSelector
+import BotSelector from "../../components/BotSelectorButton/BotSelector";
+import { DEFAULT_BOT_ID } from "../../config/botConfig";
+
+// ✅ Import useBot
+import { useBot } from "../../contexts/BotContext";
+
 const Layout = () => {
     const { t } = useTranslation();
     const navigate = useNavigate();
+    const { instance } = useMsal();
 
+    // ✅ Use global bot context
+    const { botId, setBotId } = useBot();
+
+    const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
     const [theme, setTheme] = useState<"light" | "dark">("light");
     const [isAdmin, setIsAdmin] = useState(false);
     const menuRef: RefObject<HTMLDivElement> = useRef(null);
-    const { instance } = useMsal();
 
     const toggleTheme = () => {
         const newTheme = theme === "light" ? "dark" : "light";
@@ -32,62 +43,45 @@ const Layout = () => {
     useEffect(() => {
         const checkAdminStatus = async () => {
             try {
-                console.log('Checking admin status...');
-                
-                // Try app services authentication
-                const response = await fetch('/.auth/me');
-                console.log('Auth response status:', response.status);
-                
+                const response = await fetch("/.auth/me");
                 if (response.ok) {
                     const authData = await response.json();
-                    console.log('Auth data:', authData);
-                    
                     if (authData.length > 0) {
                         const userClaims = authData[0].user_claims;
-                        const email = userClaims.find((claim: any) => claim.typ === 'preferred_username')?.val ||
-                                     userClaims.find((claim: any) => claim.typ === 'email')?.val ||
-                                     userClaims.find((claim: any) => claim.typ === 'upn')?.val;
-                        
-                        console.log('User email from app services:', email);
-                        
-                        // Check if user is admin
-                        const adminUserIds = ['jamie.gray@vocus.com.au', 'rory.maher@vocus.com.au', 'cal.mayhook@vocus.com.au'];
-                        const isUserAdmin = adminUserIds.some(adminUserId => 
-                            email?.toLowerCase() === adminUserId.toLowerCase()
-                        );
-                        
-                        console.log('Is admin:', isUserAdmin);
+                        const email =
+                            userClaims.find((claim: any) => claim.typ === "preferred_username")?.val ||
+                            userClaims.find((claim: any) => claim.typ === "email")?.val ||
+                            userClaims.find((claim: any) => claim.typ === "upn")?.val;
+
+                        setUserEmail(email);
+
+                        const adminUserIds = ["jamie.gray@vocus.com.au", "rory.maher@vocus.com.au", "callum.mayhook@vocus.com.au"];
+                        const isUserAdmin = adminUserIds.some(adminUserId => email?.toLowerCase() === adminUserId.toLowerCase());
+
                         setIsAdmin(isUserAdmin);
                         return;
                     } else {
-                        console.log('No auth data - user not authenticated via container app auth');
-                        // Redirect to login if not authenticated
-                        window.location.href = '/.auth/login/aad';
+                        window.location.href = "/.auth/login/aad";
                         return;
                     }
                 }
-                
-                console.log('Auth endpoint not available or failed');
                 setIsAdmin(false);
-                
             } catch (error) {
-                console.error('Error checking admin status:', error);
+                console.error("Error checking admin status:", error);
                 setIsAdmin(false);
             }
         };
-        
+
         checkAdminStatus();
     }, [instance]);
 
     useEffect(() => {
-        // Check for user's preferred color scheme
         const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
         const stored = localStorage.getItem("theme") as "light" | "dark" | null;
         const preferred = stored || (prefersDark ? "dark" : "light");
         document.body.dataset.theme = preferred;
         setTheme(preferred);
 
-        // Listen for changes in system preference
         const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
         const handleChange = (e: MediaQueryListEvent) => {
             if (!localStorage.getItem("theme")) {
@@ -103,20 +97,28 @@ const Layout = () => {
 
     const logoSrc = theme === "light" ? vocusLogoNavy : vocusLogoWhite;
 
+    // Function to trigger when bot is changed
+    const handleBotChange = (newBotId: string) => {
+        setBotId(newBotId); // Update the botId in the context
+        const clearChatEvent = new CustomEvent("clearChat");
+        window.dispatchEvent(clearChatEvent); // Dispatch the event to clear chat
+    };
+
     return (
         <div className={styles.layout}>
             <header className={styles.header} role="banner">
                 <div className={styles.headerContainer} ref={menuRef}>
-                    <Link 
-                        to="/?clear=true" 
+                    <Link
+                        to="/?clear=true"
                         className={styles.logoLink}
                         onClick={() => {
-                            const clearChatEvent = new CustomEvent('clearChat');
+                            const clearChatEvent = new CustomEvent("clearChat");
                             window.dispatchEvent(clearChatEvent);
                         }}
                     >
                         <img src={logoSrc} className={styles.headerLogo} alt="Vocus logo" />
                     </Link>
+
                     <div className={styles.headerCenterContainer}>
                         <img src={theme === "light" ? vocusdark : vocus} className={styles.appLogo} alt="Ava logo" />
                         <h3 className={styles.headerTitle}>
@@ -126,10 +128,10 @@ const Layout = () => {
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <button
-                            onClick={toggleTheme}
-                            className={styles.headerButton}
-                        >
+                        {/* ✅ Use global bot selector */}
+                        <BotSelector userEmail={userEmail} onChange={handleBotChange} className={styles.botSelect} />
+
+                        <button onClick={toggleTheme} className={styles.headerButton}>
                             <span>{theme === "dark" ? "🌞" : "🌙"}</span>
                             <span className={styles.buttonText}>{theme === "dark" ? "Light" : "Dark"}</span>
                         </button>
@@ -157,10 +159,7 @@ const Layout = () => {
                         </button>
 
                         {isAdmin && (
-                            <button
-                                onClick={() => navigate("/feedback")}
-                                className={styles.headerButton}
-                            >
+                            <button onClick={() => navigate("/feedback")} className={styles.headerButton}>
                                 <span>📊</span>
                                 <span className={styles.buttonText}>Feedback</span>
                             </button>
@@ -177,7 +176,6 @@ const Layout = () => {
                 <p>
                     &copy; {new Date().getFullYear()} Vocus Group. All rights reserved. | v{BUILD_VERSION} ({new Date(BUILD_TIME).toLocaleDateString()})
                 </p>
-
             </footer>
         </div>
     );

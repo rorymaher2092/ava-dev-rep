@@ -57,7 +57,7 @@
         overflow: hidden;
         max-width: none;
     }
-    
+
     .headerContainer {
         padding: 0 1rem;
     }
@@ -99,7 +99,7 @@
         height: 32px;
         margin-right: 0.5rem;
     }
-    
+
     .appLogo {
         height: 24px;
         margin-right: 0.5rem;
@@ -139,11 +139,11 @@
         text-overflow: ellipsis;
         max-width: 200px;
     }
-    
+
     .fullTitle {
         display: none;
     }
-    
+
     .shortTitle {
         display: block;
     }
@@ -276,11 +276,11 @@
     .footer {
         display: none !important;
     }
-    
+
     .buttonText {
         display: none !important;
     }
-    
+
     .headerButton {
         padding: 8px !important;
         min-width: 40px;
@@ -288,4 +288,3 @@
         gap: 0;
     }
 }
-

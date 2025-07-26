@@ -50,12 +50,14 @@ from quart import (
 )
 from quart_cors import cors
 
+from bot_profiles import BotProfile, BOTS, DEFAULT_BOT_ID
 from approaches.approach import Approach
 from approaches.chatreadretrieveread import ChatReadRetrieveReadApproach
 from approaches.chatreadretrievereadvision import ChatReadRetrieveReadVisionApproach
 from approaches.promptmanager import PromptyManager
 from approaches.retrievethenread import RetrieveThenReadApproach
 from approaches.retrievethenreadvision import RetrieveThenReadVisionApproach
+from approaches.confluence_search import ConfluenceSearchService  
 from chat_history.cosmosdb import chat_history_cosmosdb_bp
 from config import (
     CONFIG_AGENT_CLIENT,
@@ -184,6 +186,16 @@ async def ask(auth_claims: dict[str, Any]):
     request_json = await request.get_json()
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
+
+    # Print out the full context, including overrides
+    current_app.logger.info(f"Received context: {json.dumps(context, indent=2)}")
+
+    # Extract the bot_id from the overrides in context (default to 'ava' if not present)
+    bot_id = context.get("overrides", {}).get("bot_id", DEFAULT_BOT_ID)
+    bot_profile = BOTS.get(bot_id, BOTS[DEFAULT_BOT_ID])  # Default to 'ava' if not found
+    
+    current_app.logger.info(f"Bot ID: {bot_id}, Bot Profile: {bot_profile.label}")
+
     try:
         use_gpt4v = context.get("overrides", {}).get("use_gpt4v", False)
         approach: Approach
@@ -223,6 +235,16 @@ async def chat(auth_claims: dict[str, Any]):
     request_json = await request.get_json()
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
+
+    # Print out the full context, including overrides
+    current_app.logger.info(f"Received context: {json.dumps(context, indent=2)}")
+
+    # Extract the bot_id from the overrides in context (default to 'ava' if not present)
+    bot_id = context.get("overrides", {}).get("bot_id", DEFAULT_BOT_ID)
+    bot_profile = BOTS.get(bot_id, BOTS[DEFAULT_BOT_ID])  # Default to 'ava' if not found
+    
+    current_app.logger.info(f"Bot ID: {bot_id}, Bot Profile: {bot_profile.label}")
+
     try:
         use_gpt4v = context.get("overrides", {}).get("use_gpt4v", False)
         approach: Approach
@@ -590,6 +612,9 @@ async def setup_clients():
     # WEBSITE_HOSTNAME is always set by App Service, RUNNING_IN_PRODUCTION is set in main.bicep
     RUNNING_ON_AZURE = os.getenv("WEBSITE_HOSTNAME") is not None or os.getenv("RUNNING_IN_PRODUCTION") is not None
 
+    CONFLUENCE_TOKEN = os.environ.get("CONFLUENCE_TOKEN", "")
+    CONFLUENCE_EMAIL = os.environ.get("CONFLUENCE_EMAIL", "")
+
     # Use the current user identity for keyless authentication to Azure services.
     # This assumes you use 'azd auth login' locally, and managed identity when deployed on Azure.
     # The managed identity is setup in the infra/ folder.
@@ -783,6 +808,12 @@ async def setup_clients():
 
     prompt_manager = PromptyManager()
 
+    
+    # Create the service with the configuration values
+    confluence_service = ConfluenceSearchService(openai_client=openai_client)
+    current_app.config["CONFLUENCE_SEARCH_SERVICE"] = confluence_service
+    
+
     # Set up the two default RAG approaches for /ask and /chat
     # RetrieveThenReadApproach is used by /ask for single-turn Q&A
     current_app.config[CONFIG_ASK_APPROACH] = RetrieveThenReadApproach(
@@ -828,6 +859,8 @@ async def setup_clients():
         query_speller=AZURE_SEARCH_QUERY_SPELLER,
         prompt_manager=prompt_manager,
         reasoning_effort=OPENAI_REASONING_EFFORT,
+        confluence_token=CONFLUENCE_TOKEN,
+        confluence_email=CONFLUENCE_EMAIL,
     )
 
     if USE_GPT4V:
@@ -909,12 +942,6 @@ def create_app():
     from chat_history.feedback_api import feedback_bp
     app.register_blueprint(feedback_bp)
 
-    # Add headers for Teams integration
-    @app.after_request
-    def add_teams_headers(response):
-        response.headers["X-Frame-Options"] = "ALLOW-FROM https://teams.microsoft.com"
-        response.headers["Content-Security-Policy"] = "frame-ancestors https://teams.microsoft.com;"
-        return response
 
     if os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):
         app.logger.info("APPLICATIONINSIGHTS_CONNECTION_STRING is set, enabling Azure Monitor")

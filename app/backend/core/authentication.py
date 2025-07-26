@@ -208,34 +208,50 @@ class AuthenticationHelper:
         return groups
 
     async def get_auth_claims_if_enabled(self, headers: dict) -> dict[str, Any]:
+        logging.warning(f"DEBUG - get_auth_claims_if_enabled called with use_authentication: {self.use_authentication}")
+        
         if not self.use_authentication:
+            logging.warning("DEBUG - Authentication disabled, returning empty dict")
             return {}
+        
         try:
+            logging.warning("DEBUG - Starting authentication process")
+            
             # Read the authentication token from the authorization header and exchange it using the On Behalf Of Flow
             # The scope is set to the Microsoft Graph API, which may need to be called for more authorization information
             # https://learn.microsoft.com/entra/identity-platform/v2-oauth2-on-behalf-of-flow
             auth_token = AuthenticationHelper.get_token_auth_header(headers)
+            logging.warning("DEBUG - Got auth token from headers")
+            
             # Validate the token before use
             await self.validate_access_token(auth_token)
+            logging.warning("DEBUG - Token validation successful")
 
             # Use the on-behalf-of-flow to acquire another token for use with Microsoft Graph
             # See https://learn.microsoft.com/entra/identity-platform/v2-oauth2-on-behalf-of-flow for more information
             graph_resource_access_token = self.confidential_client.acquire_token_on_behalf_of(
-                user_assertion=auth_token, scopes=["https://graph.microsoft.com/.default"]
-            )
+                user_assertion=auth_token, scopes=["https://graph.microsoft.com/.default"])
+            
+            assert not graph_resource_access_token.get("from_cache"), "We still hit the cache!"
+
             if "error" in graph_resource_access_token:
                 raise AuthError(error=str(graph_resource_access_token), status_code=401)
+            
+            logging.warning("DEBUG - Got graph resource access token")
+
 
             # Read the claims from the response. The oid and groups claims are used for security filtering
             # https://learn.microsoft.com/entra/identity-platform/id-token-claims-reference
             id_token_claims = graph_resource_access_token["id_token_claims"]
-            # Capture username, name and groups for proper authentication
+            # Capture username, name, groups and graph token for proper authentication
             auth_claims = {
                 "oid": id_token_claims["oid"],
                 "username": id_token_claims.get("preferred_username", ""),
                 "name": id_token_claims.get("name", ""),
                 "groups": id_token_claims.get("groups", [])
             }
+            
+            logging.warning(f"DEBUG - Built initial auth_claims for user: {auth_claims.get('name', 'Unknown')}")
 
             # A groups claim may have been omitted either because it was not added in the application manifest for the API application,
             # or a groups overage claim may have been emitted.
@@ -249,13 +265,20 @@ class AuthenticationHelper:
             if missing_groups_claim or has_group_overage_claim:
                 # Read the user's groups from Microsoft Graph
                 auth_claims["groups"] = await AuthenticationHelper.list_groups(graph_resource_access_token)
+                logging.warning("DEBUG - Retrieved groups from Graph API")
+
+            logging.warning(f"DEBUG - About to return auth_claims: {repr(auth_claims)}")
             return auth_claims
+            
         except AuthError as e:
+            logging.warning(f"DEBUG - AuthError caught: {e}")
             logging.exception("Exception getting authorization information - " + json.dumps(e.error))
             if self.require_access_control and not self.enable_unauthenticated_access:
                 raise
             return {}
-        except Exception:
+            
+        except Exception as e:
+            logging.warning(f"DEBUG - General exception caught: {e}")
             logging.exception("Exception getting authorization information")
             if self.require_access_control and not self.enable_unauthenticated_access:
                 raise
@@ -365,3 +388,4 @@ class AuthenticationHelper:
             ) from jwt_claims_exc
         except Exception as exc:
             raise AuthError("Unable to parse authorization token.", 401) from exc
+            

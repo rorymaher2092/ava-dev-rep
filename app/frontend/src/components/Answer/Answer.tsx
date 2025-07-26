@@ -14,6 +14,14 @@ import avaLogo from "../../assets/ava.svg"; // Ava logo import
 import { SpeechOutputBrowser } from "./SpeechOutputBrowser";
 import { SpeechOutputAzure } from "./SpeechOutputAzure";
 
+// Ensure you are importing the correct bot logo from your BotConfig
+import { BotProfile, BOTS } from "../../config/botConfig";
+import { useBot } from "../../contexts/BotContext";
+
+// ADD THESE IMPORTS FOR YOUR NEW ICONS
+import confluenceLogo from "../../assets/confluenec-logo.png";
+import pdfIcon from "../../assets/pdf-icon.png"; // Replace with your actual PDF icon path
+
 interface Props {
     answer: ChatAppResponse;
     index: number;
@@ -44,17 +52,111 @@ export const Answer = ({
     showSpeechOutputBrowser
 }: Props) => {
     const followupQuestions = answer.context?.followup_questions;
-    const parsedAnswer = useMemo(() => parseAnswerToHtml(answer, isStreaming, onCitationClicked), [answer]);
     const { t } = useTranslation();
-    const sanitizedAnswerHtml = DOMPurify.sanitize(parsedAnswer.answerHtml);
     const [copied, setCopied] = useState(false);
-    
+
+    //select correct bot image
+    const { botId } = useBot(); // Access botId from the BotContext
+    const botProfile: BotProfile = BOTS[botId] ?? BOTS["ava"]; // Default to Ava if botProfile is undefined
+
     // Feedback state
     const [feedbackGiven, setFeedbackGiven] = useState(false);
     const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
     const [feedbackType, setFeedbackType] = useState<"positive" | "negative" | null>(null);
     const [feedbackComments, setFeedbackComments] = useState("");
     const { instance } = useMsal();
+
+    // Helper function to parse citation details
+    const getCitationDetails = (citation: string): { url: string; title: string; isConfluence: boolean } => {
+        // Check for Confluence link marker
+        if (citation.startsWith("CONFLUENCE_LINK|||")) {
+            const parts = citation.substring("CONFLUENCE_LINK|||".length).split("|||");
+            if (parts.length >= 2) {
+                const url = parts[0];
+                let title = parts[1];
+
+                // Decode URL-encoded characters
+                try {
+                    title = decodeURIComponent(title.replace(/\+/g, " "));
+                } catch (e) {
+                    title = title.replace(/\+/g, " ");
+                }
+
+                return { url, title, isConfluence: true };
+            }
+        }
+
+        // Everything else is Azure PDF
+        const filename = citation.split("/").pop() || citation;
+        return { url: citation, title: filename, isConfluence: false };
+    };
+
+    // Add this enhanced handleCitationClick function to your Answer component
+    const handleCitationClick = (citation: string) => {
+        console.log("Citation clicked:", citation);
+
+        // Additional validation before processing
+        if (!citation || citation.trim().length === 0) {
+            console.error("Empty citation clicked");
+            return;
+        }
+
+        const details = getCitationDetails(citation);
+
+        // Validate the citation format one more time
+        if (details.isConfluence) {
+            // Validate Confluence URL
+            try {
+                const url = new URL(details.url);
+                if (url.protocol !== "http:" && url.protocol !== "https:") {
+                    console.error("Invalid Confluence URL protocol:", details.url);
+                    return;
+                }
+
+                // Check for valid Confluence domains (customize this list)
+                const validDomains = ["atlassian.net", "confluence.com", "vocus.atlassian.net"];
+                const isValidDomain = validDomains.some(domain => url.hostname.includes(domain));
+
+                if (!isValidDomain) {
+                    console.warn(`Opening external URL: ${url.hostname}`);
+                    // You might want to show a confirmation dialog here
+                }
+
+                // Open Confluence links in a new tab
+                window.open(details.url, "_blank", "noopener,noreferrer");
+            } catch (error) {
+                console.error("Invalid Confluence URL:", details.url, error);
+                // Optionally show an error message to the user
+                alert("Unable to open this link. The URL appears to be invalid.");
+            }
+        } else {
+            // Validate Azure PDF citation
+            const pdfRegex = /^[^\/\\]+\.pdf(?:#page=\d+)?$/i;
+            if (!pdfRegex.test(citation)) {
+                console.error("Invalid PDF citation format:", citation);
+                return;
+            }
+
+            // Check if the citation looks like a URL (common mistake)
+            if (citation.includes("http://") || citation.includes("https://") || citation.includes("|||")) {
+                console.error("PDF citation contains invalid characters:", citation);
+                return;
+            }
+
+            // Handle Azure PDFs with existing handler
+            try {
+                const path = getCitationFilePath(citation);
+                onCitationClicked(path);
+            } catch (error) {
+                console.error("Error getting citation file path:", citation, error);
+                // Optionally show an error message to the user
+                alert("Unable to open this document. Please try again later.");
+            }
+        }
+    };
+
+    const parsedAnswer = useMemo(() => parseAnswerToHtml(answer, isStreaming, handleCitationClick), [answer, isStreaming]);
+    const sanitizedAnswerHtml = DOMPurify.sanitize(parsedAnswer.answerHtml);
 
     const handleCopy = () => {
         // Single replace to remove all HTML tags to remove the citations
@@ -68,24 +170,21 @@ export const Answer = ({
             })
             .catch(err => console.error("Failed to copy text: ", err));
     };
-    
+
     // Feedback handling functions
     const handleFeedback = async (type: "positive" | "negative") => {
         setFeedbackType(type);
         if (type === "positive") {
             // For positive feedback, submit directly without comments
             try {
-                const token = await instance.acquireTokenSilent({
-                    scopes: ["User.Read"],
-                    account: instance.getActiveAccount() || undefined
-                }).catch(() => null);
-                
-                await submitFeedbackApi(
-                    `answer-${index}`, 
-                    type, 
-                    "", 
-                    token?.accessToken
-                );
+                const token = await instance
+                    .acquireTokenSilent({
+                        scopes: ["User.Read"],
+                        account: instance.getActiveAccount() || undefined
+                    })
+                    .catch(() => null);
+
+                await submitFeedbackApi(`answer-${index}`, type, "", token?.accessToken);
                 setFeedbackGiven(true);
             } catch (error) {
                 console.error("Error submitting feedback:", error);
@@ -95,22 +194,19 @@ export const Answer = ({
             setShowFeedbackDialog(true);
         }
     };
-    
+
     const submitFeedback = async () => {
         if (!feedbackType) return;
-        
+
         try {
-            const token = await instance.acquireTokenSilent({
-                scopes: ["User.Read"],
-                account: instance.getActiveAccount() || undefined
-            }).catch(() => null);
-            
-            await submitFeedbackApi(
-                `answer-${index}`, 
-                feedbackType, 
-                feedbackComments, 
-                token?.accessToken
-            );
+            const token = await instance
+                .acquireTokenSilent({
+                    scopes: ["User.Read"],
+                    account: instance.getActiveAccount() || undefined
+                })
+                .catch(() => null);
+
+            await submitFeedbackApi(`answer-${index}`, feedbackType, feedbackComments, token?.accessToken);
             setFeedbackGiven(true);
             setShowFeedbackDialog(false);
         } catch (error) {
@@ -126,305 +222,365 @@ export const Answer = ({
     };
 
     return (
-        <div style={{
-            display: 'flex',
-            justifyContent: 'flex-start',
-            marginBottom: '16px'
-        }}>
-            <div style={{
-                backgroundColor: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: '16px',
-                padding: '20px',
-                maxWidth: '85%',
-                boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-                position: 'relative'
-            }}>
-            {/* Header with logo and actions */}
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '16px'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '50%',
-                        background: 'var(--surface-hover)',
-                        border: '2px solid var(--border)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '6px'
-                    }}>
-                        <img src={avaLogo} alt="Ava" style={{ width: '28px', height: '28px' }} />
-                    </div>
-                    <div>
-                        <div style={{ 
-                            color: 'var(--text)', 
-                            fontWeight: '600', 
-                            fontSize: '16px' 
-                        }}>
-                            Ava
+        <div
+            style={{
+                display: "flex",
+                justifyContent: "flex-start",
+                marginBottom: "16px",
+                minWidth: "webkit-fill-available"
+            }}
+        >
+            <div
+                style={{
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "16px",
+                    padding: "20px",
+                    maxWidth: "85%",
+                    boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                    position: "relative",
+                    width: "85%"
+                }}
+            >
+                {/* Header with logo and actions */}
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginBottom: "16px"
+                    }}
+                >
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <div
+                            style={{
+                                width: "40px",
+                                height: "40px",
+                                borderRadius: "50%",
+                                background: "var(--surface-hover)",
+                                border: "2px solid var(--border)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                padding: "6px"
+                            }}
+                        >
+                            <img src={botProfile?.logo || avaLogo} alt={botProfile?.label || "Bot"} style={{ width: "28px", height: "28px" }} />
                         </div>
-                        <div style={{ 
-                            color: 'var(--text-secondary)', 
-                            fontSize: '12px' 
-                        }}>
-                            AI Assistant
-                        </div>
-                    </div>
-                </div>
-                
-                <div style={{ display: 'flex', gap: '4px' }}>
-                    <button
-                        onClick={handleCopy}
-                        style={{
-                            backgroundColor: 'transparent',
-                            border: '1px solid var(--border)',
-                            borderRadius: '8px',
-                            padding: '8px',
-                            color: 'var(--text)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            fontSize: '12px',
-                            transition: 'all 0.2s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = 'var(--surface-hover)';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                        }}
-                        title={copied ? t("tooltips.copied") : t("tooltips.copy")}
-                    >
-                        {copied ? "✓" : "📋"}
-                    </button>
-                    
-                    <button
-                        onClick={() => onThoughtProcessClicked()}
-                        disabled={!answer.context.thoughts?.length || isStreaming}
-                        style={{
-                            backgroundColor: 'transparent',
-                            border: '1px solid var(--border)',
-                            borderRadius: '8px',
-                            padding: '8px',
-                            color: 'var(--text)',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            transition: 'all 0.2s ease',
-                            opacity: (!answer.context.thoughts?.length || isStreaming) ? 0.5 : 1
-                        }}
-                        onMouseEnter={(e) => {
-                            if (!e.currentTarget.disabled) {
-                                e.currentTarget.style.backgroundColor = 'var(--surface-hover)';
-                            }
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                        }}
-                        title={t("tooltips.showThoughtProcess")}
-                    >
-                        💡
-                    </button>
-                    
-                    <button
-                        onClick={() => onSupportingContentClicked()}
-                        disabled={!answer.context.data_points || isStreaming}
-                        style={{
-                            backgroundColor: 'transparent',
-                            border: '1px solid var(--border)',
-                            borderRadius: '8px',
-                            padding: '8px',
-                            color: 'var(--text)',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            transition: 'all 0.2s ease',
-                            opacity: (!answer.context.data_points || isStreaming) ? 0.5 : 1
-                        }}
-                        onMouseEnter={(e) => {
-                            if (!e.currentTarget.disabled) {
-                                e.currentTarget.style.backgroundColor = 'var(--surface-hover)';
-                            }
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                        }}
-                        title={t("tooltips.showSupportingContent")}
-                    >
-                        📄
-                    </button>
-                    
-                    {showSpeechOutputAzure && (
-                        <SpeechOutputAzure answer={sanitizedAnswerHtml} index={index} speechConfig={speechConfig} isStreaming={isStreaming} />
-                    )}
-                    {showSpeechOutputBrowser && <SpeechOutputBrowser answer={sanitizedAnswerHtml} />}
-                </div>
-            </div>
-
-            {/* Answer content */}
-            <div style={{
-                color: 'var(--text)',
-                lineHeight: '1.6',
-                fontSize: '15px'
-            }}>
-                <ReactMarkdown children={sanitizedAnswerHtml} rehypePlugins={[rehypeRaw]} remarkPlugins={[remarkGfm]} />
-            </div>
-
-            {/* Feedback section */}
-            {!isStreaming && (
-                <div style={{
-                    marginTop: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
-                }}>
-                    {!feedbackGiven ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
-                                Was this helpful?
-                            </span>
-                            <button
-                                onClick={() => handleFeedback("positive")}
+                        <div>
+                            <div
                                 style={{
-                                    backgroundColor: 'transparent',
-                                    border: '1px solid var(--border)',
-                                    borderRadius: '20px',
-                                    padding: '6px 12px',
-                                    color: 'var(--text)',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    fontSize: '14px',
-                                    transition: 'all 0.2s ease'
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'rgba(40, 167, 69, 0.1)';
-                                    e.currentTarget.style.borderColor = '#28a745';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'transparent';
-                                    e.currentTarget.style.borderColor = 'var(--border)';
+                                    color: "var(--text)",
+                                    fontWeight: "600",
+                                    fontSize: "16px"
                                 }}
                             >
-                                👍 Yes
-                            </button>
-                            <button
-                                onClick={() => handleFeedback("negative")}
+                                {botProfile?.label || "Ava"}
+                            </div>
+                            <div
                                 style={{
-                                    backgroundColor: 'transparent',
-                                    border: '1px solid var(--border)',
-                                    borderRadius: '20px',
-                                    padding: '6px 12px',
-                                    color: 'var(--text)',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    fontSize: '14px',
-                                    transition: 'all 0.2s ease'
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'rgba(220, 53, 69, 0.1)';
-                                    e.currentTarget.style.borderColor = '#dc3545';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'transparent';
-                                    e.currentTarget.style.borderColor = 'var(--border)';
+                                    color: "var(--text-secondary)",
+                                    fontSize: "12px"
                                 }}
                             >
-                                👎 No
-                            </button>
+                                AI Assistant
+                            </div>
                         </div>
-                    ) : (
-                        <div style={{ 
-                            color: 'var(--primary)', 
-                            fontSize: '14px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px'
-                        }}>
-                            ✓ Thank you for your feedback!
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Citations */}
-            {!!parsedAnswer.citations.length && (
-                <div style={{
-                    marginTop: '16px'
-                }}>
-                    <div style={{ 
-                        color: 'var(--text-secondary)', 
-                        fontSize: '12px', 
-                        marginBottom: '8px',
-                        fontWeight: '600',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px'
-                    }}>
-                        {t("citationWithColon")}
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                        {parsedAnswer.citations.map((x, i) => {
-                            const path = getCitationFilePath(x);
-                            return (
+
+                    <div style={{ display: "flex", gap: "4px" }}>
+                        <button
+                            onClick={handleCopy}
+                            style={{
+                                backgroundColor: "transparent",
+                                border: "1px solid var(--border)",
+                                borderRadius: "8px",
+                                padding: "8px",
+                                color: "var(--text)",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                fontSize: "12px",
+                                transition: "all 0.2s ease"
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.backgroundColor = "var(--surface-hover)";
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.backgroundColor = "transparent";
+                            }}
+                            title={copied ? t("tooltips.copied") : t("tooltips.copy")}
+                        >
+                            {copied ? "✓" : "📋"}
+                        </button>
+
+                        <button
+                            onClick={() => onThoughtProcessClicked()}
+                            disabled={!answer.context.thoughts?.length || isStreaming}
+                            style={{
+                                backgroundColor: "transparent",
+                                border: "1px solid var(--border)",
+                                borderRadius: "8px",
+                                padding: "8px",
+                                color: "var(--text)",
+                                cursor: "pointer",
+                                fontSize: "12px",
+                                transition: "all 0.2s ease",
+                                opacity: !answer.context.thoughts?.length || isStreaming ? 0.5 : 1
+                            }}
+                            onMouseEnter={e => {
+                                if (!e.currentTarget.disabled) {
+                                    e.currentTarget.style.backgroundColor = "var(--surface-hover)";
+                                }
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.backgroundColor = "transparent";
+                            }}
+                            title={t("tooltips.showThoughtProcess")}
+                        >
+                            💡
+                        </button>
+
+                        <button
+                            onClick={() => onSupportingContentClicked()}
+                            disabled={!answer.context.data_points || isStreaming}
+                            style={{
+                                backgroundColor: "transparent",
+                                border: "1px solid var(--border)",
+                                borderRadius: "8px",
+                                padding: "8px",
+                                color: "var(--text)",
+                                cursor: "pointer",
+                                fontSize: "12px",
+                                transition: "all 0.2s ease",
+                                opacity: !answer.context.data_points || isStreaming ? 0.5 : 1
+                            }}
+                            onMouseEnter={e => {
+                                if (!e.currentTarget.disabled) {
+                                    e.currentTarget.style.backgroundColor = "var(--surface-hover)";
+                                }
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.backgroundColor = "transparent";
+                            }}
+                            title={t("tooltips.showSupportingContent")}
+                        >
+                            📄
+                        </button>
+
+                        {showSpeechOutputAzure && (
+                            <SpeechOutputAzure answer={sanitizedAnswerHtml} index={index} speechConfig={speechConfig} isStreaming={isStreaming} />
+                        )}
+                        {showSpeechOutputBrowser && <SpeechOutputBrowser answer={sanitizedAnswerHtml} />}
+                    </div>
+                </div>
+
+                {/* Answer content */}
+                <div
+                    style={{
+                        color: "var(--text)",
+                        lineHeight: "1.6",
+                        fontSize: "15px"
+                    }}
+                >
+                    <ReactMarkdown children={sanitizedAnswerHtml} rehypePlugins={[rehypeRaw]} remarkPlugins={[remarkGfm]} />
+                </div>
+
+                {/* Feedback section */}
+                {!isStreaming && (
+                    <div
+                        style={{
+                            marginTop: "20px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between"
+                        }}
+                    >
+                        {!feedbackGiven ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                <span style={{ color: "var(--text-secondary)", fontSize: "14px" }}>Was this helpful?</span>
                                 <button
-                                    key={i}
-                                    onClick={() => onCitationClicked(path)}
-                                    title={x}
+                                    onClick={() => handleFeedback("positive")}
                                     style={{
-                                        backgroundColor: 'var(--surface-hover)',
-                                        border: '1px solid var(--border)',
-                                        borderRadius: '12px',
-                                        padding: '4px 8px',
-                                        color: 'var(--primary)',
-                                        cursor: 'pointer',
-                                        fontSize: '12px',
-                                        fontWeight: '500',
-                                        transition: 'all 0.2s ease'
+                                        backgroundColor: "transparent",
+                                        border: "1px solid var(--border)",
+                                        borderRadius: "20px",
+                                        padding: "6px 12px",
+                                        color: "var(--text)",
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "6px",
+                                        fontSize: "14px",
+                                        transition: "all 0.2s ease"
                                     }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.backgroundColor = 'var(--primary)';
-                                        e.currentTarget.style.color = 'white';
+                                    onMouseEnter={e => {
+                                        e.currentTarget.style.backgroundColor = "rgba(40, 167, 69, 0.1)";
+                                        e.currentTarget.style.borderColor = "#28a745";
                                     }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.backgroundColor = 'var(--surface-hover)';
-                                        e.currentTarget.style.color = 'var(--primary)';
+                                    onMouseLeave={e => {
+                                        e.currentTarget.style.backgroundColor = "transparent";
+                                        e.currentTarget.style.borderColor = "var(--border)";
                                     }}
                                 >
-                                    {`${++i}. ${x}`}
+                                    👍 Yes
                                 </button>
-                            );
-                        })}
+                                <button
+                                    onClick={() => handleFeedback("negative")}
+                                    style={{
+                                        backgroundColor: "transparent",
+                                        border: "1px solid var(--border)",
+                                        borderRadius: "20px",
+                                        padding: "6px 12px",
+                                        color: "var(--text)",
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "6px",
+                                        fontSize: "14px",
+                                        transition: "all 0.2s ease"
+                                    }}
+                                    onMouseEnter={e => {
+                                        e.currentTarget.style.backgroundColor = "rgba(220, 53, 69, 0.1)";
+                                        e.currentTarget.style.borderColor = "#dc3545";
+                                    }}
+                                    onMouseLeave={e => {
+                                        e.currentTarget.style.backgroundColor = "transparent";
+                                        e.currentTarget.style.borderColor = "var(--border)";
+                                    }}
+                                >
+                                    👎 No
+                                </button>
+                            </div>
+                        ) : (
+                            <div
+                                style={{
+                                    color: "var(--primary)",
+                                    fontSize: "14px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "6px"
+                                }}
+                            >
+                                ✓ Thank you for your feedback!
+                            </div>
+                        )}
                     </div>
-                </div>
-            )}
-            {/* Feedback dialog */}
-            <Dialog
-                hidden={!showFeedbackDialog}
-                onDismiss={() => setShowFeedbackDialog(false)}
-                dialogContentProps={dialogContentProps}
-                modalProps={{ isBlocking: false }}
-            >
-                <TextField
-                    label="Comments"
-                    multiline
-                    rows={4}
-                    value={feedbackComments}
-                    onChange={(_, newValue) => setFeedbackComments(newValue || "")}
-                    placeholder="Please tell us how we can improve this response..."
-                />
-                <DialogFooter>
-                    <PrimaryButton onClick={submitFeedback} text="Submit" />
-                    <DefaultButton onClick={() => setShowFeedbackDialog(false)} text="Cancel" />
-                </DialogFooter>
-            </Dialog>
+                )}
+
+                {/* Citations with URL support */}
+                {!!parsedAnswer.citations.length && (
+                    <div style={{ marginTop: "16px" }}>
+                        <div
+                            style={{
+                                color: "var(--text-secondary)",
+                                fontSize: "12px",
+                                marginBottom: "8px",
+                                fontWeight: "600",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.5px"
+                            }}
+                        >
+                            {t("citationWithColon")}
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                            {parsedAnswer.citations.map((citation, i) => {
+                                const details = getCitationDetails(citation);
+                                const icon = details.isConfluence ? (
+                                    <img
+                                        src={confluenceLogo}
+                                        alt="Confluence"
+                                        style={{
+                                            width: "16px",
+                                            height: "16px",
+                                            objectFit: "contain" // This ensures the image scales properly
+                                        }}
+                                    />
+                                ) : (
+                                    <img
+                                        src={pdfIcon}
+                                        alt="PDF"
+                                        style={{
+                                            width: "16px",
+                                            height: "16px",
+                                            objectFit: "contain" // This ensures the image scales properly
+                                        }}
+                                    />
+                                );
+
+                                // Truncate long titles
+                                const maxTitleLength = 50;
+                                let displayTitle = details.title;
+                                if (displayTitle.length > maxTitleLength) {
+                                    displayTitle = displayTitle.substring(0, maxTitleLength - 3) + "...";
+                                }
+
+                                const tooltipText = details.isConfluence ? `Open ${details.title} in new tab` : `View ${details.title}`;
+
+                                return (
+                                    <button
+                                        key={i}
+                                        onClick={() => handleCitationClick(citation)}
+                                        title={tooltipText}
+                                        style={{
+                                            backgroundColor: "var(--surface-hover)",
+                                            border: "1px solid var(--border)",
+                                            borderRadius: "12px",
+                                            padding: "6px 12px",
+                                            color: "var(--primary)",
+                                            cursor: "pointer",
+                                            fontSize: "13px",
+                                            fontWeight: "500",
+                                            transition: "all 0.2s ease",
+                                            maxWidth: "400px",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                            whiteSpace: "nowrap",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "6px"
+                                        }}
+                                        onMouseEnter={e => {
+                                            e.currentTarget.style.backgroundColor = "var(--primary)";
+                                            e.currentTarget.style.color = "white";
+                                            e.currentTarget.style.transform = "translateY(-1px)";
+                                        }}
+                                        onMouseLeave={e => {
+                                            e.currentTarget.style.backgroundColor = "var(--surface-hover)";
+                                            e.currentTarget.style.color = "var(--primary)";
+                                            e.currentTarget.style.transform = "translateY(0)";
+                                        }}
+                                    >
+                                        <span>{icon}</span>
+                                        <span>{`${i + 1}. ${displayTitle}`}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* Feedback dialog */}
+                <Dialog
+                    hidden={!showFeedbackDialog}
+                    onDismiss={() => setShowFeedbackDialog(false)}
+                    dialogContentProps={dialogContentProps}
+                    modalProps={{ isBlocking: false }}
+                >
+                    <TextField
+                        label="Comments"
+                        multiline
+                        rows={4}
+                        value={feedbackComments}
+                        onChange={(_, newValue) => setFeedbackComments(newValue || "")}
+                        placeholder="Please tell us how we can improve this response..."
+                    />
+                    <DialogFooter>
+                        <PrimaryButton onClick={submitFeedback} text="Submit" />
+                        <DefaultButton onClick={() => setShowFeedbackDialog(false)} text="Cancel" />
+                    </DialogFooter>
+                </Dialog>
             </div>
         </div>
     );

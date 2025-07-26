@@ -1,5 +1,7 @@
 // Refactored from https://github.com/Azure-Samples/ms-identity-javascript-react-tutorial/blob/main/1-Authentication/1-sign-in/SPA/src/authConfig.js
 
+import { PublicClientApplication, LogLevel, InteractionRequiredAuthError } from "@azure/msal-browser";
+
 const appServicesAuthTokenUrl = ".auth/me";
 const appServicesAuthTokenRefreshUrl = ".auth/refresh";
 const appServicesAuthLogoutUrl = ".auth/logout?post_logout_redirect_uri=/";
@@ -50,13 +52,24 @@ interface AuthSetup {
     };
 }
 
-// Fetch the auth setup JSON data from the API if not already cached
+let authSetupCache: AuthSetup | null = null;
+
 async function fetchAuthSetup(): Promise<AuthSetup> {
+    if (authSetupCache) {
+        return authSetupCache;
+    }
+
     const response = await fetch("/auth_setup");
     if (!response.ok) {
         throw new Error(`auth setup response was not ok: ${response.status}`);
     }
-    return await response.json();
+    authSetupCache = await response.json();
+
+    if (authSetupCache === null) {
+        throw new Error("Auth setup data is null");
+    }
+
+    return authSetupCache;
 }
 
 const authSetup = await fetchAuthSetup();
@@ -74,7 +87,38 @@ export const requireLogin = requireAccessControl && !enableUnauthenticatedAccess
  * For a full list of MSAL.js configuration parameters, visit:
  * https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/lib/msal-browser/docs/configuration.md
  */
-export const msalConfig = authSetup.msalConfig;
+export const msalConfig = {
+    ...authSetup.msalConfig,
+    system: {
+        loggerOptions: {
+            loggerCallback: (level: LogLevel, message: string, containsPii: boolean) => {
+                if (containsPii) {
+                    return;
+                }
+                switch (level) {
+                    case LogLevel.Error:
+                        console.error(message);
+                        return;
+                    case LogLevel.Info:
+                        console.info(message);
+                        return;
+                    case LogLevel.Verbose:
+                        console.debug(message);
+                        return;
+                    case LogLevel.Warning:
+                        console.warn(message);
+                        return;
+                }
+            },
+            logLevel: LogLevel.Verbose
+        },
+        // Disable iframes to avoid CSP issues
+        allowNativeBroker: false,
+        windowHashTimeout: 60000, // Increase timeout
+        iframeHashTimeout: 60000, // Increase timeout
+        loadFrameTimeout: 0 // Disable iframe loading
+    }
+};
 
 /**
  * Scopes you add here will be prompted for user consent during sign-in.
@@ -86,7 +130,48 @@ export const loginRequest = authSetup.loginRequest;
 
 const tokenRequest = authSetup.tokenRequest;
 
-// Build an absolute redirect URI using the current window's location and the relative redirect URI from auth setup
+// Create MSAL instance
+export const msalInstance = new PublicClientApplication(msalConfig);
+
+// Add a flag to track initialization
+let msalInitialized = false;
+
+// Update initializeMsal to reset the flag
+export const initializeMsal = async (): Promise<void> => {
+    try {
+        await msalInstance.initialize();
+        console.log("MSAL initialized successfully");
+
+        // Handle redirect promise
+        if (window.location.pathname !== "/redirect") {
+            const response = await msalInstance.handleRedirectPromise();
+
+            if (response) {
+                console.log("Redirect response processed:", response);
+                msalInstance.setActiveAccount(response.account);
+                sessionStorage.setItem("msal.auth.completed", "true");
+                isInteractionInProgress = false; // Reset the flag
+
+                // Clear URL if needed
+                if (window.location.hash.includes("code=")) {
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+            }
+        }
+
+        // Set active account if available
+        const accounts = msalInstance.getAllAccounts();
+        if (!msalInstance.getActiveAccount() && accounts.length > 0) {
+            msalInstance.setActiveAccount(accounts[0]);
+        }
+    } catch (error) {
+        console.error("Error initializing MSAL:", error);
+        isInteractionInProgress = false;
+        throw error;
+    }
+};
+
+// Build an absolute redirect URI
 export const getRedirectUri = () => {
     return window.location.origin + authSetup.msalConfig.auth.redirectUri;
 };
@@ -178,7 +263,17 @@ export const checkLoggedIn = async (): Promise<boolean> => {
 
 // Get an access token for use with the API server.
 export const getToken = async (): Promise<string | undefined> => {
-    // Always refresh the app services token
+    // First check if we need a Graph token
+    const needsGraphToken = true; // You can make this configurable
+
+    if (needsGraphToken && useLogin) {
+        const graphToken = await getGraphToken();
+        if (graphToken) {
+            return graphToken;
+        }
+    }
+
+    // Fall back to app services token
     await fetch(appServicesAuthTokenRefreshUrl);
     const appServicesToken = await getAppServicesToken();
     if (appServicesToken) {
@@ -188,10 +283,100 @@ export const getToken = async (): Promise<string | undefined> => {
 };
 
 /**
+ * Get Microsoft Graph access token using MSAL
+ */
+// Update getGraphToken to be more robust
+
+// In authConfig.ts, add interaction tracking
+let isInteractionInProgress = false;
+
+// Remove the automatic login attempts - let users trigger it manually
+export const getGraphToken = async (): Promise<string | undefined> => {
+    if (!useLogin || !msalInstance) {
+        console.log("MSAL not available");
+        return undefined;
+    }
+
+    try {
+        const accounts = msalInstance.getAllAccounts();
+        const account = msalInstance.getActiveAccount() || accounts[0];
+
+        if (account) {
+            msalInstance.setActiveAccount(account);
+
+            try {
+                // Try silent token acquisition first
+                const response = await msalInstance.acquireTokenSilent({
+                    scopes: ["https://graph.microsoft.com/.default"],
+                    account: account,
+                    forceRefresh: false
+                });
+                console.log("Graph token acquired silently");
+                return response.accessToken;
+            } catch (silentError) {
+                if (silentError instanceof InteractionRequiredAuthError) {
+                    console.log("Silent acquisition failed, interaction required");
+                    throw silentError; // Let the UI handle this
+                }
+                throw silentError;
+            }
+        } else {
+            // No account - user needs to login
+            throw new Error("No Microsoft account found. Please sign in to Microsoft.");
+        }
+    } catch (error) {
+        console.error("Error getting Graph token:", error);
+        throw error;
+    }
+};
+
+// Add a specific login function for Microsoft
+export const loginToMicrosoft = async (): Promise<void> => {
+    try {
+        const response = await msalInstance.loginPopup({
+            scopes: ["openid", "profile", "https://graph.microsoft.com/.default"],
+            prompt: "select_account" // Always show account picker
+        });
+
+        if (response.account) {
+            msalInstance.setActiveAccount(response.account);
+            console.log("Microsoft login successful");
+        }
+    } catch (error) {
+        console.error("Microsoft login failed:", error);
+        throw error;
+    }
+};
+
+// Add logout function
+export const logoutFromMicrosoft = async (): Promise<void> => {
+    const account = msalInstance.getActiveAccount();
+    if (account) {
+        await msalInstance.logoutPopup({
+            account: account
+        });
+    }
+};
+
+// Check if user is logged into Microsoft
+export const isMicrosoftAuthenticated = (): boolean => {
+    return msalInstance.getAllAccounts().length > 0;
+};
+
+/**
  * Retrieves the username from app services authentication.
  * @returns {Promise<string | null>} The username of the authenticated user, or null if not found.
  */
 export const getUsername = async (): Promise<string | null> => {
+    // First try MSAL
+    if (msalInstance) {
+        const account = msalInstance.getActiveAccount();
+        if (account) {
+            return account.name || account.username;
+        }
+    }
+
+    // Fall back to App Service auth
     const appServicesToken = await getAppServicesToken();
     if (appServicesToken?.user_claims) {
         return appServicesToken.user_claims.name || appServicesToken.user_claims.preferred_username;
