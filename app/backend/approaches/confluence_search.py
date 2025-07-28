@@ -102,7 +102,7 @@ class SearchConfig:
     MAX_RETURNED_ITEMS = 3
     
     # Confluence connector configuration
-    CONFLUENCE_CONNECTOR_ID = "ConfluenceCloud2"
+    CONFLUENCE_CONNECTOR_ID = "ConfluenceCloud4"
     
     # Confluence API toggles
     USE_CONFLUENCE_API = True
@@ -124,8 +124,8 @@ class SearchConfig:
     
     # Confluence API setup
     CONFLUENCE_BASE_URL = "https://vocus.atlassian.net/wiki/rest/api"
-    CONFLUENCE_EMAIL = os.environ.get("CONFLUENCE_EMAIL", "svc.atlassian@vocus.com.au")
-    CONFLUENCE_TOKEN = os.environ.get("CONFLUENCE_TOKEN", "REDACTED_TOKEN")
+    CONFLUENCE_EMAIL = os.environ.get("CONFLUENCE_EMAIL", "")
+    CONFLUENCE_TOKEN = os.environ.get("CONFLUENCE_TOKEN", "")
     
     @staticmethod
     def get_confluence_auth():

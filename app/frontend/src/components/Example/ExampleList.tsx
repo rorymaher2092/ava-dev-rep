@@ -26,7 +26,7 @@ const EXAMPLE_CATEGORIES = {
     "HR & Support": [
         { text: "Who should I contact for Paid Parental Leave information?", icon: "👶", category: "HR & Support" },
         { text: "How do I report workplace concerns anonymously?", icon: "🛡️", category: "HR & Support" },
-        { text: "What does VIE stand for?", icon: "❓", category: "HR & Support" }
+        { text: "Can I go into negative leave balance?", icon: "✈️", category: "HR & Support" }
     ],
     "Technical Help": [
         { text: "What types of incidents are classified as major incidents?", icon: "🚨", category: "Technical Help" },
@@ -37,6 +37,11 @@ const EXAMPLE_CATEGORIES = {
         { text: "What are the risks in implementing new solutions and how to mitigate them?", icon: "⚖️", category: "Business Insights" },
         { text: "How do I create an effective change communication plan?", icon: "📢", category: "Business Insights" },
         { text: "What's our current customer satisfaction approach?", icon: "😊", category: "Business Insights" }
+    ],
+    "Product Information": [
+        { text: "What does VIE stand for?", icon: "❓", category: "Product Information" },
+        { text: "What is the value proposition for IP WAN over Starlink Ethernet Access?", icon: "📡", category: "Product Information" },
+        { text: "What is the difference between internet products at Vocus?", icon: "🛜", category: "Product Information" }
     ]
 };
 
