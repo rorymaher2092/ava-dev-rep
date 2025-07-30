@@ -8,6 +8,7 @@ import time
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any, Union, cast
+import uuid
 
 from azure.cognitiveservices.speech import (
     ResultReason,
@@ -59,6 +60,7 @@ from approaches.retrievethenread import RetrieveThenReadApproach
 from approaches.retrievethenreadvision import RetrieveThenReadVisionApproach
 from approaches.confluence_search import ConfluenceSearchService  
 from chat_history.cosmosdb import chat_history_cosmosdb_bp
+
 from config import (
     CONFIG_AGENT_CLIENT,
     CONFIG_AGENTIC_RETRIEVAL_ENABLED,
@@ -539,6 +541,99 @@ async def submit_feedback(auth_claims: dict[str, Any]):
     
     return jsonify({"message": "Feedback submitted successfully"}), 200
 
+@bp.post("/content-suggestions")
+@authenticated
+async def add_content_suggestion(auth_claims: dict[str, Any]):
+    """
+    Body:
+      { "question": "<text>", "suggestion": "<text>" }
+
+    Returns:
+      201 {"message": "...", "id": "<guid>"}  on success
+      4xx / 5xx with JSON {"error": "..."}    on failure
+    """
+    log = current_app.logger   # convenience alias
+    log.info("▶️  /content-suggestions called")
+
+    # ───────── validate body ─────────
+    try:
+        body = await request.get_json()
+        log.debug("📨 Request JSON: %s", body)
+    except Exception as err:
+        log.warning("❌ Invalid JSON body: %s", err)
+        return jsonify({"error": "Request body must be valid JSON"}), 400
+
+    question   = (body.get("question") or "").strip()
+    suggestion = (body.get("suggestion") or "").strip()
+    if not question or not suggestion:
+        log.warning("❌ Missing 'question' or 'suggestion' fields")
+        return jsonify({"error": "Both 'question' and 'suggestion' are required"}), 400
+
+    # ───────── auth info ─────────
+    entra_oid = auth_claims.get("oid")
+    if not entra_oid:
+        log.warning("❌ Auth claims missing OID")
+        return jsonify({"error": "User OID missing"}), 401
+    log.debug("✅ Authenticated user OID: %s", entra_oid)
+
+    # ───────── get / cache container ─────────
+    container: ContainerClient | None = current_app.config.get("SUGGESTION_CONTAINER")
+    if container is None:
+        account        = os.getenv("AZURE_STORAGE_ACCOUNT")
+        container_name = "suggested-content"
+        if not account:
+            log.error("❌ AZURE_STORAGE_ACCOUNT env‑var not set")
+            return jsonify({"error": "AZURE_STORAGE_ACCOUNT env‑var not set"}), 500
+
+        log.info("🔑 Creating ContainerClient for %s/%s", account, container_name)
+
+        # Re‑use the Azure credential created in setup_clients(); fall back if missing
+        cred = current_app.config.get(CONFIG_CREDENTIAL)
+        if cred is None:
+            log.critical("CONFIG_CREDENTIAL missing – setup_clients() probably failed")
+            return jsonify({"error": "Server credential not initialised"}), 500
+
+        container = ContainerClient(
+            f"https://{account}.blob.core.windows.net",
+            container_name,
+            credential=cred,
+        )
+
+        try:
+            await container.get_container_properties()
+            log.debug("📦 Confirmed pre‑created container exists")
+        except Exception as err:
+            log.exception("❌ Cannot access container %s: %s", container_name, err)
+            return jsonify({"error": "Storage container not found or access denied"}), 500
+
+        current_app.config["SUGGESTION_CONTAINER"] = container   # cache for next time
+    else:
+        log.debug("📦 Re‑using cached ContainerClient")
+
+    # ───────── store the payload ─────────
+    blob_name = f"{uuid.uuid4()}.json"
+    payload = {
+        "id": blob_name[:-5],
+        "entra_oid": entra_oid,
+        "question": question,
+        "suggestion": suggestion,
+        "timestamp": int(time.time() * 1000)
+    }
+    log.debug("📝 Payload to store: %s", payload)
+
+    try:
+        await container.upload_blob(
+            name=blob_name,
+            data=json.dumps(payload, ensure_ascii=False),
+            overwrite=False,
+            content_type="application/json",
+        )
+        log.info("✅ Suggestion stored: %s", blob_name)
+        return jsonify({"message": "Suggestion stored", "id": payload["id"]}), 201
+
+    except Exception as err:
+        log.exception("❌ Failed to save content suggestion")
+        return jsonify({"error": str(err)}), 500
 
 @bp.before_app_serving
 async def setup_clients():
@@ -941,7 +1036,6 @@ def create_app():
     # Register feedback blueprint
     from chat_history.feedback_api import feedback_bp
     app.register_blueprint(feedback_bp)
-
 
     if os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):
         app.logger.info("APPLICATIONINSIGHTS_CONNECTION_STRING is set, enabling Azure Monitor")
