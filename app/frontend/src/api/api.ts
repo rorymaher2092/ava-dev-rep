@@ -239,7 +239,7 @@ export async function submitContentSuggestion(
 
     // If you kept the server URL prefix /api/content-suggestions  ➜ see previous answer
     const response = await fetch(
-        `${BACKEND_URI}/content-suggestions`, // consistent with feedback
+        `${BACKEND_URI}/suggestion`, // consistent with feedback
         {
             method: "POST",
             headers: { ...headers, "Content-Type": "application/json" },

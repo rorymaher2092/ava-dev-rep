@@ -520,7 +520,7 @@ export const Answer = ({
                                                 e.currentTarget.style.borderColor = "var(--border)";
                                             }}
                                         >
-                                            ➕ Add Content
+                                            ➕ Content Suggetion
                                         </button>
                                     )}
                                 </>
@@ -552,7 +552,7 @@ export const Answer = ({
                                 }}
                             >
                                 <div style={{ marginBottom: "12px", color: "var(--text)", fontSize: "14px", fontWeight: "500" }}>
-                                    What content would you like to add to help answer this question?
+                                    Do you have a question you would like answered?!
                                 </div>
                                 <textarea
                                     value={contentSuggestion}

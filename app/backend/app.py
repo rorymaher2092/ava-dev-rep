@@ -541,99 +541,62 @@ async def submit_feedback(auth_claims: dict[str, Any]):
     
     return jsonify({"message": "Feedback submitted successfully"}), 200
 
-@bp.post("/content-suggestions")
+
+@bp.route("/suggestion", methods=["POST"])
 @authenticated
-async def add_content_suggestion(auth_claims: dict[str, Any]):
+async def submit_suggestion(auth_claims: dict[str, Any]):
     """
-    Body:
-      { "question": "<text>", "suggestion": "<text>" }
-
-    Returns:
-      201 {"message": "...", "id": "<guid>"}  on success
-      4xx / 5xx with JSON {"error": "..."}    on failure
+    Endpoint to collect user suggestion on bad responses.
+    Stores feedback with user information for later analysis.
     """
-    log = current_app.logger   # convenience alias
-    log.info("▶️  /content-suggestions called")
-
-    # ───────── validate body ─────────
-    try:
-        body = await request.get_json()
-        log.debug("📨 Request JSON: %s", body)
-    except Exception as err:
-        log.warning("❌ Invalid JSON body: %s", err)
-        return jsonify({"error": "Request body must be valid JSON"}), 400
-
-    question   = (body.get("question") or "").strip()
-    suggestion = (body.get("suggestion") or "").strip()
-    if not question or not suggestion:
-        log.warning("❌ Missing 'question' or 'suggestion' fields")
-        return jsonify({"error": "Both 'question' and 'suggestion' are required"}), 400
-
-    # ───────── auth info ─────────
-    entra_oid = auth_claims.get("oid")
-    if not entra_oid:
-        log.warning("❌ Auth claims missing OID")
-        return jsonify({"error": "User OID missing"}), 401
-    log.debug("✅ Authenticated user OID: %s", entra_oid)
-
-    # ───────── get / cache container ─────────
-    container: ContainerClient | None = current_app.config.get("SUGGESTION_CONTAINER")
-    if container is None:
-        account        = os.getenv("AZURE_STORAGE_ACCOUNT")
-        container_name = "suggested-content"
-        if not account:
-            log.error("❌ AZURE_STORAGE_ACCOUNT env‑var not set")
-            return jsonify({"error": "AZURE_STORAGE_ACCOUNT env‑var not set"}), 500
-
-        log.info("🔑 Creating ContainerClient for %s/%s", account, container_name)
-
-        # Re‑use the Azure credential created in setup_clients(); fall back if missing
-        cred = current_app.config.get(CONFIG_CREDENTIAL)
-        if cred is None:
-            log.critical("CONFIG_CREDENTIAL missing – setup_clients() probably failed")
-            return jsonify({"error": "Server credential not initialised"}), 500
-
-        container = ContainerClient(
-            f"https://{account}.blob.core.windows.net",
-            container_name,
-            credential=cred,
-        )
-
-        try:
-            await container.get_container_properties()
-            log.debug("📦 Confirmed pre‑created container exists")
-        except Exception as err:
-            log.exception("❌ Cannot access container %s: %s", container_name, err)
-            return jsonify({"error": "Storage container not found or access denied"}), 500
-
-        current_app.config["SUGGESTION_CONTAINER"] = container   # cache for next time
-    else:
-        log.debug("📦 Re‑using cached ContainerClient")
-
-    # ───────── store the payload ─────────
-    blob_name = f"{uuid.uuid4()}.json"
-    payload = {
-        "id": blob_name[:-5],
-        "entra_oid": entra_oid,
+    if not request.is_json:
+        return jsonify({"error": "request must be json"}), 415
+    
+    request_json = await request.get_json()
+    response_id = request_json.get("responseId")
+    question = request_json.get("question")
+    suggestion = request_json.get("suggestion", "")
+    
+    if not question:
+        return jsonify({"error": "A question is required"}), 400
+    
+    if not suggestion:
+        return jsonify({"error": "suggestion must be provided"}), 400
+    
+    # Add user information from auth claims
+    feedback_data = {
         "question": question,
         "suggestion": suggestion,
-        "timestamp": int(time.time() * 1000)
+        "timestamp": time.time(),
+        "userId": auth_claims.get("oid", ""),
+        "username": auth_claims.get("username", ""),
+        "name": auth_claims.get("name", "")
     }
-    log.debug("📝 Payload to store: %s", payload)
-
-    try:
-        await container.upload_blob(
-            name=blob_name,
-            data=json.dumps(payload, ensure_ascii=False),
-            overwrite=False,
-            content_type="application/json",
-        )
-        log.info("✅ Suggestion stored: %s", blob_name)
-        return jsonify({"message": "Suggestion stored", "id": payload["id"]}), 201
-
-    except Exception as err:
-        log.exception("❌ Failed to save content suggestion")
-        return jsonify({"error": str(err)}), 500
+    
+    # Log the feedback
+    current_app.logger.info("Feedback received: %s", json.dumps(feedback_data))
+    
+    # Store feedback in Cosmos DB if Cosmos is enabled
+    cosmos_enabled = os.getenv("USE_CHAT_HISTORY_COSMOS", "").lower() == "true"
+    current_app.logger.info(f"Cosmos enabled: {cosmos_enabled}")
+    
+    if cosmos_enabled:
+        try:
+            current_app.logger.info("Attempting to store feedback in Cosmos DB")
+            from chat_history.suggestions import SuggestionsCosmosDB
+            suggestion_db = SuggestionsCosmosDB()
+            await suggestion_db.initialize()
+            suggestion_id = await suggestion_db.add_suggestion(feedback_data)
+            await suggestion_db.close()
+            current_app.logger.info(f"Suggestion stored in Cosmos DB with ID: {suggestion_id}")
+            return jsonify({"message": "Suggestion submitted and stored successfully", "id": suggestion_id}), 200
+        except Exception as e:
+            current_app.logger.error(f"Error storing Suggestion in Cosmos DB: {str(e)}")
+            return jsonify({"message": "Suggestion logged but not stored", "error": str(e)}), 200
+    else:
+        current_app.logger.info("Cosmos DB not enabled, Suggestion only logged")
+    
+    return jsonify({"message": "Suggestion submitted successfully"}), 200
 
 @bp.before_app_serving
 async def setup_clients():
