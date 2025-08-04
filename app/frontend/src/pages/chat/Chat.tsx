@@ -56,6 +56,9 @@ import { BOTS, DEFAULT_BOT_ID, BotProfile } from "../../config/botConfig";
 import { useBot } from "../../contexts/BotContext"; // ✅ ADD
 import { useBotTheme } from "../../hooks/useBotTheme";
 
+import { InteractionRequiredAuthError } from "@azure/msal-browser";
+import { msalInstance } from "../../authConfig";
+
 const Chat = () => {
     const [searchParams] = useSearchParams();
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -219,10 +222,30 @@ const Chat = () => {
     })();
     const historyManager = useHistoryManager(historyProvider);
 
+    // In Chat.tsx, add this useEffect
+    useEffect(() => {
+        if (!isMicrosoftAuthenticated()) return;
+
+        // Proactively refresh tokens before they expire
+        const tokenRefreshInterval = setInterval(
+            async () => {
+                try {
+                    console.log("Proactive token refresh check");
+                    await getGraphToken(1); // Force refresh
+                } catch (error) {
+                    console.error("Proactive token refresh failed:", error);
+                    // Don't show error to user unless they're actively using the app
+                }
+            },
+            10 * 60 * 1000
+        ); // Every 10 minutes
+
+        return () => clearInterval(tokenRefreshInterval);
+    }, []);
+
     const makeApiRequest = async (question: string) => {
         lastQuestionRef.current = question;
         console.log("Sending API request with botId:", botId);
-        // Clear follow-up questions when a new question is asked
         setCurrentFollowupQuestions([]);
 
         error && setError(undefined);
@@ -230,44 +253,63 @@ const Chat = () => {
         setActiveCitation(undefined);
         setActiveAnalysisPanelTab(undefined);
 
-        // Check if user is authenticated with Microsoft before proceeding
-        if (!isMicrosoftAuthenticated()) {
-            setIsLoading(false);
+        // CRITICAL: Validate Microsoft auth BEFORE proceeding
+        let hasValidMicrosoftAuth = false;
+        let retryCount = 0;
+        const maxRetries = 2;
 
-            // Show a user-friendly message
-            const confirmLogin = window.confirm("You need to sign in with Microsoft to use the chat feature. Would you like to sign in now?");
-
-            if (confirmLogin) {
-                try {
-                    await loginToMicrosoft();
-                    // After successful login, proceed with the API request
-                    return makeApiRequest(question); // Recursively call after login
-                } catch (error) {
-                    console.error("Microsoft login failed:", error);
-                    setError(new Error("Failed to sign in to Microsoft. Please try again."));
-                    return;
+        while (!hasValidMicrosoftAuth && retryCount < maxRetries) {
+            try {
+                // Check if we can get a valid token
+                const testToken = await getGraphToken();
+                if (testToken) {
+                    hasValidMicrosoftAuth = true;
+                    console.log("Microsoft auth validated successfully");
                 }
-            } else {
-                // User cancelled login
-                setError(new Error("Microsoft sign-in is required to use the chat feature."));
-                return;
+            } catch (error) {
+                console.error(`Auth validation attempt ${retryCount + 1} failed:`, error);
+                retryCount++;
+
+                if (retryCount >= maxRetries) {
+                    setIsLoading(false);
+
+                    // Force re-authentication
+                    const confirmLogin = window.confirm("Unable to verify Microsoft authentication. Would you like to sign in again?");
+
+                    if (confirmLogin) {
+                        try {
+                            // Clear ALL MSAL data before re-login
+                            msalInstance.clearCache();
+                            await loginToMicrosoft();
+
+                            // Try one more time after login
+                            const newToken = await getGraphToken();
+                            if (newToken) {
+                                hasValidMicrosoftAuth = true;
+                            }
+                        } catch (loginError) {
+                            console.error("Microsoft re-authentication failed:", loginError);
+                            setError(new Error("Failed to authenticate with Microsoft. Please try again."));
+                            return;
+                        }
+                    } else {
+                        setError(new Error("Microsoft authentication is required to use the chat feature."));
+                        return;
+                    }
+                }
             }
         }
 
-        // Get the regular auth token for backend authentication
-        const authToken = await getToken();
-
-        let graphtoken;
-        try {
-            graphtoken = await getGraphToken();
-            console.log(graphtoken);
-        } catch (error) {
-            console.error("Failed to get Graph token:", error);
-            // Continue without Graph token - the API can still work with App Service auth
-            graphtoken = await getToken();
+        if (!hasValidMicrosoftAuth) {
+            setIsLoading(false);
+            setError(new Error("Unable to establish Microsoft authentication."));
+            return;
         }
 
         try {
+            const authToken = await getToken();
+            const graphtoken = await getGraphToken();
+
             const messages: ResponseMessage[] = answers.flatMap(a => [
                 { content: a[0], role: "user" },
                 { content: a[1].message.content, role: "assistant" }

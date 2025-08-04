@@ -291,7 +291,7 @@ export const getToken = async (): Promise<string | undefined> => {
 let isInteractionInProgress = false;
 
 // Remove the automatic login attempts - let users trigger it manually
-export const getGraphToken = async (): Promise<string | undefined> => {
+export const getGraphToken = async (retryCount = 0): Promise<string | undefined> => {
     if (!useLogin || !msalInstance) {
         console.log("MSAL not available");
         return undefined;
@@ -301,28 +301,60 @@ export const getGraphToken = async (): Promise<string | undefined> => {
         const accounts = msalInstance.getAllAccounts();
         const account = msalInstance.getActiveAccount() || accounts[0];
 
-        if (account) {
-            msalInstance.setActiveAccount(account);
+        if (!account) {
+            throw new Error("No Microsoft account found. Please sign in.");
+        }
 
-            try {
-                // Try silent token acquisition first
-                const response = await msalInstance.acquireTokenSilent({
-                    scopes: ["https://graph.microsoft.com/.default"],
-                    account: account,
-                    forceRefresh: false
-                });
-                console.log("Graph token acquired silently");
-                return response.accessToken;
-            } catch (silentError) {
-                if (silentError instanceof InteractionRequiredAuthError) {
-                    console.log("Silent acquisition failed, interaction required");
-                    throw silentError; // Let the UI handle this
+        msalInstance.setActiveAccount(account);
+
+        try {
+            // Always try with forceRefresh on retry
+            const response = await msalInstance.acquireTokenSilent({
+                scopes: ["https://graph.microsoft.com/.default"],
+                account: account,
+                forceRefresh: retryCount > 0 // Force refresh on retry
+            });
+
+            // Validate token isn't about to expire (check if expires in next 5 minutes)
+            const expiresOn = response.expiresOn;
+            const now = new Date();
+            const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
+
+            if (expiresOn && expiresOn < fiveMinutesFromNow) {
+                console.log("Token expires soon, forcing refresh");
+                if (retryCount === 0) {
+                    return getGraphToken(1); // Retry with forceRefresh
                 }
-                throw silentError;
             }
-        } else {
-            // No account - user needs to login
-            throw new Error("No Microsoft account found. Please sign in to Microsoft.");
+
+            console.log("Graph token acquired successfully");
+            return response.accessToken;
+        } catch (silentError) {
+            console.error("Silent token acquisition failed:", silentError);
+
+            if (silentError instanceof InteractionRequiredAuthError) {
+                if (retryCount === 0) {
+                    // Try once more with force refresh
+                    console.log("Retrying with force refresh");
+                    return getGraphToken(1);
+                }
+
+                // Clear all cached data for this account
+                const currentAccount = msalInstance.getActiveAccount();
+                if (currentAccount) {
+                    msalInstance.setActiveAccount(null);
+                    // Clear specific account from cache
+                    const accountKey = `${currentAccount.homeAccountId}-${currentAccount.environment}-${currentAccount.tenantId}`;
+                    Object.keys(localStorage).forEach(key => {
+                        if (key.includes(accountKey)) {
+                            localStorage.removeItem(key);
+                        }
+                    });
+                }
+
+                throw new Error("Re-authentication required");
+            }
+            throw silentError;
         }
     } catch (error) {
         console.error("Error getting Graph token:", error);
@@ -359,8 +391,22 @@ export const logoutFromMicrosoft = async (): Promise<void> => {
 };
 
 // Check if user is logged into Microsoft
-export const isMicrosoftAuthenticated = (): boolean => {
-    return msalInstance.getAllAccounts().length > 0;
+export const isMicrosoftAuthenticated = async (): Promise<boolean> => {
+    try {
+        const accounts = msalInstance.getAllAccounts();
+        if (accounts.length === 0) return false;
+
+        // Try to get a token silently to verify the session is still valid
+        const response = await msalInstance.acquireTokenSilent({
+            scopes: ["https://graph.microsoft.com/.default"],
+            account: accounts[0]
+        });
+
+        return !!response.accessToken;
+    } catch (error) {
+        // If we can't get a token silently, the user needs to re-authenticate
+        return false;
+    }
 };
 
 /**
