@@ -520,7 +520,7 @@ export const Answer = ({
                                                 e.currentTarget.style.borderColor = "var(--border)";
                                             }}
                                         >
-                                            ➕ Content Suggetion
+                                            ➕ Content Request
                                         </button>
                                     )}
                                 </>
