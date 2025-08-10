@@ -55,6 +55,7 @@ import BotSelector from "../../components/BotSelectorButton/BotSelector"; // adj
 import { BOTS, DEFAULT_BOT_ID, BotProfile } from "../../config/botConfig";
 import { useBot } from "../../contexts/BotContext"; // ✅ ADD
 import { useBotTheme } from "../../hooks/useBotTheme";
+import { BotContentFactory } from "../../components/BotContent/BotContentFactory";
 
 import { InteractionRequiredAuthError } from "@azure/msal-browser";
 import { msalInstance } from "../../authConfig";
@@ -723,121 +724,11 @@ const Chat = () => {
                                 {welcomeMessage !== `Hello ${userName}!` ? welcomeMessage : ""}
                             </h2>
 
-                            {/* Quick stats or tips */}
-                            <div
-                                style={{
-                                    display: "flex",
-                                    gap: "24px",
-                                    marginBottom: "32px",
-                                    flexWrap: "wrap",
-                                    justifyContent: "center"
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        backgroundColor: "var(--surface-elevated)",
-                                        borderRadius: "16px",
-                                        padding: "20px",
-                                        textAlign: "center",
-                                        width: "180px",
-                                        height: "140px",
-                                        boxShadow: "var(--shadow-sm)",
-                                        position: "relative",
-                                        overflow: "hidden",
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        justifyContent: "center"
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            marginBottom: "12px",
-                                            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))",
-                                            display: "flex",
-                                            justifyContent: "center",
-                                            alignItems: "center"
-                                        }}
-                                    >
-                                        <img
-                                            src={defendersheild}
-                                            alt="Search"
-                                            style={{
-                                                width: "32px",
-                                                height: "32px"
-                                            }}
-                                        />
-                                    </div>
-                                    <div style={{ color: "var(--text)", fontWeight: "700", fontSize: "16px", marginBottom: "4px" }}>Secure</div>
-                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>Microsoft Entperise Security</div>
-                                </div>
-                                <div
-                                    style={{
-                                        backgroundColor: "var(--surface-elevated)",
-                                        borderRadius: "16px",
-                                        padding: "20px",
-                                        textAlign: "center",
-                                        width: "180px",
-                                        height: "140px",
-                                        boxShadow: "var(--shadow-sm)",
-                                        position: "relative",
-                                        overflow: "hidden",
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        justifyContent: "center"
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            marginBottom: "12px",
-                                            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))",
-                                            display: "flex",
-                                            justifyContent: "center",
-                                            alignItems: "center"
-                                        }}
-                                    >
-                                        <img
-                                            src={confluencelogo}
-                                            alt="Search"
-                                            style={{
-                                                width: "32px",
-                                                height: "32px"
-                                            }}
-                                        />
-                                    </div>
-                                    <div style={{ color: "var(--text)", fontWeight: "700", fontSize: "16px", marginBottom: "4px" }}>Live Search</div>
-                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>
-                                        Realtime Access to Confluence Data
-                                    </div>
-                                </div>
-                                <div
-                                    style={{
-                                        backgroundColor: "var(--surface-elevated)",
-                                        borderRadius: "16px",
-                                        padding: "20px",
-                                        textAlign: "center",
-                                        width: "180px",
-                                        height: "140px",
-                                        boxShadow: "var(--shadow-sm)",
-                                        position: "relative",
-                                        overflow: "hidden",
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        justifyContent: "center"
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            fontSize: "32px",
-                                            marginBottom: "12px",
-                                            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
-                                        }}
-                                    >
-                                        ⚡
-                                    </div>
-                                    <div style={{ color: "var(--text)", fontWeight: "700", fontSize: "16px", marginBottom: "4px" }}>Fast Response</div>
-                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>Powered by GPT-4o</div>
-                                </div>
-                            </div>
+                            {BotContentFactory.render(botId, {
+                                userName,
+                                welcomeMessage,
+                                isMobile
+                            })}
 
                             {/* Microsoft Sign-In */}
                             <div style={{ marginBottom: "32px", display: "flex", justifyContent: "center" }}>
@@ -853,7 +744,7 @@ const Chat = () => {
                             {/* Only show examples on non-mobile */}
                             {!isMobile && (
                                 <div style={{ marginTop: "40px", marginBottom: "120px" }}>
-                                    <ExampleList onExampleClicked={onExampleClicked} useGPT4V={useGPT4V} />
+                                    <ExampleList onExampleClicked={onExampleClicked} useGPT4V={useGPT4V} botId={botId} />
                                 </div>
                             )}
                         </div>

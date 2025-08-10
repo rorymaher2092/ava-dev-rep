@@ -616,14 +616,10 @@ async def setup_clients():
     CONFLUENCE_EMAIL = os.environ.get("CONFLUENCE_EMAIL", "")
 
     # Use the current user identity for keyless authentication to Azure services.
-    # This assumes you use 'azd auth login' locally, and managed identity when deployed on Azure.
-    # The managed identity is setup in the infra/ folder.
     azure_credential: Union[AzureDeveloperCliCredential, ManagedIdentityCredential]
     if RUNNING_ON_AZURE:
         current_app.logger.info("Setting up Azure credential using ManagedIdentityCredential")
         if AZURE_CLIENT_ID := os.getenv("AZURE_CLIENT_ID"):
-            # ManagedIdentityCredential should use AZURE_CLIENT_ID if set in env, but its not working for some reason,
-            # so we explicitly pass it in as the client ID here. This is necessary for user-assigned managed identities.
             current_app.logger.info(
                 "Setting up Azure credential using ManagedIdentityCredential with client_id %s", AZURE_CLIENT_ID
             )
@@ -643,12 +639,43 @@ async def setup_clients():
     # Set the Azure credential in the app config for use in other parts of the app
     current_app.config[CONFIG_CREDENTIAL] = azure_credential
 
-    # Set up clients for AI Search and Storage
-    search_client = SearchClient(
-        endpoint=AZURE_SEARCH_ENDPOINT,
-        index_name=AZURE_SEARCH_INDEX,
-        credential=azure_credential,
-    )
+    # Import bot profiles and get all required search indexes
+    try:
+        from bot_profiles import get_all_search_indexes
+        # Get all search indexes needed by bots
+        required_indexes = get_all_search_indexes()
+    except ImportError as e:
+        current_app.logger.warning(f"Could not import bot profiles: {e}. Using default index only.")
+        required_indexes = set()
+    
+    # Always include the default index
+    all_indexes = {AZURE_SEARCH_INDEX}  # Default index
+    all_indexes.update(required_indexes)  # Add bot-specific indexes
+
+    current_app.logger.info(f"Creating search clients for indexes: {list(all_indexes)}")
+
+    # Create search clients for all required indexes
+    search_clients = {}
+    for index_name in all_indexes:
+        try:
+            current_app.logger.info(f"Creating search client for index: {index_name}")
+            search_client = SearchClient(
+                endpoint=AZURE_SEARCH_ENDPOINT,
+                index_name=index_name,
+                credential=azure_credential,
+            )
+            search_clients[index_name] = search_client
+            current_app.logger.info(f"✅ Successfully created search client for index: {index_name}")
+        except Exception as e:
+            current_app.logger.error(f"❌ Failed to create search client for index {index_name}: {e}")
+            if index_name == AZURE_SEARCH_INDEX:  # Default index is critical
+                raise Exception(f"Failed to create search client for default index {index_name}: {e}")
+            else:
+                current_app.logger.warning(f"Continuing without index {index_name}")
+
+    # Store the default search client for backwards compatibility
+    default_search_client = search_clients[AZURE_SEARCH_INDEX]
+
     agent_client = KnowledgeAgentRetrievalClient(
         endpoint=AZURE_SEARCH_ENDPOINT, agent_name=AZURE_SEARCH_AGENT, credential=azure_credential
     )
@@ -724,9 +751,6 @@ async def setup_clients():
         )
         current_app.config[CONFIG_INGESTER] = ingester
 
-    # Used by the OpenAI SDK
-    openai_client: AsyncOpenAI
-
     if USE_SPEECH_OUTPUT_AZURE:
         current_app.logger.info("USE_SPEECH_OUTPUT_AZURE is true, setting up Azure speech service")
         if not AZURE_SPEECH_SERVICE_ID or AZURE_SPEECH_SERVICE_ID == "":
@@ -736,50 +760,120 @@ async def setup_clients():
         current_app.config[CONFIG_SPEECH_SERVICE_ID] = AZURE_SPEECH_SERVICE_ID
         current_app.config[CONFIG_SPEECH_SERVICE_LOCATION] = AZURE_SPEECH_SERVICE_LOCATION
         current_app.config[CONFIG_SPEECH_SERVICE_VOICE] = AZURE_SPEECH_SERVICE_VOICE
-        # Wait until token is needed to fetch for the first time
         current_app.config[CONFIG_SPEECH_SERVICE_TOKEN] = None
 
+    # ===== CREATE MULTIPLE OPENAI CLIENTS FOR DIFFERENT API VERSIONS =====
+    standard_openai_client = None
+    reasoning_openai_client = None
+
+    REASONING_API_VERSION = "2025-01-01-preview"
+    
     if OPENAI_HOST.startswith("azure"):
         if OPENAI_HOST == "azure_custom":
-            current_app.logger.info("OPENAI_HOST is azure_custom, setting up Azure OpenAI custom client")
+            current_app.logger.info("OPENAI_HOST is azure_custom, setting up Azure OpenAI custom clients")
             if not AZURE_OPENAI_CUSTOM_URL:
                 raise ValueError("AZURE_OPENAI_CUSTOM_URL must be set when OPENAI_HOST is azure_custom")
             endpoint = AZURE_OPENAI_CUSTOM_URL
         else:
-            current_app.logger.info("OPENAI_HOST is azure, setting up Azure OpenAI client")
+            current_app.logger.info("OPENAI_HOST is azure, setting up Azure OpenAI clients")
             if not AZURE_OPENAI_SERVICE:
                 raise ValueError("AZURE_OPENAI_SERVICE must be set when OPENAI_HOST is azure")
             endpoint = f"https://{AZURE_OPENAI_SERVICE}.openai.azure.com"
+        
         if api_key := os.getenv("AZURE_OPENAI_API_KEY_OVERRIDE"):
-            current_app.logger.info("AZURE_OPENAI_API_KEY_OVERRIDE found, using as api_key for Azure OpenAI client")
-            openai_client = AsyncAzureOpenAI(
-                api_version=AZURE_OPENAI_API_VERSION, azure_endpoint=endpoint, api_key=api_key
-            )
+            current_app.logger.info("AZURE_OPENAI_API_KEY_OVERRIDE found, creating API key-based clients")
+            
+            # Create standard client
+            try:
+                standard_openai_client = AsyncAzureOpenAI(
+                    api_version=AZURE_OPENAI_API_VERSION,
+                    azure_endpoint=endpoint,
+                    api_key=api_key
+                )
+                current_app.logger.info(f"✅ Created standard OpenAI client (API version: {AZURE_OPENAI_API_VERSION})")
+            except Exception as e:
+                current_app.logger.error(f"❌ Failed to create standard OpenAI client: {e}")
+                raise
+            
+            # Create reasoning client (for o3-mini)
+            try:
+                reasoning_openai_client = AsyncAzureOpenAI(
+                    api_version=REASONING_API_VERSION,
+                    azure_endpoint=endpoint,
+                    api_key=api_key
+                )
+                current_app.logger.info(f"✅ Created reasoning OpenAI client (API version: {REASONING_API_VERSION})")
+            except Exception as e:
+                current_app.logger.warning(f"⚠️ Failed to create reasoning OpenAI client: {e}")
+                current_app.logger.warning("Reasoning models (o3-mini) will not be available")
+                # Don't fail completely, just use standard client as fallback
+                reasoning_openai_client = standard_openai_client
+                
         else:
-            current_app.logger.info("Using Azure credential (passwordless authentication) for Azure OpenAI client")
+            current_app.logger.info("Using Azure credential for Azure OpenAI clients")
             token_provider = get_bearer_token_provider(azure_credential, "https://cognitiveservices.azure.com/.default")
-            openai_client = AsyncAzureOpenAI(
-                api_version=AZURE_OPENAI_API_VERSION,
-                azure_endpoint=endpoint,
-                azure_ad_token_provider=token_provider,
-            )
+            
+            # Create standard client
+            try:
+                standard_openai_client = AsyncAzureOpenAI(
+                    api_version=AZURE_OPENAI_API_VERSION,
+                    azure_endpoint=endpoint,
+                    azure_ad_token_provider=token_provider,
+                )
+                current_app.logger.info(f"✅ Created standard OpenAI client (API version: {AZURE_OPENAI_API_VERSION})")
+            except Exception as e:
+                current_app.logger.error(f"❌ Failed to create standard OpenAI client: {e}")
+                raise
+            
+            # Create reasoning client (for o3-mini)
+            try:
+                reasoning_openai_client = AsyncAzureOpenAI(
+                    api_version=REASONING_API_VERSION,
+                    azure_endpoint=endpoint,
+                    azure_ad_token_provider=token_provider,
+                )
+                current_app.logger.info(f"✅ Created reasoning OpenAI client (API version: {REASONING_API_VERSION})")
+            except Exception as e:
+                current_app.logger.warning(f"⚠️ Failed to create reasoning OpenAI client: {e}")
+                current_app.logger.warning("Reasoning models (o3-mini) will not be available")
+                # Don't fail completely, just use standard client as fallback
+                reasoning_openai_client = standard_openai_client
+    
     elif OPENAI_HOST == "local":
-        current_app.logger.info("OPENAI_HOST is local, setting up local OpenAI client for OPENAI_BASE_URL with no key")
-        openai_client = AsyncOpenAI(
-            base_url=os.environ["OPENAI_BASE_URL"],
-            api_key="no-key-required",
-        )
+        current_app.logger.info("OPENAI_HOST is local, setting up local OpenAI clients")
+        try:
+            # For local, use the same client for both
+            client = AsyncOpenAI(
+                base_url=os.environ["OPENAI_BASE_URL"],
+                api_key="no-key-required",
+            )
+            standard_openai_client = client
+            reasoning_openai_client = client
+            current_app.logger.info("✅ Created local OpenAI client (used for both standard and reasoning)")
+        except Exception as e:
+            current_app.logger.error(f"Failed to create local OpenAI client: {e}")
+            raise
+            
     else:
-        current_app.logger.info(
-            "OPENAI_HOST is not azure, setting up OpenAI client using OPENAI_API_KEY and OPENAI_ORGANIZATION environment variables"
-        )
-        openai_client = AsyncOpenAI(
-            api_key=OPENAI_API_KEY,
-            organization=OPENAI_ORGANIZATION,
-        )
+        current_app.logger.info("Setting up standard OpenAI clients")
+        try:
+            # For standard OpenAI, use the same client for both
+            client = AsyncOpenAI(
+                api_key=OPENAI_API_KEY,
+                organization=OPENAI_ORGANIZATION,
+            )
+            standard_openai_client = client
+            reasoning_openai_client = client
+            current_app.logger.info("✅ Created OpenAI client (used for both standard and reasoning)")
+        except Exception as e:
+            current_app.logger.error(f"Failed to create OpenAI client: {e}")
+            raise
 
-    current_app.config[CONFIG_OPENAI_CLIENT] = openai_client
-    current_app.config[CONFIG_SEARCH_CLIENT] = search_client
+    # Store clients in app config
+    current_app.config[CONFIG_OPENAI_CLIENT] = standard_openai_client  # Default client for backwards compatibility
+    current_app.config["STANDARD_OPENAI_CLIENT"] = standard_openai_client
+    current_app.config["REASONING_OPENAI_CLIENT"] = reasoning_openai_client
+    current_app.config[CONFIG_SEARCH_CLIENT] = default_search_client  # CRITICAL: This was missing!
     current_app.config[CONFIG_AGENT_CLIENT] = agent_client
     current_app.config[CONFIG_BLOB_CONTAINER_CLIENT] = blob_container_client
     current_app.config[CONFIG_AUTH_CLIENT] = auth_helper
@@ -808,21 +902,18 @@ async def setup_clients():
 
     prompt_manager = PromptyManager()
 
-    
     # Create the service with the configuration values
-    confluence_service = ConfluenceSearchService(openai_client=openai_client)
+    confluence_service = ConfluenceSearchService(openai_client=standard_openai_client)
     current_app.config["CONFLUENCE_SEARCH_SERVICE"] = confluence_service
-    
 
     # Set up the two default RAG approaches for /ask and /chat
-    # RetrieveThenReadApproach is used by /ask for single-turn Q&A
     current_app.config[CONFIG_ASK_APPROACH] = RetrieveThenReadApproach(
-        search_client=search_client,
+        search_client=default_search_client,
         search_index_name=AZURE_SEARCH_INDEX,
         agent_model=AZURE_OPENAI_SEARCHAGENT_MODEL,
         agent_deployment=AZURE_OPENAI_SEARCHAGENT_DEPLOYMENT,
-        agent_client=agent_client,
-        openai_client=openai_client,
+        agent_client=agent_client,  # FIXED: Added missing agent_client
+        openai_client=standard_openai_client,  # FIXED: Added missing openai_client
         auth_helper=auth_helper,
         chatgpt_model=OPENAI_CHATGPT_MODEL,
         chatgpt_deployment=AZURE_OPENAI_CHATGPT_DEPLOYMENT,
@@ -838,15 +929,20 @@ async def setup_clients():
         reasoning_effort=OPENAI_REASONING_EFFORT,
     )
 
-    # ChatReadRetrieveReadApproach is used by /chat for multi-turn conversation
+    # ChatReadRetrieveReadApproach with multi-client support
     current_app.config[CONFIG_CHAT_APPROACH] = ChatReadRetrieveReadApproach(
-        search_client=search_client,
+        search_client=default_search_client,
         search_index_name=AZURE_SEARCH_INDEX,
+        search_clients=search_clients,  # All search clients
+        default_search_index=AZURE_SEARCH_INDEX,
         agent_model=AZURE_OPENAI_SEARCHAGENT_MODEL,
         agent_deployment=AZURE_OPENAI_SEARCHAGENT_DEPLOYMENT,
         agent_client=agent_client,
-        openai_client=openai_client,
         auth_helper=auth_helper,
+        # OpenAI clients - pass both clients
+        openai_client=standard_openai_client,  # Standard client (for backwards compatibility)
+        standard_openai_client=standard_openai_client,  # Standard client
+        reasoning_openai_client=reasoning_openai_client,  # Reasoning client
         chatgpt_model=OPENAI_CHATGPT_MODEL,
         chatgpt_deployment=AZURE_OPENAI_CHATGPT_DEPLOYMENT,
         embedding_model=OPENAI_EMB_MODEL,
@@ -883,8 +979,8 @@ async def setup_clients():
         token_provider = get_bearer_token_provider(azure_credential, "https://cognitiveservices.azure.com/.default")
 
         current_app.config[CONFIG_ASK_VISION_APPROACH] = RetrieveThenReadVisionApproach(
-            search_client=search_client,
-            openai_client=openai_client,
+            search_client=default_search_client,
+            openai_client=standard_openai_client,  # Use standard client for vision
             blob_container_client=blob_container_client,
             auth_helper=auth_helper,
             vision_endpoint=AZURE_VISION_ENDPOINT,
@@ -901,10 +997,9 @@ async def setup_clients():
             query_speller=AZURE_SEARCH_QUERY_SPELLER,
             prompt_manager=prompt_manager,
         )
-
         current_app.config[CONFIG_CHAT_VISION_APPROACH] = ChatReadRetrieveReadVisionApproach(
-            search_client=search_client,
-            openai_client=openai_client,
+            search_client=default_search_client,
+            openai_client=standard_openai_client,  # Add this missing parameter
             blob_container_client=blob_container_client,
             auth_helper=auth_helper,
             vision_endpoint=AZURE_VISION_ENDPOINT,
@@ -924,13 +1019,53 @@ async def setup_clients():
             prompt_manager=prompt_manager,
         )
 
-
 @bp.after_app_serving
 async def close_clients():
-    await current_app.config[CONFIG_SEARCH_CLIENT].close()
-    await current_app.config[CONFIG_BLOB_CONTAINER_CLIENT].close()
-    if current_app.config.get(CONFIG_USER_BLOB_CONTAINER_CLIENT):
-        await current_app.config[CONFIG_USER_BLOB_CONTAINER_CLIENT].close()
+    current_app.logger.info("Closing all clients...")
+    
+    # Close all search clients
+    chat_approach = current_app.config.get(CONFIG_CHAT_APPROACH)
+    if chat_approach and hasattr(chat_approach, 'search_clients'):
+        for index_name, search_client in chat_approach.search_clients.items():
+            current_app.logger.info(f"Closing search client for index: {index_name}")
+            await search_client.close()
+    
+    # Close default search client
+    default_search_client = current_app.config.get(CONFIG_SEARCH_CLIENT)
+    if default_search_client:
+        current_app.logger.info("Closing default search client")
+        await default_search_client.close()
+    
+    # Close standard OpenAI client
+    standard_client = current_app.config.get("STANDARD_OPENAI_CLIENT")
+    if standard_client:
+        current_app.logger.info("Closing standard OpenAI client")
+        await standard_client.aclose()
+    
+    # Close reasoning OpenAI client (only if it's different from standard)
+    reasoning_client = current_app.config.get("REASONING_OPENAI_CLIENT")
+    if reasoning_client and reasoning_client is not standard_client:
+        current_app.logger.info("Closing reasoning OpenAI client")
+        await reasoning_client.aclose()
+    
+    # Close default OpenAI client (for backwards compatibility)
+    default_openai_client = current_app.config.get(CONFIG_OPENAI_CLIENT)
+    if default_openai_client and default_openai_client is not standard_client:
+        current_app.logger.info("Closing default OpenAI client")
+        await default_openai_client.aclose()
+        
+    # Close blob clients
+    blob_client = current_app.config.get(CONFIG_BLOB_CONTAINER_CLIENT)
+    if blob_client:
+        current_app.logger.info("Closing blob container client")
+        await blob_client.close()
+        
+    user_blob_client = current_app.config.get(CONFIG_USER_BLOB_CONTAINER_CLIENT)
+    if user_blob_client:
+        current_app.logger.info("Closing user blob container client")
+        await user_blob_client.close()
+    
+    current_app.logger.info("All clients closed successfully")
 
 
 def create_app():
