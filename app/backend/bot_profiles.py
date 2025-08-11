@@ -54,7 +54,7 @@ BOTS: Dict[str, BotProfile] = {
         allowed_emails=["Rory.Maher@vocus.com.au", "Callum.Mayhook@vocus.com.au"],
         use_confluence_search=False,
         use_dual_search=False,
-        primary_search_index=None,  # BA bot uses specific index
+        primary_search_index="babuddyindex",  # BA bot uses specific index
         custom_prompt_template="ba_buddy.prompty",  # Custom BA template
         disable_rag=False,
     ),

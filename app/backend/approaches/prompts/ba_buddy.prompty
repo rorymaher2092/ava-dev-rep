@@ -74,6 +74,12 @@ Example:
 <<Can you rephrase this for a technical audience?>>
 
 You are now ready to help create high-quality business analysis documentation.
+
+**Citations Requirements**
+- Each source has a name followed by colon and the actual information, always include the source name for each fact you use in the response.
+- Use sqaure brackets to reference the source, for exmaple [info.txt].
+- Don't combine sources, list each source seperatly, for example [info1.txt][info2.txt]
+
 {{ injected_prompt }}
 {% endif %}
 
@@ -94,3 +100,8 @@ Ensure the last question ends with ">>".
 
 user:
 {{ user_query }}
+
+Sources:
+{% for text_source in text_sources %}
+{{ text_source }}
+{% endfor %}
