@@ -17,6 +17,7 @@ class BotProfile:
         primary_search_index: str | None = None,
         custom_prompt_template: str | None = None,
         disable_rag: bool = False,
+        valid_artifacts: List[str] | None = None,  # Add this line
     ):
         self.id = id
         self.label = label
@@ -29,7 +30,19 @@ class BotProfile:
         self.dual_search = use_dual_search
         self.primary_search_index = primary_search_index
         self.custom_prompt_template = custom_prompt_template
-        self.disable_rag = disable_rag
+        self.disable_rag = disable_rag,
+        self.valid_artifacts = valid_artifacts or []  # Add this line
+        
+    
+    def supports_artifact(self, artifact_type: str) -> bool:
+        """Check if this bot supports the given artifact type."""
+        return artifact_type in self.valid_artifacts
+    
+    def validate_artifact(self, artifact_type: str | None) -> str | None:
+        """Validate and return artifact type if supported, otherwise None."""
+        if artifact_type and self.supports_artifact(artifact_type):
+            return artifact_type
+        return None
 
 # ── define each bot once ───────────────────────────────────────────
 BOTS: Dict[str, BotProfile] = {
@@ -43,6 +56,7 @@ BOTS: Dict[str, BotProfile] = {
         primary_search_index=None,  # Uses default index
         custom_prompt_template="chat_answer_question.prompty",  # Explicit default
         disable_rag=False,
+        valid_artifacts=[],  # Ava doesn't use artifacts
     ),
 
     "ba": BotProfile(
@@ -57,6 +71,7 @@ BOTS: Dict[str, BotProfile] = {
         primary_search_index="babuddyindex",  # BA bot uses specific index
         custom_prompt_template="ba_buddy.prompty",  # Custom BA template
         disable_rag=False,
+        valid_artifacts=["prfaq", "initiative", "feature", "acceptance_criteria", "story_map"],  # BA bot artifacts
     ),
     
     "tender": BotProfile(
@@ -70,6 +85,7 @@ BOTS: Dict[str, BotProfile] = {
         primary_search_index=None,  # No search index
         custom_prompt_template="tender_wizard.prompty",  # Custom wizard template
         disable_rag=False,  # Completely disable RAG
+        valid_artifacts=[]
     ),
 }
 

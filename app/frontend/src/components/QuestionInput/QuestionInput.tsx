@@ -8,6 +8,8 @@ import styles from "./QuestionInput.module.css";
 import { SpeechInput } from "./SpeechInput";
 import { LoginContext } from "../../loginContext";
 import { requireLogin } from "../../authConfig";
+import { CompactArtifactSelector } from "../ArtifactSelector/CompactArtitfactSelector";
+import { useBot } from "../../contexts/BotContext"
 
 interface Props {
     onSend: (question: string) => void;
@@ -33,6 +35,7 @@ export const QuestionInput = ({
 }: Props) => {
     const [question, setQuestion] = useState<string>("");
     const { loggedIn } = useContext(LoginContext);
+    const { botId } = useBot();
     const { t } = useTranslation();
     const [isComposing, setIsComposing] = useState(false);
 
@@ -85,6 +88,8 @@ export const QuestionInput = ({
 
     return (
         <div className={styles.questionInputWrapper}>
+            
+            {botId === 'ba' && <CompactArtifactSelector />}
             {/* Follow-up questions above the input box */}
             {!!followupQuestions?.length && (
                 <Stack horizontal wrap tokens={{ childrenGap: 16 }} className={styles.followupQuestionsWrapper}>

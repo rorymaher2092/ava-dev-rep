@@ -1,0 +1,87 @@
+/* src/components/CollaborationPrompt/CollaborationPrompt.module.css */
+
+.container {
+    margin-bottom: 32px;
+    display: flex;
+    justify-content: center;
+}
+
+.promptBox {
+    background: var(--surface-elevated);
+    border: 2px solid var(--primary);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    max-width: 600px;
+    width: 100%;
+    box-shadow: var(--shadow-lg);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.icon {
+    font-size: 24px;
+}
+
+.title {
+    color: var(--text);
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.content {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.promptText {
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-line;
+    background: var(--primary-light);
+    padding: 16px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--primary);
+}
+
+.getStartedButton {
+    align-self: flex-start;
+    background: var(--primary);
+    color: var(--vocus-white);
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 12px 24px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-sm);
+}
+
+.getStartedButton:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .promptBox {
+        margin: 0 16px;
+        padding: 20px;
+    }
+    
+    .title {
+        font-size: 15px;
+    }
+    
+    .promptText {
+        font-size: 13px;
+        padding: 14px;
+    }
+}

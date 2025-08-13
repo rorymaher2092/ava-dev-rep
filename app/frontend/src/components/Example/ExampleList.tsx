@@ -47,7 +47,8 @@ const BOT_EXAMPLES = {
                 { text: "What is the difference between internet products at Vocus?", icon: "🛜", category: "Product Information" }
             ]
         },
-        count: 6
+        count: 6,
+        showExamples: true  // ✅ Show examples for ava bot
     },
 
     ba: {
@@ -63,7 +64,8 @@ const BOT_EXAMPLES = {
                 { text: "Break down this epic into detailed user stories with acceptance criteria", icon: "⚡", category: "Analysis & Planning" }
             ]
         },
-        count: 3
+        count: 3,
+        showExamples: false  // ✅ Hide examples for ba bot
     },
 
     tender: {
@@ -79,7 +81,8 @@ const BOT_EXAMPLES = {
                 { text: "Review this proposal section for clarity and impact", icon: "🔍", category: "Bid Management" }
             ]
         },
-        count: 3
+        count: 3,
+        showExamples: true  // ✅ Show examples for tender bot
     }
 };
 
@@ -136,10 +139,31 @@ export const ExampleList = ({ onExampleClicked, useGPT4V = false, botId }: Props
         const config = botConfig || BOT_EXAMPLES.ava;
         console.log("useEffect: Using config for bot:", botConfig ? botId : "ava (fallback)");
 
+        // ✅ Check if examples should be shown for this bot
+        if (!config.showExamples) {
+            console.log("useEffect: Examples disabled for bot:", botId);
+            setExamples([]);
+            return;
+        }
+
         const newExamples = pickRandomFromCategories(config.examples, config.count);
         console.log("useEffect: Generated", newExamples.length, "examples");
         setExamples(newExamples);
     }, [botId, useGPT4V]); // Re-run when botId or useGPT4V changes
+
+    // ✅ Get bot config to check if examples should be shown
+    const botConfig = BOT_EXAMPLES[botId as keyof typeof BOT_EXAMPLES];
+    const config = botConfig || BOT_EXAMPLES.ava;
+    
+    // ✅ Don't render anything if examples are disabled for this bot
+    if (!useGPT4V && !config.showExamples) {
+        return null;
+    }
+
+    // ✅ Don't render if there are no examples to show
+    if (examples.length === 0) {
+        return null;
+    }
 
     return (
         <div style={{ maxWidth: "1000px", margin: "0 auto" }}>

@@ -13,10 +13,12 @@ import Chat from "./pages/chat/Chat";
 import LayoutWrapper from "./layoutWrapper";
 import i18next from "./i18n/config";
 import AdminRoute from "./components/AdminRoute";
-import RedirectHandler from "./RedirectHandler"; // Add this import at the top
+import RedirectHandler from "./RedirectHandler";
 
 // ✅ Import BotProvider
 import { BotProvider } from "./contexts/BotContext";
+// ✅ Import ArtifactProvider
+import { ArtifactProvider } from "./contexts/ArtifactContext";
 
 // Initialize Teams SDK
 try {
@@ -25,8 +27,8 @@ try {
     console.log("Teams initialization failed or not in Teams context");
 }
 initializeIcons();
+
 const router = createBrowserRouter([
-    // NOT createHashRouter
     {
         path: "/",
         element: <LayoutWrapper />,
@@ -36,7 +38,7 @@ const router = createBrowserRouter([
                 element: <Chat />
             },
             {
-                path: "redirect", // Add this route
+                path: "redirect",
                 element: <RedirectHandler />
             },
             {
@@ -59,9 +61,11 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
         <I18nextProvider i18n={i18next}>
             <HelmetProvider>
-                {/* ✅ Wrap with BotProvider */}
+                {/* ✅ Wrap with BotProvider first, then ArtifactProvider inside */}
                 <BotProvider>
-                    <RouterProvider router={router} />
+                    <ArtifactProvider>
+                        <RouterProvider router={router} />
+                    </ArtifactProvider>
                 </BotProvider>
             </HelmetProvider>
         </I18nextProvider>

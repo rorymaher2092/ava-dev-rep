@@ -57,6 +57,9 @@ import { useBot } from "../../contexts/BotContext"; // ✅ ADD
 import { useBotTheme } from "../../hooks/useBotTheme";
 import { BotContentFactory } from "../../components/BotContent/BotContentFactory";
 
+// Import BaArtififactContext
+import { useArtifact } from "../../contexts/ArtifactContext";
+
 import { InteractionRequiredAuthError } from "@azure/msal-browser";
 import { msalInstance } from "../../authConfig";
 
@@ -119,6 +122,9 @@ const Chat = () => {
     const [showChatHistoryCosmos, setShowChatHistoryCosmos] = useState<boolean>(false);
     const [showAgenticRetrievalOption, setShowAgenticRetrievalOption] = useState<boolean>(false);
     const [useAgenticRetrieval, setUseAgenticRetrieval] = useState<boolean>(false);
+
+    // Add artifact context
+    const { selectedArtifactType, getSelectedArtifact } = useArtifact ();
 
     const audio = useRef(new Audio()).current;
     const [isPlaying, setIsPlaying] = useState(false);
@@ -311,6 +317,23 @@ const Chat = () => {
             const authToken = await getToken();
             const graphtoken = await getGraphToken();
 
+            // Get artifact information for BA bot
+            let artifactContext = {};
+            if (botId === 'ba') {
+                const selectedArtifact = getSelectedArtifact();
+                artifactContext = {
+                    artifact_type: selectedArtifactType,
+                    artifact_instructions: selectedArtifact.customInstructions,
+                    artifact_prompt_hint: selectedArtifact.promptHint
+                };
+            } else {
+                artifactContext = {
+                    artifact_type: null,
+                    artifact_instructions: null,
+                    artifact_prompt_hint: null
+                };
+            }
+
             const messages: ResponseMessage[] = answers.flatMap(a => [
                 { content: a[0], role: "user" },
                 { content: a[1].message.content, role: "assistant" }
@@ -345,6 +368,7 @@ const Chat = () => {
                         // bot_id: to select which bot is being used
                         bot_id: botId,
                         graph_token: graphtoken,
+                        artifact_type: selectedArtifactType,  
                         ...(seed !== null ? { seed: seed } : {})
                     }
                 },

@@ -194,6 +194,16 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         # Retrieve the bot_id from overrides (default to "ava" if not provided)
         bot_id = overrides.get("bot_id", DEFAULT_BOT_ID)
         profile = BOTS.get(bot_id, BOTS[DEFAULT_BOT_ID])
+
+        # Validate artifact_type using helper method
+        artifact_type = overrides.get("artifact_type")
+        validated_artifact_type = profile.validate_artifact(artifact_type)
+
+        if artifact_type and not validated_artifact_type:
+            logging.warning(f"⚠️ Artifact '{artifact_type}' is not valid for bot '{bot_id}'. Valid artifacts: {profile.valid_artifacts}")
+        elif validated_artifact_type:
+            logging.info(f"✅ Using artifact '{validated_artifact_type}' for bot '{bot_id}'")
+        
         
         # Set model override
         overrides["model_override"] = profile.model
@@ -278,6 +288,7 @@ class ChatReadRetrieveReadApproach(ChatApproach):
             self.get_system_prompt_variables(overrides.get("prompt_template"))
             | {
                 "include_follow_up_questions": bool(overrides.get("suggest_followup_questions")),
+                "artifact_type": validated_artifact_type,
                 "past_messages": messages[:-1],
                 "user_query": original_user_query,
                 "text_sources": extra_info.data_points.text,
