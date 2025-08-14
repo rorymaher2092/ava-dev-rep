@@ -12,10 +12,10 @@
     margin-bottom: 20px;
 }
 
-/* Category Grid (Top Tier) */
+/* Category Grid (Top Tier) - Updated for Arrow Design */
 .categoryGrid {
     display: flex;
-    gap: 16px;
+    gap: 0; /* Remove gaps since arrows overlap */
     justify-content: center;
     flex-wrap: wrap;
     max-width: 700px;
@@ -23,29 +23,37 @@
 }
 
 .categoryButton {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 8px;
-    padding: 16px 20px;
+    padding: 16px 30px; /* Increased horizontal padding for arrow shape */
     background: var(--surface-elevated);
     border: 2px solid var(--border);
-    border-radius: var(--radius-lg);
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     font-size: 14px;
     font-weight: 600;
     color: var(--text);
-    min-width: 120px;
+    min-width: 140px; /* Increased min-width for better arrow proportions */
     text-align: center;
     box-shadow: var(--shadow-sm);
+    /* Arrow shape using clip-path - all arrows have same shape */
+    clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 50%, calc(100% - 20px) 100%, 0 100%, 20px 50%);
+    margin-right: -20px; /* Overlap for seamless connection */
+}
+
+.categoryButton:last-child {
+    margin-right: 0; /* Remove overlap for last arrow */
 }
 
 .categoryButton:hover {
     background: var(--surface-hover);
     border-color: var(--primary);
-    transform: translateY(-2px);
+    transform: scale(1.05); /* Changed from translateY to scale for better arrow effect */
     box-shadow: var(--shadow-lg);
+    z-index: 2; /* Ensure hovered arrow appears above others */
 }
 
 .categoryButton.selectedCategory {
@@ -53,7 +61,8 @@
     border-color: var(--primary);
     color: var(--primary);
     box-shadow: var(--shadow-md);
-    transform: translateY(-1px);
+    transform: scale(1.05); /* Changed from translateY to scale */
+    z-index: 3; /* Ensure selected arrow appears above others */
 }
 
 .categoryIcon {
@@ -91,35 +100,43 @@
 
 .artifactGrid {
     display: flex;
-    gap: 12px;
+    gap: 0; /* Remove gaps for arrow design */
     justify-content: center;
     flex-wrap: wrap;
     margin: 0 auto;
 }
 
 .artifactButton {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 12px 16px;
+    padding: 12px 20px; /* Increased horizontal padding for arrow shape */
     background: var(--surface-elevated);
     border: 2px solid var(--border);
-    border-radius: var(--radius-md);
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     font-size: 14px;
     font-weight: 500;
     color: var(--text);
-    min-width: 110px;
+    min-width: 120px; /* Increased min-width for better arrow proportions */
     text-align: center;
     box-shadow: var(--shadow-sm);
+    /* Arrow shape using clip-path - all arrows have same shape */
+    clip-path: polygon(0 0, calc(100% - 15px) 0, 100% 50%, calc(100% - 15px) 100%, 0 100%, 15px 50%);
+    margin-right: -15px; /* Smaller overlap for artifact buttons */
+}
+
+.artifactButton:last-child {
+    margin-right: 0; /* Remove overlap for last arrow */
 }
 
 .artifactButton:hover {
     background: var(--surface-hover);
     border-color: var(--primary);
-    transform: translateY(-1px);
+    transform: scale(1.05); /* Changed from translateY to scale */
     box-shadow: var(--shadow-md);
+    z-index: 2; /* Ensure hovered arrow appears above others */
 }
 
 .artifactButton.selectedArtifact {
@@ -128,6 +145,8 @@
     color: var(--vocus-white);
     box-shadow: var(--shadow-lg);
     font-weight: 600;
+    transform: scale(1.05); /* Changed from translateY to scale */
+    z-index: 3; /* Ensure selected arrow appears above others */
 }
 
 .artifactIcon {
@@ -139,15 +158,21 @@
     font-size: 13px;
 }
 
-/* Mobile responsive */
+/* Mobile responsive - Remove arrow shapes on mobile for better usability */
 @media (max-width: 768px) {
     .categoryGrid {
-        gap: 12px;
+        gap: 12px; /* Restore gaps on mobile */
+        flex-direction: column; /* Stack vertically */
+        align-items: center;
     }
     
     .categoryButton {
-        padding: 14px 16px;
-        min-width: 100px;
+        clip-path: none; /* Remove arrow shape on mobile */
+        border-radius: var(--radius-lg); /* Restore rounded corners */
+        margin-right: 0; /* Remove overlap */
+        padding: 14px 16px; /* Restore original padding */
+        min-width: 200px; /* Wider on mobile for better touch targets */
+        max-width: 280px;
     }
     
     .categoryIcon {
@@ -159,13 +184,19 @@
     }
     
     .artifactGrid {
-        gap: 8px;
+        gap: 8px; /* Restore gaps on mobile */
+        flex-direction: column; /* Stack vertically */
+        align-items: center;
     }
     
     .artifactButton {
-        padding: 10px 14px;
+        clip-path: none; /* Remove arrow shape on mobile */
+        border-radius: var(--radius-md); /* Restore rounded corners */
+        margin-right: 0; /* Remove overlap */
+        padding: 10px 14px; /* Restore original padding */
         font-size: 13px;
-        min-width: 95px;
+        min-width: 180px; /* Wider on mobile for better touch targets */
+        max-width: 250px;
     }
     
     .title {

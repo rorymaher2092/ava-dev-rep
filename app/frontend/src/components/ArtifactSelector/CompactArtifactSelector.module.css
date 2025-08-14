@@ -49,7 +49,7 @@
     border-top: 1px solid var(--border);
     padding: 12px;
     animation: slideDown 0.15s ease-out;
-    background: var(--primary-light);
+    background: var(--brand-40);
     border-bottom-left-radius: var(--radius-md);
     border-bottom-right-radius: var(--radius-md);
 }
@@ -90,13 +90,13 @@
 
 .categoryPill:hover {
     background: var(--surface-hover);
-    border-color: var(--primary);
+    border-color: var(--brand-80);
     transform: translateY(-1px);
 }
 
 .categoryPill.selectedCategory {
-    background: var(--primary);
-    border-color: var(--primary);
+    background: var(--brand-80);
+    border-color: var(--brand-80);
     color: var(--vocus-white);
     box-shadow: var(--shadow-md);
     font-weight: 600;
@@ -134,13 +134,13 @@
 
 .artifactOption:hover {
     background: var(--surface-hover);
-    border-color: var(--primary);
+    border-color: var(--brand-80);
     transform: translateY(-1px);
 }
 
 .artifactOption.selectedArtifact {
-    background: var(--primary);
-    border-color: var(--primary);
+    background: var(--brand-80);
+    border-color: var(--brand-80);
     color: var(--vocus-white);
     font-weight: 600;
     box-shadow: var(--shadow-md);

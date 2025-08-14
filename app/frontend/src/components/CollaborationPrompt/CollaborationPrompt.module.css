@@ -8,11 +8,9 @@
 
 .promptBox {
     background: var(--surface-elevated);
-    border: 2px solid var(--primary);
     border-radius: var(--radius-lg);
     padding: 24px;
-    max-width: 600px;
-    width: 100%;
+    width: 600px;
     box-shadow: var(--shadow-lg);
 }
 
@@ -44,15 +42,15 @@
     font-size: 14px;
     line-height: 1.5;
     white-space: pre-line;
-    background: var(--primary-light);
+    background: var(--surface);
     padding: 16px;
     border-radius: var(--radius-md);
-    border: 1px solid var(--primary);
+    border: 1px solid var(--border);
 }
 
 .getStartedButton {
     align-self: flex-start;
-    background: var(--primary);
+    background: var(--brand-80);
     color: var(--vocus-white);
     border: none;
     border-radius: var(--radius-md);
@@ -64,7 +62,7 @@
 }
 
 .getStartedButton:hover {
-    background: var(--primary-hover);
+    background: var(--brand-100);
     transform: translateY(-1px);
     box-shadow: var(--shadow-md);
 }
@@ -74,6 +72,7 @@
     .promptBox {
         margin: 0 16px;
         padding: 20px;
+        width: calc(100% - 32px);
     }
     
     .title {

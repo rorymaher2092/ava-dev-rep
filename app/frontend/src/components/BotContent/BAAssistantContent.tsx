@@ -38,31 +38,7 @@ export class BAAssistantContent extends BaseBotContent {
         return (
             <>
                 {/* Standard features */}
-                {this.renderFeatures(config.features)}
-
-                {/* How to use section */}
-                {config.howToUse && (
-                    <div
-                        style={{
-                            backgroundColor: "var(--surface-elevated)",
-                            borderRadius: "12px",
-                            padding: "20px",
-                            marginBottom: "32px",
-                            border: "1px solid var(--brand-80)",
-                            textAlign: "center",
-                            maxWidth: "600px",
-                            margin: "0 auto 32px auto"
-                        }}
-                    >
-                        <div style={{ fontSize: "18px", marginBottom: "8px" }}>💡</div>
-                        <div style={{ color: "var(--text)", fontWeight: "600", marginBottom: "8px" }}>
-                            How to use {config.title}
-                        </div>
-                        <div style={{ color: "var(--text-secondary)", fontSize: "14px" }}>
-                            {config.howToUse}
-                        </div>
-                    </div>
-                )}
+                {/*this.renderFeatures(config.features)*/}
 
                 {/* Artifact Selection - BA Bot specific functionality */}
                 <ArtifactSelector />
