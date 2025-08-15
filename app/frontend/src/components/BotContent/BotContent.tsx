@@ -4,7 +4,8 @@ import React from "react";
 export interface BotContentProps {
     userName: string;
     welcomeMessage: string;
-    isMobile?: boolean;
+    isMobile: boolean;
+    onSendMessage?: (message: string) => void;
 }
 
 export interface BotContentConfig {

@@ -60,19 +60,44 @@ BOTS: Dict[str, BotProfile] = {
     ),
 
     "ba": BotProfile(
-        id="ba",
-        label="BA Buddy",
-        model="o3-mini",
-        deployment="o3-mini",  # Add your actual deployment name
-        api_version="2025-01-31",
-        allowed_emails=["Rory.Maher@vocus.com.au", "Callum.Mayhook@vocus.com.au"],
-        use_confluence_search=False,
-        use_dual_search=False,
-        primary_search_index="babuddyindex",  # BA bot uses specific index
-        custom_prompt_template="ba_buddy.prompty",  # Custom BA template
-        disable_rag=False,
-        valid_artifacts=["prfaq", "initiative", "feature", "acceptance_criteria", "story_map"],  # BA bot artifacts
-    ),
+    id="ba",
+    label="BA Buddy",
+    model="o3-mini",
+    deployment="o3-mini",
+    api_version="2025-01-31",
+    allowed_emails=["Rory.Maher@vocus.com.au", "Callum.Mayhook@vocus.com.au"],
+    use_confluence_search=False,
+    use_dual_search=False,
+    primary_search_index="babuddyindex",
+    custom_prompt_template="ba_buddy.prompty",
+    disable_rag=False,
+    valid_artifacts=[
+        # Ideate Stage
+        "dvf_prioritisation",
+        
+        # Define Stage
+        "business_discovery",
+        "prfaq",
+        "change_on_page",
+        "stakeholder_impact",
+        "change_schedule",
+        
+        # Design Stage
+        "feature_breakdown",
+        "feature_details",
+        "acceptance_criteria",
+        "story_map",
+        "business_process",
+        "change_strategy",
+        
+        # Refine & Plan Stage
+        "engineering_breakdown",
+        "business_activities",
+        
+        # Develop Stage
+        "uat_plan"
+    ],
+),
     
     "tender": BotProfile(
         id="tender",

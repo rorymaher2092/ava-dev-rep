@@ -35,24 +35,22 @@ export class BAAssistantContent extends BaseBotContent {
     render(props: BotContentProps) {
         const config = this.getConfig();
 
-        return (
-            <>
+    return (
+            <div>
                 {/* Standard features */}
                 {/*this.renderFeatures(config.features)*/}
 
                 {/* Artifact Selection - BA Bot specific functionality */}
                 <ArtifactSelector />
-                
-                {/* Collaboration Prompt */}
+            
+                {/* Collaboration Prompt - NOW WITH onSendMessage prop */}
                 <CollaborationPrompt 
+                    onSendMessage={props.onSendMessage}
                     onGetStarted={() => {
-                        // Optionally trigger something when user clicks "Get Started"
-                        // For now, this could scroll to the input or focus it
-                        const questionInput = document.querySelector('[placeholder*="Type a new question"]') as HTMLElement;
-                        questionInput?.focus();
+                        console.log('BA Assistant: User clicked get started');
                     }}
                 />
-            </>
-        );
+            </div>
+         );
     }
-}
+};
