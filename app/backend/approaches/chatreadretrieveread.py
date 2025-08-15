@@ -283,6 +283,15 @@ class ChatReadRetrieveReadApproach(ChatApproach):
             # Use default prompt template
             answer_prompt = self.answer_prompt
 
+        attachment_sources = overrides.get("attachment_sources", [])
+
+        # DEBUG: Log what we received in the approach
+        current_app.logger.info(f"🔍 DEBUG - Approach received {len(attachment_sources)} attachment sources")
+        if attachment_sources:
+            current_app.logger.info(f"🔍 DEBUG - First attachment in approach (first 200 chars): {attachment_sources[0][:200]}...")
+        else:
+            current_app.logger.info(f"🔍 DEBUG - No attachment sources in approach! Available overrides keys: {list(overrides.keys())}")
+
         messages = self.prompt_manager.render_prompt(
             answer_prompt,
             self.get_system_prompt_variables(overrides.get("prompt_template"))
@@ -292,6 +301,7 @@ class ChatReadRetrieveReadApproach(ChatApproach):
                 "past_messages": messages[:-1],
                 "user_query": original_user_query,
                 "text_sources": extra_info.data_points.text,
+                "attachment_sources": attachment_sources,
             },
         )
 
@@ -662,7 +672,7 @@ class ChatReadRetrieveReadApproach(ChatApproach):
                     ),
                     temperature=0.0,
                     tools=tools,
-                    reasoning_effort="low",
+                    reasoning_effort="high",
                 ),
             )
         finally:
@@ -704,7 +714,7 @@ class ChatReadRetrieveReadApproach(ChatApproach):
                     model=model_to_use,
                     deployment=deployment_to_use,
                     usage=chat_completion.usage,
-                    reasoning_effort="low",
+                    reasoning_effort="high",
                 ),
                 ThoughtStep(
                     "Search using generated search query",

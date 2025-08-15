@@ -57,7 +57,10 @@ from approaches.chatreadretrievereadvision import ChatReadRetrieveReadVisionAppr
 from approaches.promptmanager import PromptyManager
 from approaches.retrievethenread import RetrieveThenReadApproach
 from approaches.retrievethenreadvision import RetrieveThenReadVisionApproach
-from approaches.confluence_search import ConfluenceSearchService  
+from approaches.confluence_search import ConfluenceSearchService 
+from attachments.attachment_api import attachment_bp
+# In your main route file, make sure you have:
+from attachments.attachment_helpers import prepare_chat_with_attachments
 from chat_history.cosmosdb import chat_history_cosmosdb_bp
 from config import (
     CONFIG_AGENT_CLIENT,
@@ -236,6 +239,8 @@ async def chat(auth_claims: dict[str, Any]):
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
 
+    user_id = auth_claims.get("oid", "anonymous")
+
     # Print out the full context, including overrides
     current_app.logger.info(f"Received context: {json.dumps(context, indent=2)}")
 
@@ -244,6 +249,11 @@ async def chat(auth_claims: dict[str, Any]):
     bot_profile = BOTS.get(bot_id, BOTS[DEFAULT_BOT_ID])  # Default to 'ava' if not found
     
     current_app.logger.info(f"Bot ID: {bot_id}, Bot Profile: {bot_profile.label}")
+
+    attachment_context = prepare_chat_with_attachments(user_id)
+    
+    # Add attachment metadata and sources to context
+    context.update(attachment_context)
 
     try:
         use_gpt4v = context.get("overrides", {}).get("use_gpt4v", False)
@@ -279,6 +289,14 @@ async def chat_stream(auth_claims: dict[str, Any]):
     request_json = await request.get_json()
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
+
+    user_id = auth_claims.get("oid", "anonymous")
+    
+    attachment_context = prepare_chat_with_attachments(user_id)
+  
+    # Add attachment metadata and sources to context
+    context.update(attachment_context)
+
     try:
         use_gpt4v = context.get("overrides", {}).get("use_gpt4v", False)
         approach: Approach
@@ -538,6 +556,8 @@ async def submit_feedback(auth_claims: dict[str, Any]):
         current_app.logger.info("Cosmos DB not enabled, feedback only logged")
     
     return jsonify({"message": "Feedback submitted successfully"}), 200
+
+
 
 
 @bp.before_app_serving
@@ -1076,6 +1096,8 @@ def create_app():
     # Register feedback blueprint
     from chat_history.feedback_api import feedback_bp
     app.register_blueprint(feedback_bp)
+
+    app.register_blueprint(attachment_bp)
 
 
     if os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):

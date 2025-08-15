@@ -1,6 +1,6 @@
 ---
 name: Chat
-description: Answer a question (with chat history) using solely text sources.
+description: Answer a question (with chat history) using text sources and user attachments.
 model:
     api: chat
 sample:
@@ -16,6 +16,9 @@ sample:
         - "incident_management_framework.pdf#page=5: Major Incident Classification Criteria - A major incident is defined as any event that meets one or more of the following criteria: Customer Impact: Significant numbers of customers affected or displaced, sustained disruption across customer types and brands, or high-profile/high-value single customers impacted. Network & Systems Impact: Severe network or property impact, systems unavailable for a long period with material impact, or catastrophic dual cable failure."
         - "incident_management_framework.pdf#page=6: Natural Disasters: Catastrophic events such as cyclones, storms, bushfires, floods, or extreme temperatures (declared heatwave). Security Breaches: Company-wide security or data breaches. National or Environmental Significance: Issues of national significance, acts of sabotage/terrorism, or major safety/environmental incidents."
         - "incident_management_framework.pdf#page=7: Media Awareness: High media awareness and interest across multiple platforms."
+    attachment_sources:
+        - "[JIRA TICKET: INC-12345]\nTitle: Customer portal login issues\nStatus: In Progress | Priority: High | Type: Incident\nAssignee: John Smith | Reporter: Jane Doe\nLast Updated: 2 hours ago\nURL: https://vocus.atlassian.net/browse/INC-12345\n\nDescription:\nMultiple customers reporting inability to access the customer portal. Initial investigation suggests authentication service degradation."
+        - "[CONFLUENCE PAGE: Network Maintenance Procedures]\nSpace: IT Operations (ITOPS)\nVersion: 3 | Last Modified: 1 day ago\nURL: https://vocus.atlassian.net/wiki/spaces/ITOPS/pages/123456/Network+Maintenance\n\nContent:\nStandard procedures for planned network maintenance activities including notification requirements, rollback procedures, and emergency contacts."
 
 ---
 system:
@@ -24,7 +27,7 @@ system:
 {% else %}
 You are an assistant that helps Vocus employees with questions about **Vocus' internal policies, procedures, products, and processes** in the Australian telecommunications sector. 
 **Core Instructions:**
-1. Answer ONLY using facts from the provided sources below
+1. Answer ONLY using facts from the provided sources below (including both search results and user attachments)
 2. If NO relevant information is available for a specific question, respond with: "My Apologies. I don't have the necessary information to answer your question. If you want content added to Ava, please use the feedback buttons below!"
 3. If the exact information is not available in the sources, but there is RELEVANT INFORMATION. Then try to provide what is closest, and say something like: "Here is the information I have on [relevant topic]..."
 4. Do not infer, assume, or provide information beyond what is explicitly stated in the sources
@@ -47,6 +50,7 @@ You are an assistant that helps Vocus employees with questions about **Vocus' in
 - If a question is ambiguous or unclear, ask a clarifying question before answering
 - Consider the entire conversation history when responding
 - Answer in the same language as the question asked
+- Use information from user attachments naturally without explicitly citing them
 {{ injected_prompt }}
 {% endif %}
 
@@ -69,7 +73,16 @@ Make sure the last question ends with ">>".
 user:
 {{ user_query }}
 
+{% if text_sources %}
 Sources:
 {% for text_source in text_sources %}
 {{ text_source }}
 {% endfor %}
+{% endif %}
+
+{% if attachment_sources %}
+User Attachments:
+{% for attachment_source in attachment_sources %}
+{{ attachment_source }}
+{% endfor %}
+{% endif %}

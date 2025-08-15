@@ -229,3 +229,135 @@ export async function submitFeedbackApi(
     const dataResponse: SimpleAPIResponse = await response.json();
     return dataResponse;
 }
+
+// new to handle attachmetns
+// Add Jira ticket
+export async function addJiraTicket(ticketKey: string): Promise<any> {
+    const authToken = await getToken();
+    if (!authToken) {
+        throw new Error('Authentication required');
+    }
+
+    const response = await fetch('/api/attachments/jira', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ ticketKey })
+    });
+    
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to add Jira ticket');
+    }
+    
+    return response.json();
+}
+
+// Add Confluence page
+export async function addConfluencePage(pageUrl: string, title?: string): Promise<any> {
+    const authToken = await getToken();
+    if (!authToken) {
+        throw new Error('Authentication required');
+    }
+    
+    const response = await fetch('/api/attachments/confluence', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ pageUrl, title })
+    });
+    
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to add Confluence page');
+    }
+    
+    return response.json();
+}
+
+// Remove Jira ticket
+export async function removeJiraTicket(ticketKey: string): Promise<void> {
+    const authToken = await getToken();
+    if (!authToken) {
+        throw new Error('Authentication required');
+    }
+    
+    const response = await fetch(`/api/attachments/jira/${ticketKey}`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${authToken}`
+        }
+    });
+    
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to remove Jira ticket');
+    }
+}
+
+// Remove Confluence page
+export async function removeConfluencePage(pageUrl: string): Promise<void> {
+    const authToken = await getToken();
+    if (!authToken) {
+        throw new Error('Authentication required');
+    }
+    
+    const encodedPageUrl = encodeURIComponent(pageUrl);
+    const response = await fetch(`/api/attachments/confluence/${encodedPageUrl}`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${authToken}`
+        }
+    });
+    
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to remove Confluence page');
+    }
+}
+
+// Get all attachments
+export async function getUserAttachments(): Promise<any> {
+    const authToken = await getToken();
+    if (!authToken) {
+        throw new Error('Authentication required');
+    }
+    
+    const response = await fetch('/api/attachments', {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${authToken}`
+        }
+    });
+    
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to get attachments');
+    }
+    
+    return response.json();
+}
+
+// Clear all attachments
+export async function clearAllAttachments(): Promise<void> {
+    const authToken = await getToken();
+    if (!authToken) {
+        throw new Error('Authentication required');
+    }
+    
+    const response = await fetch('/api/attachments/all', {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${authToken}`
+        }
+    });
+    
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to clear attachments');
+    }
+}

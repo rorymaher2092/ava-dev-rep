@@ -5,11 +5,28 @@ import styles from './CollaborationPrompt.module.css';
 
 interface CollaborationPromptProps {
     onGetStarted?: () => void;
+    // Add this new prop to receive the chat function
+    onSendMessage?: (message: string) => void;
 }
 
-export const CollaborationPrompt: React.FC<CollaborationPromptProps> = ({ onGetStarted }) => {
+export const CollaborationPrompt: React.FC<CollaborationPromptProps> = ({ 
+    onGetStarted, 
+    onSendMessage 
+}) => {
     const { getSelectedArtifact } = useArtifact();
     const selectedArtifact = getSelectedArtifact();
+
+    const handleGetStarted = () => {
+        // Send the "Let's get started" message to chat
+        if (onSendMessage) {
+            onSendMessage("Let's get started");
+        }
+        
+        // Call the original onGetStarted callback if provided
+        if (onGetStarted) {
+            onGetStarted();
+        }
+    };
 
     return (
         <div className={styles.container}>
@@ -24,14 +41,12 @@ export const CollaborationPrompt: React.FC<CollaborationPromptProps> = ({ onGetS
                         {selectedArtifact.promptHint}
                     </div>
                     
-                    {onGetStarted && (
-                        <button 
-                            className={styles.getStartedButton}
-                            onClick={onGetStarted}
-                        >
-                            Get Started
-                        </button>
-                    )}
+                    <button 
+                        className={styles.getStartedButton}
+                        onClick={handleGetStarted}
+                    >
+                        Get Started
+                    </button>
                 </div>
             </div>
         </div>

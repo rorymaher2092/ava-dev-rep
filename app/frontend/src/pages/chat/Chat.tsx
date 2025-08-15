@@ -123,6 +123,40 @@ const Chat = () => {
     const [showAgenticRetrievalOption, setShowAgenticRetrievalOption] = useState<boolean>(false);
     const [useAgenticRetrieval, setUseAgenticRetrieval] = useState<boolean>(false);
 
+    const latestAttachments = useRef<{tickets:any[]; confluencePages:any[]; files:File[]}>({tickets:[], confluencePages:[], files:[]});
+
+    useEffect(() => {
+    const handler = (e: Event) => {
+        const detail = (e as CustomEvent).detail;
+        latestAttachments.current = detail || {tickets:[], confluencePages:[], files:[]};
+    };
+    document.addEventListener("question-attachments", handler as EventListener);
+    return () => document.removeEventListener("question-attachments", handler as EventListener);
+    }, []);
+
+    // --- Attachments typed union for backend ---
+    type Attachment =
+    | { kind: "jira_ticket"; key: string }
+    | { kind: "confluence_page"; url: string; title?: string }
+    | { kind: "file"; name: string; size: number; mime?: string };
+
+    // These match what QuestionInput emits (keep minimal)
+    type UITicket = { key: string };
+    type UIConfluence = { url: string; title?: string };
+
+    // Merge UI args into a single attachments[] payload
+    function toAttachments(
+    tickets?: UITicket[],
+    confluence?: UIConfluence[],
+    files?: File[]
+    ): Attachment[] {
+    const out: Attachment[] = [];
+    (tickets ?? []).forEach(t => t?.key && out.push({ kind: "jira_ticket", key: t.key }));
+    (confluence ?? []).forEach(p => p?.url && out.push({ kind: "confluence_page", url: p.url, title: p.title }));
+    (files ?? []).forEach(f => out.push({ kind: "file", name: f.name, size: f.size, mime: f.type }));
+    return out;
+    }
+
     // Add artifact context
     const { selectedArtifactType, getSelectedArtifact } = useArtifact ();
 
@@ -250,7 +284,7 @@ const Chat = () => {
         return () => clearInterval(tokenRefreshInterval);
     }, []);
 
-    const makeApiRequest = async (question: string) => {
+    const makeApiRequest = async (question: string, attachments?: Attachment[]) => {
         lastQuestionRef.current = question;
         console.log("Sending API request with botId:", botId);
         setCurrentFollowupQuestions([]);
@@ -369,7 +403,9 @@ const Chat = () => {
                         bot_id: botId,
                         graph_token: graphtoken,
                         artifact_type: selectedArtifactType,  
-                        ...(seed !== null ? { seed: seed } : {})
+                        ...(seed !== null ? { seed: seed } : {}),
+                              // NEW: only include if we have any
+                        ...(attachments?.length ? { attachments } : {})
                     }
                 },
                 // AI Chat Protocol: Client must pass on any session state received from the server
@@ -420,6 +456,16 @@ const Chat = () => {
             setIsLoading(false);
         }
     };
+
+    const sendProgrammaticMessage = (message: string) => {
+        // Get current attachments (likely empty for programmatic messages)
+        const { tickets, confluencePages, files } = latestAttachments.current;
+        const attachments = toAttachments(tickets, confluencePages, files);
+        
+        // Call makeApiRequest with the message
+        makeApiRequest(message, attachments);
+    };
+
 
     const clearChat = () => {
         lastQuestionRef.current = "";
@@ -751,7 +797,8 @@ const Chat = () => {
                             {BotContentFactory.render(botId, {
                                 userName,
                                 welcomeMessage,
-                                isMobile
+                                isMobile,
+                                onSendMessage: sendProgrammaticMessage
                             })}
 
                             {/* Microsoft Sign-In */}
@@ -851,7 +898,11 @@ const Chat = () => {
                             clearOnSend
                             placeholder={t("defaultExamples.placeholder")}
                             disabled={isLoading}
-                            onSend={question => makeApiRequest(question)}
+                            onSend={(question) => {
+                                const { tickets, confluencePages, files } = latestAttachments.current;
+                                const attachments = toAttachments(tickets, confluencePages, files);
+                                makeApiRequest(question, attachments);
+                            }}
                             showSpeechInput={showSpeechInput}
                             followupQuestions={currentFollowupQuestions}
                             onFollowupQuestionClicked={question => {
@@ -859,6 +910,8 @@ const Chat = () => {
                                 makeApiRequest(question);
                             }}
                         />
+
+
                     </div>
                 </div>
 
