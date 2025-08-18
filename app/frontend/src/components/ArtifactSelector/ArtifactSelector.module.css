@@ -50,19 +50,19 @@
 
 .categoryButton:hover {
     background: var(--surface-hover);
-    border-color: var(--primary);
-    transform: scale(1.05); /* Changed from translateY to scale for better arrow effect */
+    border-color: var(--brand-80); /* Use brand color instead of --primary */
+    transform: scale(1.05);
     box-shadow: var(--shadow-lg);
-    z-index: 2; /* Ensure hovered arrow appears above others */
+    z-index: 2;
 }
 
 .categoryButton.selectedCategory {
-    background: var(--primary-light);
-    border-color: var(--primary);
-    color: var(--primary);
+    background: var(--brand-40); /* Use brand light color instead of --primary-light */
+    border-color: var(--brand-80); /* Use brand color instead of --primary */
+    color: var(--brand-100); /* Use brand dark color for text */
     box-shadow: var(--shadow-md);
-    transform: scale(1.05); /* Changed from translateY to scale */
-    z-index: 3; /* Ensure selected arrow appears above others */
+    transform: scale(1.05);
+    z-index: 3;
 }
 
 .categoryIcon {
@@ -76,15 +76,15 @@
     white-space: nowrap;
 }
 
-/* Artifact Section (Bottom Tier) */
+/* Artifact Section (Bottom Tier) - Remove green container */
 .artifactSection {
-    background: var(--primary-light);
-    border-radius: var(--radius-lg);
-    padding: 16px;
-    border: 2px solid var(--primary);
+    background: transparent; /* Remove green background */
+    border-radius: 0; /* Remove rounded corners */
+    padding: 16px 0; /* Remove side padding, keep top/bottom */
+    border: none; /* Remove green border */
     animation: slideDown 0.2s ease-out;
     margin-top: 8px;
-    box-shadow: var(--shadow-sm);
+    box-shadow: none; /* Remove shadow */
 }
 
 @keyframes slideDown {
@@ -100,7 +100,7 @@
 
 .artifactGrid {
     display: flex;
-    gap: 0; /* Remove gaps for arrow design */
+    gap: 12px; /* Add gaps back for box design */
     justify-content: center;
     flex-wrap: wrap;
     margin: 0 auto;
@@ -108,54 +108,54 @@
 
 .artifactButton {
     position: relative;
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 12px 20px; /* Increased horizontal padding for arrow shape */
+    gap: 6px;
+    padding: 8px 12px; /* Smaller padding for compact rectangles */
     background: var(--surface-elevated);
-    border: 2px solid var(--border);
+    border: 1px solid var(--border); /* Thinner border */
+    border-radius: var(--radius-md);
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    font-size: 14px;
+    font-size: 13px; /* Smaller font */
     font-weight: 500;
     color: var(--text);
-    min-width: 120px; /* Increased min-width for better arrow proportions */
+    min-width: 80px; /* Smaller min-width for compact look */
     text-align: center;
     box-shadow: var(--shadow-sm);
-    /* Arrow shape using clip-path - all arrows have same shape */
-    clip-path: polygon(0 0, calc(100% - 15px) 0, 100% 50%, calc(100% - 15px) 100%, 0 100%, 15px 50%);
-    margin-right: -15px; /* Smaller overlap for artifact buttons */
+    clip-path: none;
+    margin-right: 0;
 }
 
 .artifactButton:last-child {
-    margin-right: 0; /* Remove overlap for last arrow */
+    margin-right: 0; /* Not needed anymore but keep for consistency */
 }
 
 .artifactButton:hover {
     background: var(--surface-hover);
-    border-color: var(--primary);
-    transform: scale(1.05); /* Changed from translateY to scale */
+    border-color: var(--brand-80); /* Use brand color instead of --primary */
+    transform: translateY(-1px);
     box-shadow: var(--shadow-md);
-    z-index: 2; /* Ensure hovered arrow appears above others */
+    z-index: 2;
 }
 
 .artifactButton.selectedArtifact {
-    background: var(--primary);
-    border-color: var(--primary);
+    background: var(--brand-80); /* Use brand color instead of --primary */
+    border-color: var(--brand-80);
     color: var(--vocus-white);
     box-shadow: var(--shadow-lg);
     font-weight: 600;
-    transform: scale(1.05); /* Changed from translateY to scale */
-    z-index: 3; /* Ensure selected arrow appears above others */
+    transform: translateY(-1px);
+    z-index: 3;
 }
 
 .artifactIcon {
-    font-size: 16px;
+    font-size: 14px; /* Smaller icon for compact design */
 }
 
 .artifactLabel {
     white-space: nowrap;
-    font-size: 13px;
+    font-size: 12px; /* Smaller label text */
 }
 
 /* Mobile responsive - Remove arrow shapes on mobile for better usability */
@@ -184,19 +184,19 @@
     }
     
     .artifactGrid {
-        gap: 8px; /* Restore gaps on mobile */
+        gap: 8px; /* Keep gaps on mobile */
         flex-direction: column; /* Stack vertically */
         align-items: center;
     }
     
     .artifactButton {
-        clip-path: none; /* Remove arrow shape on mobile */
-        border-radius: var(--radius-md); /* Restore rounded corners */
-        margin-right: 0; /* Remove overlap */
-        padding: 10px 14px; /* Restore original padding */
-        font-size: 13px;
-        min-width: 180px; /* Wider on mobile for better touch targets */
-        max-width: 250px;
+        clip-path: none;
+        border-radius: var(--radius-md);
+        margin-right: 0;
+        padding: 8px 12px; /* Keep compact mobile padding */
+        font-size: 12px;
+        min-width: 70px; /* Compact mobile width */
+        max-width: 120px; /* Smaller max width */
     }
     
     .title {

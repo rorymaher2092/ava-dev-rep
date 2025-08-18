@@ -239,8 +239,6 @@ async def chat(auth_claims: dict[str, Any]):
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
 
-    user_id = auth_claims.get("oid", "anonymous")
-
     # Print out the full context, including overrides
     current_app.logger.info(f"Received context: {json.dumps(context, indent=2)}")
 
@@ -250,10 +248,10 @@ async def chat(auth_claims: dict[str, Any]):
     
     current_app.logger.info(f"Bot ID: {bot_id}, Bot Profile: {bot_profile.label}")
 
-    attachment_context = prepare_chat_with_attachments(user_id)
+    attachment_context = prepare_chat_with_attachments()
     
     # Add attachment metadata and sources to context
-    context.update(attachment_context)
+    context["overrides"]["attachment_sources"] = attachment_context.get("attachment_sources", [])
 
     try:
         use_gpt4v = context.get("overrides", {}).get("use_gpt4v", False)
@@ -290,12 +288,11 @@ async def chat_stream(auth_claims: dict[str, Any]):
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
 
-    user_id = auth_claims.get("oid", "anonymous")
     
-    attachment_context = prepare_chat_with_attachments(user_id)
+    attachment_context = prepare_chat_with_attachments()
   
     # Add attachment metadata and sources to context
-    context.update(attachment_context)
+    context["overrides"]["attachment_sources"] = attachment_context.get("attachment_sources", [])
 
     try:
         use_gpt4v = context.get("overrides", {}).get("use_gpt4v", False)
@@ -1092,6 +1089,8 @@ def create_app():
     app = Quart(__name__)
     app.register_blueprint(bp)
     app.register_blueprint(chat_history_cosmosdb_bp)
+
+    app.secret_key = 'vocus-ava-attachments-fixed-key-2025'
     
     # Register feedback blueprint
     from chat_history.feedback_api import feedback_bp

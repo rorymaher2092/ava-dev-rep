@@ -47,6 +47,7 @@ export type ChatAppRequestOverrides = {
     artifact_type?: string;
     model?: string; // Optional model override
     examples?: Array<{ role: string; content: string }>; // Optional examples override
+    attachment_sources?: string[];
 };
 
 export type ResponseMessage = {

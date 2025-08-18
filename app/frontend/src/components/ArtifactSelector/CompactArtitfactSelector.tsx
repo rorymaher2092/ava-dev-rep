@@ -56,7 +56,7 @@ export const CompactArtifactSelector: React.FC<CompactArtifactSelectorProps> = (
                     onClick={() => setIsExpanded(!isExpanded)}
                     type="button"
                 >
-                    {isExpanded ? '↑' : '↓'}
+                    {isExpanded ? '↓' : '↑'}
                 </button>
             </div>
 

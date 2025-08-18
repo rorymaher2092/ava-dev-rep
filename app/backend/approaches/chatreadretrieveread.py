@@ -285,13 +285,6 @@ class ChatReadRetrieveReadApproach(ChatApproach):
 
         attachment_sources = overrides.get("attachment_sources", [])
 
-        # DEBUG: Log what we received in the approach
-        current_app.logger.info(f"🔍 DEBUG - Approach received {len(attachment_sources)} attachment sources")
-        if attachment_sources:
-            current_app.logger.info(f"🔍 DEBUG - First attachment in approach (first 200 chars): {attachment_sources[0][:200]}...")
-        else:
-            current_app.logger.info(f"🔍 DEBUG - No attachment sources in approach! Available overrides keys: {list(overrides.keys())}")
-
         messages = self.prompt_manager.render_prompt(
             answer_prompt,
             self.get_system_prompt_variables(overrides.get("prompt_template"))
