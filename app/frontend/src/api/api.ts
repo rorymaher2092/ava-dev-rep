@@ -69,7 +69,8 @@ export async function chatApi(request: ChatAppRequest, shouldStream: boolean, id
     return await fetch(url, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify(request)
+        body: JSON.stringify(request),
+        credentials: "include",
     });
 }
 

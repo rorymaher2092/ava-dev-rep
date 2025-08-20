@@ -1,63 +1,73 @@
-# attachment_helpers.py - Session-Based Storage
+# attachment_helpers.py - Fixed to work with session storage
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import dateutil.parser
 from quart import current_app, session
 
-def prepare_chat_with_attachments() -> dict:
+def prepare_chat_with_attachments(should_consume: bool = False) -> dict:
     """
-    Prepare chat context with attachments treated like text_sources.
-    Uses session-based storage instead of user ID.
-    Returns metadata and attachment_sources list.
-    """
-    # Import here to avoid circular imports
-    from attachments.attachment_api import get_session_attachments_for_chat
+    Get attachments for current session and optionally consume (clear) them
     
-    # Get session ID (create if doesn't exist)
-    session_id = get_session_id()
+    Args:
+        should_consume: If True, clear attachments after preparing them for chat
+    """    
+    session_id = session.get('attachment_session_id')
+    current_app.logger.info(f"🔍 HELPER DEBUG: prepare_chat_with_attachments called")
+    current_app.logger.info(f"🔍   - session_id: {session_id}")
+    current_app.logger.info(f"🔍   - should_consume: {should_consume}")
     
-    current_app.logger.info(f"🔍 DEBUG - prepare_chat_with_attachments called for session: {session_id}")
-    
-    # Get session's stored attachments
-    session_attach = get_session_attachments_for_chat(session_id)
-    
-    # DEBUG: Log what we got from storage
-    current_app.logger.info(f"🔍 DEBUG - Raw session_attach from storage: {session_attach}")
-    current_app.logger.info(f"🔍 DEBUG - session_attach type: {type(session_attach)}")
-    current_app.logger.info(f"🔍 DEBUG - session_attach keys: {list(session_attach.keys()) if isinstance(session_attach, dict) else 'NOT A DICT'}")
-    
-    summary = get_attachment_summary(session_attach)
-    
-    current_app.logger.info(f"Chat request for session {session_id}:")
-    current_app.logger.info(f"- Attachments: {summary['jira_tickets']} Jira, {summary['confluence_pages']} Confluence")
-    current_app.logger.info(f"🔍 DEBUG - Summary: {summary}")
-    
-    # Build attachment sources (like text_sources)
-    attachment_sources = []
-    if summary["has_attachments"]:
-        current_app.logger.info(f"🔍 DEBUG - Building attachment sources...")
-        attachment_sources = build_attachment_sources(session_attach)
-        current_app.logger.info(f"Built {len(attachment_sources)} attachment sources")
-        
-        # DEBUG: Log the first attachment source
-        if attachment_sources:
-            current_app.logger.info(f"🔍 DEBUG - First attachment source (first 500 chars): {attachment_sources[0][:500]}...")
-        else:
-            current_app.logger.warning(f"🔍 DEBUG - No attachment sources built despite has_attachments=True!")
-    else:
-        current_app.logger.info("🔍 DEBUG - No attachments found (has_attachments=False)")
-    
-    # Return metadata and sources
-    result = {
-        **summary,
-        "attachment_sources": attachment_sources,
-        "session_id": session_id  # Include session ID for debugging
+    # Get attachments directly from session storage
+    session_attach = {
+        "jira_tickets": [],
+        "confluence_pages": []
     }
     
-    # DEBUG: Log what we're returning
-    current_app.logger.info(f"🔍 DEBUG - Returning result with {len(result.get('attachment_sources', []))} attachment sources")
-    current_app.logger.info(f"🔍 DEBUG - Full result keys: {list(result.keys())}")
+    if 'attachments_data' in session:
+        session_attach = {
+            "jira_tickets": session.get('attachments_data', {}).get('jira_tickets', []),
+            "confluence_pages": session.get('attachments_data', {}).get('confluence_pages', [])
+        }
+        current_app.logger.info(f"🔍   - Found attachments in session: {len(session_attach['jira_tickets'])} JIRA, {len(session_attach['confluence_pages'])} Confluence")
+    else:
+        current_app.logger.info("🔍   - No attachments_data in session")
     
+    current_app.logger.info(f"🔍   - Raw session data: {session_attach}")
+    
+    # Build sources
+    attachment_sources = build_attachment_sources(session_attach)
+    
+    current_app.logger.info(f"🔍   - Built {len(attachment_sources)} attachment sources")
+    for i, source in enumerate(attachment_sources):
+        current_app.logger.info(f"🔍     Source {i+1}: {source[:100]}...")
+    
+    result = {
+        "attachment_sources": attachment_sources,
+        "has_attachments": len(attachment_sources) > 0,
+        "session_id": session_id,
+        "attachment_count": len(attachment_sources)
+    }
+    
+    # If we should consume the attachments, clear them after building sources
+    if should_consume and result["has_attachments"]:
+        current_app.logger.info(f"🗑️ Consuming and clearing {len(attachment_sources)} attachments for session: {session_id}")
+        try:
+            # Clear directly from session
+            if 'attachments_data' in session:
+                session['attachments_data'] = {
+                    "jira_tickets": [],
+                    "confluence_pages": [],
+                    "last_accessed": datetime.now().timestamp()
+                }
+                session.modified = True
+                current_app.logger.info(f"✅ Successfully cleared attachments from session")
+            else:
+                current_app.logger.warning(f"⚠️ No attachments_data to clear in session")
+        except Exception as e:
+            current_app.logger.error(f"❌ Failed to clear attachments: {str(e)}")
+    elif should_consume and not result["has_attachments"]:
+        current_app.logger.debug(f"🔍 No attachments to clear for session: {session_id}")
+    
+    current_app.logger.info(f"🔍   - Final result: {result}")
     return result
 
 def get_session_id() -> str:
@@ -66,6 +76,7 @@ def get_session_id() -> str:
     
     if 'attachment_session_id' not in session:
         session['attachment_session_id'] = str(uuid.uuid4())
+        session.permanent = True
         current_app.logger.info(f"🔧 Created new attachment session in helpers: {session['attachment_session_id']}")
     else:
         current_app.logger.info(f"🔧 Using existing attachment session in helpers: {session['attachment_session_id']}")

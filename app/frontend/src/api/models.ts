@@ -44,6 +44,7 @@ export type ChatAppRequestOverrides = {
     use_agentic_retrieval: boolean;
     bot_id?: string; // Optional bot ID to override the default bot
     graph_token?: string; // Optional Graph token for Microsoft Graph API
+    consume_attachments?: boolean; // Optional flag to consume attachments
     artifact_type?: string;
     model?: string; // Optional model override
     examples?: Array<{ role: string; content: string }>; // Optional examples override

@@ -367,6 +367,9 @@ quart==0.20.0
     #   quart-cors
 quart-cors==0.7.0
     # via -r requirements.in
+quart-session==2.0.0
+## i added this for Redis
+redis==5.0.1
 regex==2024.11.6
     # via tiktoken
 requests==2.32.3
@@ -429,6 +432,7 @@ werkzeug==3.0.6
     # via
     #   flask
     #   quart
+
 wrapt==1.16.0
     # via
     #   deprecated

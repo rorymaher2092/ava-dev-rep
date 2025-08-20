@@ -47,8 +47,11 @@ from quart import (
     request,
     send_file,
     send_from_directory,
+    session,
 )
 from quart_cors import cors
+import redis
+from quart_session import Session
 
 from bot_profiles import BotProfile, BOTS, DEFAULT_BOT_ID
 from approaches.approach import Approach
@@ -107,6 +110,8 @@ from prepdocs import (
 )
 from prepdocslib.filestrategy import UploadUserFileStrategy
 from prepdocslib.listfilestrategy import File
+
+from blob_session import QuartBlobSession
 
 bp = Blueprint("routes", __name__, static_folder="static")
 # Fix Windows registry issue with mimetypes
@@ -236,22 +241,71 @@ async def chat(auth_claims: dict[str, Any]):
     if not request.is_json:
         return jsonify({"error": "request must be json"}), 415
     request_json = await request.get_json()
+
+    # Debug session info
+    session_id = session.get('attachment_session_id')
+    current_app.logger.info(f"🔍 DEBUG CHAT START:")
+    current_app.logger.info(f"🔍 Session ID from session: {session_id}")
+
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
 
-    # Print out the full context, including overrides
-    current_app.logger.info(f"Received context: {json.dumps(context, indent=2)}")
+    # Extract overrides BEFORE using it
+    overrides = context.get("overrides", {})
+    should_consume = overrides.get("consume_attachments", False)
 
-    # Extract the bot_id from the overrides in context (default to 'ava' if not present)
-    bot_id = context.get("overrides", {}).get("bot_id", DEFAULT_BOT_ID)
-    bot_profile = BOTS.get(bot_id, BOTS[DEFAULT_BOT_ID])  # Default to 'ava' if not found
+    current_app.logger.info(f"🔍 Should consume attachments: {should_consume}")
+
+    # Extract the bot_id from the overrides in context
+    bot_id = overrides.get("bot_id", DEFAULT_BOT_ID)
+    bot_profile = BOTS.get(bot_id, BOTS[DEFAULT_BOT_ID])
     
     current_app.logger.info(f"Bot ID: {bot_id}, Bot Profile: {bot_profile.label}")
 
-    attachment_context = prepare_chat_with_attachments()
-    
-    # Add attachment metadata and sources to context
-    context["overrides"]["attachment_sources"] = attachment_context.get("attachment_sources", [])
+    # IMPROVED LOGIC: Only process attachments if frontend signals we should
+    if should_consume:
+        current_app.logger.info("🔍 Frontend signaled consume_attachments=True, processing attachments...")
+        
+        # Check what's in session storage BEFORE calling prepare_chat_with_attachments
+        if session_id:
+            from attachments.attachment_api import get_session_attachments_for_chat
+            raw_session_data = get_session_attachments_for_chat(session_id)
+            current_app.logger.info(f"🔍 Raw session attachment data: {raw_session_data}")
+            
+            jira_count = len(raw_session_data.get("jira_tickets", []))
+            confluence_count = len(raw_session_data.get("confluence_pages", []))
+            current_app.logger.info(f"🔍 Session contains: {jira_count} Jira tickets, {confluence_count} Confluence pages")
+
+        # Import and call the attachment helper with consume=True
+        from attachments.attachment_helpers import prepare_chat_with_attachments
+        attachment_data = prepare_chat_with_attachments(should_consume=True)  # This will clear them!
+        
+        current_app.logger.info(f"🔍 Attachment helper returned:")
+        current_app.logger.info(f"🔍   - has_attachments: {attachment_data.get('has_attachments')}")
+        current_app.logger.info(f"🔍   - attachment_count: {attachment_data.get('attachment_count', 0)}")
+        current_app.logger.info(f"🔍   - sources length: {len(attachment_data.get('attachment_sources', []))}")
+        
+        # Debug each attachment source
+        for i, source in enumerate(attachment_data.get('attachment_sources', [])):
+            current_app.logger.info(f"🔍 Attachment source {i+1}: {source[:200]}...")
+        
+        # Add attachment data to context
+        context["overrides"]["attachment_sources"] = attachment_data.get("attachment_sources", [])
+        context["overrides"]["has_attachments"] = attachment_data.get("has_attachments", False)
+        context["overrides"]["attachment_count"] = attachment_data.get("attachment_count", 0)
+        
+        current_app.logger.info(f"🔍 Added {len(attachment_data.get('attachment_sources', []))} attachment sources to context")
+        
+    else:
+        current_app.logger.info("🔍 No consume_attachments flag, skipping attachment processing")
+        # Ensure we have empty attachment data
+        context["overrides"]["attachment_sources"] = []
+        context["overrides"]["has_attachments"] = False
+        context["overrides"]["attachment_count"] = 0
+
+    # Log what we're actually passing to the approach
+    current_app.logger.info(f"🔍 Final context overrides keys: {list(context['overrides'].keys())}")
+    current_app.logger.info(f"🔍 Attachment sources being passed: {len(context['overrides']['attachment_sources'])} sources")
 
     try:
         use_gpt4v = context.get("overrides", {}).get("use_gpt4v", False)
@@ -261,14 +315,15 @@ async def chat(auth_claims: dict[str, Any]):
         else:
             approach = cast(Approach, current_app.config[CONFIG_CHAT_APPROACH])
 
-        # If session state is provided, persists the session state,
-        # else creates a new session_id depending on the chat history options enabled.
         session_state = request_json.get("session_state")
         if session_state is None:
             session_state = create_session_id(
                 current_app.config[CONFIG_CHAT_HISTORY_COSMOS_ENABLED],
                 current_app.config[CONFIG_CHAT_HISTORY_BROWSER_ENABLED],
             )
+        
+        current_app.logger.info(f"🔍 About to call approach.run with context containing {len(context['overrides']['attachment_sources'])} attachment sources")
+        
         result = await approach.run(
             request_json["messages"],
             context=context,
@@ -276,6 +331,7 @@ async def chat(auth_claims: dict[str, Any]):
         )
         return jsonify(result)
     except Exception as error:
+        current_app.logger.error(f"❌ Chat endpoint error: {str(error)}")
         return error_response(error, "/chat")
 
 
@@ -285,14 +341,37 @@ async def chat_stream(auth_claims: dict[str, Any]):
     if not request.is_json:
         return jsonify({"error": "request must be json"}), 415
     request_json = await request.get_json()
+    
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
 
-    
-    attachment_context = prepare_chat_with_attachments()
-  
-    # Add attachment metadata and sources to context
-    context["overrides"]["attachment_sources"] = attachment_context.get("attachment_sources", [])
+    # Extract overrides BEFORE using it
+    overrides = context.get("overrides", {})
+    should_consume = overrides.get("consume_attachments", False)
+
+    current_app.logger.info(f"🔍 STREAM: Should consume attachments: {should_consume}")
+
+    # IMPROVED LOGIC: Only process attachments if frontend signals we should
+    if should_consume:
+        current_app.logger.info("🔍 STREAM: Frontend signaled consume_attachments=True, processing attachments...")
+        
+        # Import and call the attachment helper with consume=True
+        from attachments.attachment_helpers import prepare_chat_with_attachments
+        attachment_data = prepare_chat_with_attachments(should_consume=True)  # This will clear them!
+        
+        current_app.logger.info(f"🔍 STREAM: Got {len(attachment_data.get('attachment_sources', []))} attachment sources")
+        
+        # Add attachment data to context
+        context["overrides"]["attachment_sources"] = attachment_data.get("attachment_sources", [])
+        context["overrides"]["has_attachments"] = attachment_data.get("has_attachments", False)
+        context["overrides"]["attachment_count"] = attachment_data.get("attachment_count", 0)
+        
+    else:
+        current_app.logger.info("🔍 STREAM: No consume_attachments flag, skipping attachment processing")
+        # Ensure we have empty attachment data
+        context["overrides"]["attachment_sources"] = []
+        context["overrides"]["has_attachments"] = False
+        context["overrides"]["attachment_count"] = 0
 
     try:
         use_gpt4v = context.get("overrides", {}).get("use_gpt4v", False)
@@ -632,6 +711,8 @@ async def setup_clients():
     CONFLUENCE_TOKEN = os.environ.get("CONFLUENCE_TOKEN", "")
     CONFLUENCE_EMAIL = os.environ.get("CONFLUENCE_EMAIL", "")
 
+
+
     # Use the current user identity for keyless authentication to Azure services.
     azure_credential: Union[AzureDeveloperCliCredential, ManagedIdentityCredential]
     if RUNNING_ON_AZURE:
@@ -655,6 +736,9 @@ async def setup_clients():
 
     # Set the Azure credential in the app config for use in other parts of the app
     current_app.config[CONFIG_CREDENTIAL] = azure_credential
+
+    current_app.config["AZURE_STORAGE_ACCOUNT"] = AZURE_STORAGE_ACCOUNT
+    current_app.config["AZURE_CREDENTIAL"] = azure_credential
 
     # Import bot profiles and get all required search indexes
     try:
@@ -1087,10 +1171,24 @@ async def close_clients():
 
 def create_app():
     app = Quart(__name__)
+    
+    # Basic app configuration
+    app.config['SECRET_KEY'] = 'vocus-ava-attachments-fixed-key-2025'
+    
+    # Configure Blob Storage sessions (no Redis needed!)
+    # This uses your existing Azure Storage account
+    app.config['SESSION_COOKIE_NAME'] = 'vocus_session'
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SECURE'] = True  # Set False for local dev
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
+    app.config['SESSION_CONTAINER_NAME'] = 'ava-sessions'  # Container for sessions
+    
+    # Initialize Blob session storage
+    QuartBlobSession(app)
+
     app.register_blueprint(bp)
     app.register_blueprint(chat_history_cosmosdb_bp)
-
-    app.secret_key = 'vocus-ava-attachments-fixed-key-2025'
     
     # Register feedback blueprint
     from chat_history.feedback_api import feedback_bp

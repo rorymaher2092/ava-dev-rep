@@ -62,6 +62,7 @@ import { useArtifact } from "../../contexts/ArtifactContext";
 
 import { InteractionRequiredAuthError } from "@azure/msal-browser";
 import { msalInstance } from "../../authConfig";
+import {AttachmentState, AttachmentMenu} from "../../components/Attachments/AttachmentMenu";
 
 const Chat = () => {
     const [searchParams] = useSearchParams();
@@ -123,16 +124,6 @@ const Chat = () => {
     const [showAgenticRetrievalOption, setShowAgenticRetrievalOption] = useState<boolean>(false);
     const [useAgenticRetrieval, setUseAgenticRetrieval] = useState<boolean>(false);
 
-    const latestAttachments = useRef<{tickets:any[]; confluencePages:any[]; files:File[]}>({tickets:[], confluencePages:[], files:[]});
-
-    useEffect(() => {
-    const handler = (e: Event) => {
-        const detail = (e as CustomEvent).detail;
-        latestAttachments.current = detail || {tickets:[], confluencePages:[], files:[]};
-    };
-    document.addEventListener("question-attachments", handler as EventListener);
-    return () => document.removeEventListener("question-attachments", handler as EventListener);
-    }, []);
 
     // --- Attachments typed union for backend ---
     type Attachment =
@@ -284,7 +275,19 @@ const Chat = () => {
         return () => clearInterval(tokenRefreshInterval);
     }, []);
 
-    const makeApiRequest = async (question: string, attachments?: Attachment[]) => {
+    const [currentAttachments, setCurrentAttachments] = useState<AttachmentState | null>(null);
+
+    // Listen for attachment changes from AttachmentMenu
+    useEffect(() => {
+        const handleAttachmentChange = (event: CustomEvent) => {
+            setCurrentAttachments(event.detail);
+        };
+
+        document.addEventListener("question-attachments", handleAttachmentChange as EventListener);
+        return () => document.removeEventListener("question-attachments", handleAttachmentChange as EventListener);
+    }, []);
+
+    const makeApiRequest = async (question: string) => {
         lastQuestionRef.current = question;
         console.log("Sending API request with botId:", botId);
         setCurrentFollowupQuestions([]);
@@ -373,6 +376,14 @@ const Chat = () => {
                 { content: a[1].message.content, role: "assistant" }
             ]);
 
+            // Check if we have attachments to consume
+            const hasAttachments = currentAttachments && 
+                ((currentAttachments.jira_tickets?.length || 0) + (currentAttachments.confluence_pages?.length || 0)) > 0;
+
+                
+        
+            console.log("📎 Has attachments for this request:", hasAttachments);
+
             const request: ChatAppRequest = {
                 messages: [...messages, { content: question, role: "user" }],
                 context: {
@@ -402,10 +413,10 @@ const Chat = () => {
                         // bot_id: to select which bot is being used
                         bot_id: botId,
                         graph_token: graphtoken,
-                        artifact_type: selectedArtifactType,  
+                        artifact_type: selectedArtifactType,
+                        ...(hasAttachments ? { consume_attachments: true } : {}),  
                         ...(seed !== null ? { seed: seed } : {}),
                               // NEW: only include if we have any
-                        ...(attachments?.length ? { attachments } : {})
                     }
                 },
                 // AI Chat Protocol: Client must pass on any session state received from the server
@@ -450,6 +461,11 @@ const Chat = () => {
                 }
             }
             setSpeechUrls([...speechUrls, null]);
+
+            if (hasAttachments) {
+                document.dispatchEvent(new CustomEvent("attachments-consumed"));
+                console.log("🗑️ Emitted attachments-consumed event");
+            }
         } catch (e) {
             setError(e);
         } finally {
@@ -459,11 +475,7 @@ const Chat = () => {
 
     const sendProgrammaticMessage = (message: string) => {
         // Get current attachments (likely empty for programmatic messages)
-        const { tickets, confluencePages, files } = latestAttachments.current;
-        const attachments = toAttachments(tickets, confluencePages, files);
-        
-        // Call makeApiRequest with the message
-        makeApiRequest(message, attachments);
+        makeApiRequest(message);
     };
 
 
@@ -899,9 +911,7 @@ const Chat = () => {
                             placeholder={t("defaultExamples.placeholder")}
                             disabled={isLoading}
                             onSend={(question) => {
-                                const { tickets, confluencePages, files } = latestAttachments.current;
-                                const attachments = toAttachments(tickets, confluencePages, files);
-                                makeApiRequest(question, attachments);
+                                makeApiRequest(question);
                             }}
                             showSpeechInput={showSpeechInput}
                             followupQuestions={currentFollowupQuestions}
