@@ -1,5 +1,4 @@
-// components/Attachments/AttachmentMenu.tsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useState } from "react";
 import {
   Button,
   Menu, MenuTrigger, MenuPopover, MenuList, MenuItem,
@@ -15,318 +14,339 @@ import {
 
 /* ─────────────────── Types ─────────────────── */
 
-export interface JiraTicketData {
-  id: string;
-  key: string;
-  summary: string;
-  url: string;
-  description?: string;
-  status?: string;
-  priority?: string;
-  assignee?: string;
-  reporter?: string;
-  issue_type?: string;
-  created?: string;
-  updated?: string;
+export interface AttachmentRef {
+  type: 'jira' | 'confluence';
+  key?: string;       // For JIRA tickets
+  url?: string;       // For Confluence pages
+  title?: string;     // Display name
+  summary?: string;   // For display purposes
+  status?: string;    // For JIRA tickets
+  priority?: string;  // For JIRA tickets
+  space_name?: string; // For Confluence pages
 }
 
-export interface ConfluencePageData {
-  id: string;
-  url: string;
-  title: string;
-  space_key: string;
-  space_name?: string;
-  content?: string;
-  version?: number;
-  last_modified?: string;
-}
-
-export interface AttachmentState {
-  jira_tickets: JiraTicketData[];
-  confluence_pages: ConfluencePageData[];
-  session_id: string;
-  total_attachments: number;
-}
-
-/* ────────────── Helpers (robust fetch) ────────────── */
-
-// Reads as text first, then tries JSON, so HTML 500 pages don't crash JSON.parse
-async function fetchJSONSafe(input: RequestInfo, init?: RequestInit) {
-  const res = await fetch(input, init);
-  const txt = await res.text();
-  let data: any = null;
-  try { data = txt ? JSON.parse(txt) : null; } catch { /* ignore */ }
-  if (!res.ok) {
-    const err = data?.error || txt || `Request failed (${res.status})`;
-    throw new Error(err);
-  }
-  return data ?? {};
-}
-
-/* ────────────── Attachment pills (optional) ────────────── */
-
-const AttachmentDisplay: React.FC<{
-  attachments: AttachmentState;
-  loading: boolean;
-  onRemoveJira: (key: string) => void;
-  onRemoveConfluence: (url: string) => void;
-}> = ({ attachments, loading, onRemoveJira, onRemoveConfluence }) => {
-  if (!attachments.jira_tickets.length && !attachments.confluence_pages.length) return null;
-
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "8px 0" }}>
-      {attachments.jira_tickets.map(t => (
-        <Tooltip key={t.key} relationship="description" content={
-          <div style={{ maxWidth: 300 }}>
-            <strong>{t.summary}</strong>
-            <div>Status: {t.status ?? "—"}</div>
-            <div>Priority: {t.priority ?? "—"}</div>
-            <div>Assignee: {t.assignee ?? "Unassigned"}</div>
-          </div>
-        }>
-          <Badge size="large" appearance="outline" style={{ cursor: "default", padding: "4px 8px", display: "flex", alignItems: "center", gap: 4 }}>
-            <Bug24Regular style={{ fontSize: 16 }} />
-            <span>{t.key}</span>
-            <Button
-              icon={<Dismiss16Regular />}
-              aria-label={`Remove ${t.key}`}
-              appearance="transparent"
-              size="small"
-              disabled={loading}
-              onClick={() => onRemoveJira(t.key)}
-              style={{ minWidth: 20, padding: 2 }}
-            />
-          </Badge>
-        </Tooltip>
-      ))}
-
-      {attachments.confluence_pages.map(p => (
-        <Tooltip key={p.url} relationship="description" content={
-          <div style={{ maxWidth: 300 }}>
-            <strong>{p.title}</strong>
-            <div>Space: {p.space_name || p.space_key}</div>
-            {p.last_modified && <div>Modified: {new Date(p.last_modified).toLocaleDateString()}</div>}
-          </div>
-        }>
-          <Badge size="large" appearance="outline" style={{ cursor: "default", padding: "4px 8px", display: "flex", alignItems: "center", gap: 4 }}>
-            <PlugConnected24Regular style={{ fontSize: 16 }} />
-            <span>{p.title}</span>
-            <Button
-              icon={<Dismiss16Regular />}
-              aria-label={`Remove ${p.title}`}
-              appearance="transparent"
-              size="small"
-              disabled={loading}
-              onClick={() => onRemoveConfluence(p.url)}
-              style={{ minWidth: 20, padding: 2 }}
-            />
-          </Badge>
-        </Tooltip>
-      ))}
-    </div>
-  );
-};
-
-/* ─────────────────── Main component ─────────────────── */
-
-export const AttachmentMenu: React.FC<{
+interface SimpleAttachmentMenuProps {
   disabled?: boolean;
-  /** fire whenever the full attachment state changes (for UI chips / debugging) */
-  onAttachmentsChange?: (a: AttachmentState) => void;
-  /** bubble up "busy" so the Send button can be disabled while adds/removes are in-flight */
+  attachments: AttachmentRef[];
+  onAttachmentsChange: (attachments: AttachmentRef[]) => void;
   onBusyChange?: (busy: boolean) => void;
-  /** render inline pills (default false so you can show chips above the input in QuestionInput) */
-  showInlineBadges?: boolean;
-}> = ({ disabled, onAttachmentsChange, onBusyChange, showInlineBadges = false }) => {
-  const [attachments, setAttachments] = useState<AttachmentState>({
-    jira_tickets: [],
-    confluence_pages: [],
-    session_id: "",
-    total_attachments: 0,
-  });
+  hideAttachmentCount?: boolean;  // Hide the yellow "1 attachment" text
+  hideChips?: boolean;            // Hide the styled chips display
+}
 
+/* ────────────── Validation API calls ────────────── */
+
+async function validateJiraTicket(ticketKey: string): Promise<{valid: boolean; data?: any; error?: string}> {
+  try {
+    const response = await fetch('/api/attachments/validate/jira', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ ticketKey: ticketKey.trim().toUpperCase() })
+    });
+    
+    const result = await response.json();
+    return response.ok ? { valid: true, data: result } : { valid: false, error: result.error };
+  } catch (error) {
+    return { valid: false, error: error instanceof Error ? error.message : 'Network error' };
+  }
+}
+
+async function validateConfluencePage(pageUrl: string): Promise<{valid: boolean; data?: any; error?: string}> {
+  try {
+    const response = await fetch('/api/attachments/validate/confluence', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ pageUrl: pageUrl.trim() })
+    });
+    
+    const result = await response.json();
+    return response.ok ? { valid: true, data: result } : { valid: false, error: result.error };
+  } catch (error) {
+    return { valid: false, error: error instanceof Error ? error.message : 'Network error' };
+  }
+}
+
+/* ────────────── Styled Chip Component (from your old code) ────────────── */
+
+const Chip = ({
+  prefix,
+  href,
+  title,
+  onRemove,
+  disabled = false
+}: {
+  prefix?: React.ReactNode;
+  href?: string;
+  title: string;
+  onRemove?: () => void;
+  disabled?: boolean;
+}) => (
+  <div
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8,
+      border: "1px solid var(--colorNeutralStroke1, #e1e1e1)",
+      borderRadius: 999,
+      padding: "6px 10px",
+      background: "var(--colorNeutralBackground1, #fff)",
+      boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+      opacity: disabled ? 0.6 : 1,
+      transition: "all 0.2s ease"
+    }}
+  >
+    {prefix ? <span style={{ opacity: 0.7 }}>{prefix}</span> : null}
+    {href ? (
+      <a 
+        href={href} 
+        target="_blank" 
+        rel="noreferrer" 
+        style={{ 
+          textDecoration: "none", 
+          color: "inherit",
+          fontSize: "0.875rem",
+          fontWeight: 500
+        }} 
+        title={title}
+      >
+        {title}
+      </a>
+    ) : (
+      <span 
+        title={title}
+        style={{ 
+          fontSize: "0.875rem",
+          fontWeight: 500
+        }}
+      >
+        {title}
+      </span>
+    )}
+    {onRemove && (
+      <Button 
+        size="small" 
+        appearance="subtle" 
+        icon={<Dismiss16Regular />} 
+        onClick={onRemove} 
+        aria-label="Remove"
+        disabled={disabled}
+        style={{ 
+          minWidth: 20, 
+          padding: 2,
+          marginLeft: 4
+        }}
+      />
+    )}
+  </div>
+);
+
+/* ─────────────────── Main Component ─────────────────── */
+
+export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({ 
+  disabled = false, 
+  attachments, 
+  onAttachmentsChange, 
+  onBusyChange,
+  hideAttachmentCount = false,
+  hideChips = false
+}) => {
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [busyCount, setBusyCount] = useState(0);
-  const busy = busyCount > 0;
-
-  // dialogs
+  
+  // Dialog states
   const [jiraOpen, setJiraOpen] = useState(false);
   const [jiraKey, setJiraKey] = useState("");
   const [confOpen, setConfOpen] = useState(false);
   const [confUrl, setConfUrl] = useState("");
   const [confTitle, setConfTitle] = useState("");
 
-  // track mounted
-  const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  // Update parent about busy state
+  React.useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
 
-  // notify parent of busy changes
-  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
-
-  // Listen for attachment consumption event
-  useEffect(() => {
-    const handleAttachmentsConsumed = () => {
-      console.log("🔄 Attachments consumed, clearing UI state");
-      setAttachments(prev => ({
-        ...prev,
-        jira_tickets: [],
-        confluence_pages: [],
-        total_attachments: 0
-      }));
-    };
-
-    document.addEventListener("attachments-consumed", handleAttachmentsConsumed);
-    return () => document.removeEventListener("attachments-consumed", handleAttachmentsConsumed);
-  }, []);
-
-  // helper to wrap async actions with busy+error handling
-  const withBusy = useCallback(async <T,>(fn: () => Promise<T>) => {
-    setBusyCount(c => c + 1);
+  const withBusy = async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
+    setBusy(true);
+    setError(null);
     try {
-      setError(null);
       return await fn();
     } catch (e: any) {
-      setError(e?.message || "Something went wrong.");
+      setError(e?.message || "Something went wrong");
       throw e;
     } finally {
-      if (mounted.current) setBusyCount(c => Math.max(0, c - 1));
+      setBusy(false);
     }
-  }, []);
+  };
 
-  // initial load of session attachments (if any)
-  useEffect(() => {
-    withBusy(async () => {
-      const data = await fetchJSONSafe("/api/attachments/", { credentials: "include" });
-      if (!mounted.current) return;
-      setAttachments({
-        jira_tickets: data.jira_tickets ?? [],
-        confluence_pages: data.confluence_pages ?? [],
-        session_id: data.session_id ?? "",
-        total_attachments: data.total_attachments ?? ((data.jira_tickets?.length || 0) + (data.confluence_pages?.length || 0)),
-      });
-    }).catch(() => void 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // bubble the full state up, and also emit a compatibility event some parts of the app still listen for
-  useEffect(() => {
-    onAttachmentsChange?.(attachments);
-    // compatibility event for old Chat.tsx listeners
-    const detail = {
-      tickets: attachments.jira_tickets.map(t => ({ key: t.key })),
-      confluencePages: attachments.confluence_pages.map(p => ({ url: p.url, title: p.title })),
-      files: [] as any[],
-      jira_tickets: attachments.jira_tickets,
-      confluence_pages: attachments.confluence_pages,
-      session_id: attachments.session_id,
-      total_attachments: attachments.total_attachments
-    };
-    document.dispatchEvent(new CustomEvent("question-attachments", { detail }));
-  }, [attachments, onAttachmentsChange]);
-
-  /* ────────────── Actions ────────────── */
-
-  const attachJira = useCallback(() => withBusy(async () => {
-    const key = jiraKey.trim().toUpperCase();
-    if (!key) return;
-    const data = await fetchJSONSafe("/api/attachments/jira", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ ticketKey: key }),
+  const addJiraTicket = async () => {
+    await withBusy(async () => {
+      const key = jiraKey.trim().toUpperCase();
+      if (!key) return;
+      
+      // Check if already exists BEFORE validation
+      if (attachments.some(a => a.type === 'jira' && a.key === key)) {
+        setError(`Ticket ${key} is already attached`);
+        return;
+      }
+      
+      const result = await validateJiraTicket(key);
+      if (!result.valid) {
+        setError(result.error || 'Failed to validate ticket');
+        return;
+      }
+      
+      const newAttachment: AttachmentRef = {
+        type: 'jira',
+        key: result.data.key,
+        title: result.data.summary,
+        summary: result.data.summary,
+        status: result.data.status,
+        priority: result.data.priority,
+        url: result.data.url
+      };
+      
+      // Use functional update to prevent stale closures
+      onAttachmentsChange([...attachments, newAttachment]);
+      setJiraKey("");
+      setJiraOpen(false);
+      setError(null); // Clear any previous errors
     });
+  };
 
-    setAttachments(prev => {
-      // avoid dupes if user double-clicks
-      if (prev.jira_tickets.some(t => t.key === data.ticket?.key)) return prev;
-      const jira_tickets = [...prev.jira_tickets, data.ticket];
-      const total = data.total_attachments ?? (jira_tickets.length + prev.confluence_pages.length);
-      return { ...prev, jira_tickets, total_attachments: total, session_id: data.session_id ?? prev.session_id };
+  const addConfluencePage = async () => {
+    await withBusy(async () => {
+      const url = confUrl.trim();
+      if (!url) {
+        setError("Please enter a Confluence page URL");
+        return;
+      }
+      
+      // Basic URL validation
+      try {
+        new URL(url);
+      } catch {
+        setError("Please enter a valid URL");
+        return;
+      }
+      
+      // Check if already exists BEFORE validation
+      if (attachments.some(a => a.type === 'confluence' && a.url === url)) {
+        setError("This page is already attached");
+        return;
+      }
+      
+      const result = await validateConfluencePage(url);
+      if (!result.valid) {
+        setError(result.error || 'Failed to validate page');
+        return;
+      }
+      
+      const newAttachment: AttachmentRef = {
+        type: 'confluence',
+        url: result.data.url,
+        title: confTitle.trim() || result.data.title,
+        space_name: result.data.space_name
+      };
+      
+      // Use functional update to prevent stale closures
+      onAttachmentsChange([...attachments, newAttachment]);
+      setConfUrl("");
+      setConfTitle("");
+      setConfOpen(false);
+      setError(null); // Clear any previous errors
     });
+  };
 
-    setJiraKey("");
-    setJiraOpen(false);
-  }), [jiraKey, withBusy]);
+  const removeAttachment = (index: number) => {
+    console.log('Removing attachment at index:', index, 'from:', attachments);
+    const newAttachments = attachments.filter((_, i) => i !== index);
+    console.log('New attachments after removal:', newAttachments);
+    onAttachmentsChange(newAttachments);
+  };
 
-  const removeJira = useCallback((ticketKey: string) => withBusy(async () => {
-    const data = await fetchJSONSafe(`/api/attachments/jira/${encodeURIComponent(ticketKey)}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
+  const clearAll = () => {
+    onAttachmentsChange([]);
+    setError(null);
+  };
 
-    setAttachments(prev => {
-      const jira_tickets = prev.jira_tickets.filter(t => t.key !== ticketKey);
-      const total = data.total_attachments ?? (jira_tickets.length + prev.confluence_pages.length);
-      return { ...prev, jira_tickets, total_attachments: total };
-    });
-  }), [withBusy]);
-
-  const attachConfluence = useCallback(() => withBusy(async () => {
-    const url = confUrl.trim();
-    if (!url) throw new Error("Please enter a Confluence page URL.");
-    try { new URL(url); } catch { throw new Error("Please enter a valid URL."); }
-
-    const data = await fetchJSONSafe("/api/attachments/confluence", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ pageUrl: url, title: confTitle.trim() || undefined }),
-    });
-
-    setAttachments(prev => {
-      if (prev.confluence_pages.some(p => p.url === data.page?.url)) return prev;
-      const confluence_pages = [...prev.confluence_pages, data.page];
-      const total = data.total_attachments ?? (prev.jira_tickets.length + confluence_pages.length);
-      return { ...prev, confluence_pages, total_attachments: total, session_id: data.session_id ?? prev.session_id };
-    });
-
-    setConfUrl("");
-    setConfTitle("");
-    setConfOpen(false);
-  }), [confUrl, confTitle, withBusy]);
-
-  const removeConfluence = useCallback((pageUrl: string) => withBusy(async () => {
-    const data = await fetchJSONSafe("/api/attachments/confluence", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ pageUrl }),
-    });
-
-    setAttachments(prev => {
-      const confluence_pages = prev.confluence_pages.filter(p => p.url !== pageUrl);
-      const total = data.total_attachments ?? (prev.jira_tickets.length + confluence_pages.length);
-      return { ...prev, confluence_pages, total_attachments: total };
-    });
-  }), [withBusy]);
-
-  const clearAll = useCallback(() => withBusy(async () => {
-    await fetchJSONSafe("/api/attachments/all", { method: "DELETE", credentials: "include" });
-    setAttachments(prev => ({ ...prev, jira_tickets: [], confluence_pages: [], total_attachments: 0 }));
-  }), [withBusy]);
-
-  const total = attachments.total_attachments;
-
-  /* ────────────── Render ────────────── */
+  const totalAttachments = attachments.length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {error && (
-        <div style={{ padding: 8, background: "#FFE9E9", color: "#8B0000", borderRadius: 6, fontSize: 12 }}>
+        <div style={{ 
+          padding: 8, 
+          background: "#FFE9E9", 
+          color: "#8B0000", 
+          borderRadius: 6, 
+          fontSize: 12,
+          border: "1px solid #ffcccc"
+        }}>
           {error}
         </div>
       )}
 
-      {/* Optional inline pills. Leave this off and render chips above in QuestionInput instead. */}
-      {showInlineBadges && (
-        <AttachmentDisplay
-          attachments={attachments}
-          loading={busy}
-          onRemoveJira={removeJira}
-          onRemoveConfluence={removeConfluence}
-        />
+      {/* Styled Attachment Chips Display - only show if not hidden */}
+      {!hideChips && totalAttachments > 0 && (
+        <div style={{ 
+          display: "flex", 
+          flexWrap: "wrap", 
+          gap: 8, 
+          padding: "8px 0" 
+        }}>
+          {attachments.map((attachment, index) => {
+            if (attachment.type === 'jira') {
+              return (
+                <Chip
+                  key={`jira-${attachment.key}-${index}`}
+                  prefix={
+                    <span style={{ 
+                      fontWeight: 600, 
+                      color: "#0066cc",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4
+                    }}>
+                      <Bug24Regular style={{ fontSize: 14 }} />
+                      [{attachment.key}]
+                    </span>
+                  }
+                  href={attachment.url}
+                  title={attachment.summary || attachment.key || 'JIRA Ticket'}
+                  onRemove={() => removeAttachment(index)}
+                  disabled={busy}
+                />
+              );
+            } else {
+              return (
+                <Chip
+                  key={`confluence-${attachment.url}-${index}`}
+                  prefix={
+                    <span style={{ 
+                      fontWeight: 600, 
+                      color: "#0052cc",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4
+                    }}>
+                      <PlugConnected24Regular style={{ fontSize: 14 }} />
+                      Confluence
+                    </span>
+                  }
+                  href={attachment.url}
+                  title={attachment.title || attachment.url || 'Confluence Page'}
+                  onRemove={() => removeAttachment(index)}
+                  disabled={busy}
+                />
+              );
+            }
+          })}
+        </div>
       )}
 
+      {/* Menu Button */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Menu positioning="above-start">
           <MenuTrigger disableButtonEnhancement>
@@ -335,26 +355,48 @@ export const AttachmentMenu: React.FC<{
               appearance="subtle"
               aria-label="Attach"
               disabled={disabled || busy}
+              style={{
+                backgroundColor: "#e91e63", // Pink background
+                color: "white",
+                border: "none"
+              }}
             >
-              {total > 0 && (
+              {!hideAttachmentCount && totalAttachments > 0 && (
                 <Badge size="small" appearance="filled" style={{ marginLeft: 6 }}>
-                  {total}
+                  {totalAttachments}
                 </Badge>
               )}
             </Button>
           </MenuTrigger>
-          <MenuPopover style={{ background: "#fff", border: "1px solid #ddd", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,.12)" }}>
+          <MenuPopover style={{ 
+            background: "#fff", 
+            border: "1px solid #ddd", 
+            borderRadius: 8, 
+            boxShadow: "0 8px 24px rgba(0,0,0,.12)" 
+          }}>
             <MenuList>
-              <MenuItem icon={<PlugConnected24Regular />} onClick={() => setConfOpen(true)}>
+              <MenuItem 
+                icon={<PlugConnected24Regular />} 
+                onClick={() => setConfOpen(true)}
+                disabled={busy}
+              >
                 Add Confluence page
               </MenuItem>
-              <MenuItem icon={<Bug24Regular />} onClick={() => setJiraOpen(true)}>
+              <MenuItem 
+                icon={<Bug24Regular />} 
+                onClick={() => setJiraOpen(true)}
+                disabled={busy}
+              >
                 Add Jira ticket
               </MenuItem>
-              {total > 0 && (
+              {totalAttachments > 0 && (
                 <>
                   <div style={{ borderTop: "1px solid #eee", margin: "4px 0" }} />
-                  <MenuItem onClick={clearAll} style={{ color: "#b00020" }}>
+                  <MenuItem 
+                    onClick={clearAll} 
+                    style={{ color: "#b00020" }}
+                    disabled={busy}
+                  >
                     Clear all attachments
                   </MenuItem>
                 </>
@@ -364,27 +406,43 @@ export const AttachmentMenu: React.FC<{
         </Menu>
 
         {busy && <Spinner size="tiny" />}
-        {total > 0 && <span style={{ fontSize: 12, color: "#666" }}>{total} attachment{total !== 1 ? "s" : ""}</span>}
+        {!hideAttachmentCount && totalAttachments > 0 && (
+          <span style={{ fontSize: 12, color: "#666" }}>
+            {totalAttachments} attachment{totalAttachments !== 1 ? "s" : ""}
+          </span>
+        )}
       </div>
 
-      {/* Jira dialog */}
+      {/* JIRA Dialog */}
       <Dialog open={jiraOpen} onOpenChange={(_, d) => setJiraOpen(d.open)}>
         <DialogSurface>
           <DialogBody>
             <DialogTitle>Add Jira ticket</DialogTitle>
             <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
-              <label style={{ fontSize: 12, opacity: .8 }}>Issue key (e.g., PROJ-123)</label>
+              <label style={{ fontSize: 12, opacity: .8 }}>
+                Issue key (e.g., PROJ-123)
+              </label>
               <Input
                 placeholder="PROJ-123"
                 value={jiraKey}
                 onChange={(_, v) => setJiraKey(v.value)}
-                onKeyDown={(e) => e.key === "Enter" && !busy && attachJira()}
+                onKeyDown={(e) => e.key === "Enter" && !busy && addJiraTicket()}
                 disabled={busy}
               />
             </div>
             <DialogActions>
-              <Button appearance="secondary" onClick={() => setJiraOpen(false)} disabled={busy}>Cancel</Button>
-              <Button appearance="primary" onClick={attachJira} disabled={busy || !jiraKey.trim()}>
+              <Button 
+                appearance="secondary" 
+                onClick={() => setJiraOpen(false)} 
+                disabled={busy}
+              >
+                Cancel
+              </Button>
+              <Button 
+                appearance="primary" 
+                onClick={addJiraTicket} 
+                disabled={busy || !jiraKey.trim()}
+              >
                 {busy ? <Spinner size="tiny" /> : "Attach"}
               </Button>
             </DialogActions>
@@ -392,7 +450,7 @@ export const AttachmentMenu: React.FC<{
         </DialogSurface>
       </Dialog>
 
-      {/* Confluence dialog */}
+      {/* Confluence Dialog */}
       <Dialog open={confOpen} onOpenChange={(_, d) => setConfOpen(d.open)}>
         <DialogSurface>
           <DialogBody>
@@ -405,18 +463,30 @@ export const AttachmentMenu: React.FC<{
                 onChange={(_, v) => setConfUrl(v.value)}
                 disabled={busy}
               />
-              <label style={{ fontSize: 12, opacity: .8 }}>Title (optional)</label>
+              <label style={{ fontSize: 12, opacity: .8 }}>
+                Title (optional - will use page title if empty)
+              </label>
               <Input
-                placeholder="Page title"
+                placeholder="Custom display title"
                 value={confTitle}
                 onChange={(_, v) => setConfTitle(v.value)}
-                onKeyDown={(e) => e.key === "Enter" && !busy && attachConfluence()}
+                onKeyDown={(e) => e.key === "Enter" && !busy && addConfluencePage()}
                 disabled={busy}
               />
             </div>
             <DialogActions>
-              <Button appearance="secondary" onClick={() => setConfOpen(false)} disabled={busy}>Cancel</Button>
-              <Button appearance="primary" onClick={attachConfluence} disabled={busy || !confUrl.trim()}>
+              <Button 
+                appearance="secondary" 
+                onClick={() => setConfOpen(false)} 
+                disabled={busy}
+              >
+                Cancel
+              </Button>
+              <Button 
+                appearance="primary" 
+                onClick={addConfluencePage} 
+                disabled={busy || !confUrl.trim()}
+              >
                 {busy ? <Spinner size="tiny" /> : "Attach"}
               </Button>
             </DialogActions>

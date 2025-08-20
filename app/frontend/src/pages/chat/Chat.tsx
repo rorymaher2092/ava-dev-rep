@@ -62,7 +62,7 @@ import { useArtifact } from "../../contexts/ArtifactContext";
 
 import { InteractionRequiredAuthError } from "@azure/msal-browser";
 import { msalInstance } from "../../authConfig";
-import {AttachmentState, AttachmentMenu} from "../../components/Attachments/AttachmentMenu";
+import {AttachmentRef} from "../../components/Attachments/AttachmentMenu";
 
 const Chat = () => {
     const [searchParams] = useSearchParams();
@@ -275,36 +275,28 @@ const Chat = () => {
         return () => clearInterval(tokenRefreshInterval);
     }, []);
 
-    const [currentAttachments, setCurrentAttachments] = useState<AttachmentState | null>(null);
-
-    // Listen for attachment changes from AttachmentMenu
-    useEffect(() => {
-        const handleAttachmentChange = (event: CustomEvent) => {
-            setCurrentAttachments(event.detail);
-        };
-
-        document.addEventListener("question-attachments", handleAttachmentChange as EventListener);
-        return () => document.removeEventListener("question-attachments", handleAttachmentChange as EventListener);
-    }, []);
-
-    const makeApiRequest = async (question: string) => {
+    const makeApiRequest = async (question: string, attachmentRefs?: AttachmentRef[]) => {
         lastQuestionRef.current = question;
         console.log("Sending API request with botId:", botId);
+        
+        // Log attachment references if any
+        if (attachmentRefs && attachmentRefs.length > 0) {
+            console.log("Including attachment references:", attachmentRefs);
+        }
+        
         setCurrentFollowupQuestions([]);
-
         error && setError(undefined);
         setIsLoading(true);
         setActiveCitation(undefined);
         setActiveAnalysisPanelTab(undefined);
 
-        // CRITICAL: Validate Microsoft auth BEFORE proceeding
+        // Microsoft auth validation (keep existing logic)
         let hasValidMicrosoftAuth = false;
         let retryCount = 0;
         const maxRetries = 2;
 
         while (!hasValidMicrosoftAuth && retryCount < maxRetries) {
             try {
-                // Check if we can get a valid token
                 const testToken = await getGraphToken();
                 if (testToken) {
                     hasValidMicrosoftAuth = true;
@@ -316,17 +308,11 @@ const Chat = () => {
 
                 if (retryCount >= maxRetries) {
                     setIsLoading(false);
-
-                    // Force re-authentication
                     const confirmLogin = window.confirm("Unable to verify Microsoft authentication. Would you like to sign in again?");
-
                     if (confirmLogin) {
                         try {
-                            // Clear ALL MSAL data before re-login
                             msalInstance.clearCache();
                             await loginToMicrosoft();
-
-                            // Try one more time after login
                             const newToken = await getGraphToken();
                             if (newToken) {
                                 hasValidMicrosoftAuth = true;
@@ -376,14 +362,6 @@ const Chat = () => {
                 { content: a[1].message.content, role: "assistant" }
             ]);
 
-            // Check if we have attachments to consume
-            const hasAttachments = currentAttachments && 
-                ((currentAttachments.jira_tickets?.length || 0) + (currentAttachments.confluence_pages?.length || 0)) > 0;
-
-                
-        
-            console.log("📎 Has attachments for this request:", hasAttachments);
-
             const request: ChatAppRequest = {
                 messages: [...messages, { content: question, role: "user" }],
                 context: {
@@ -410,16 +388,14 @@ const Chat = () => {
                         gpt4v_input: gpt4vInput,
                         language: i18n.language,
                         use_agentic_retrieval: useAgenticRetrieval,
-                        // bot_id: to select which bot is being used
                         bot_id: botId,
                         graph_token: graphtoken,
                         artifact_type: selectedArtifactType,
-                        ...(hasAttachments ? { consume_attachments: true } : {}),  
+                        // NEW: Include attachment references for just-in-time fetching
+                        attachment_refs: attachmentRefs || [],
                         ...(seed !== null ? { seed: seed } : {}),
-                              // NEW: only include if we have any
                     }
                 },
-                // AI Chat Protocol: Client must pass on any session state received from the server
                 session_state: answers.length ? answers[answers.length - 1][1].session_state : null
             };
 
@@ -430,11 +406,12 @@ const Chat = () => {
             if (response.status > 299 || !response.ok) {
                 throw Error(`Request failed with status ${response.status}`);
             }
+
+            // Handle response (keep existing streaming/non-streaming logic)
             if (shouldStream) {
                 const parsedResponse: ChatAppResponse = await handleAsyncRequest(question, answers, response.body);
                 setAnswers([...answers, [question, parsedResponse]]);
 
-                // Set follow-up questions if available
                 if (useSuggestFollowupQuestions) {
                     setCurrentFollowupQuestions(parsedResponse.context?.followup_questions || []);
                 }
@@ -450,7 +427,6 @@ const Chat = () => {
                 }
                 setAnswers([...answers, [question, parsedResponse as ChatAppResponse]]);
 
-                // Set follow-up questions if available
                 if (useSuggestFollowupQuestions) {
                     setCurrentFollowupQuestions((parsedResponse as ChatAppResponse).context?.followup_questions || []);
                 }
@@ -462,10 +438,6 @@ const Chat = () => {
             }
             setSpeechUrls([...speechUrls, null]);
 
-            if (hasAttachments) {
-                document.dispatchEvent(new CustomEvent("attachments-consumed"));
-                console.log("🗑️ Emitted attachments-consumed event");
-            }
         } catch (e) {
             setError(e);
         } finally {
@@ -910,18 +882,16 @@ const Chat = () => {
                             clearOnSend
                             placeholder={t("defaultExamples.placeholder")}
                             disabled={isLoading}
-                            onSend={(question) => {
-                                makeApiRequest(question);
+                            onSend={(question, attachmentRefs) => {  // Updated signature
+                                makeApiRequest(question, attachmentRefs);
                             }}
                             showSpeechInput={showSpeechInput}
                             followupQuestions={currentFollowupQuestions}
                             onFollowupQuestionClicked={question => {
                                 setCurrentFollowupQuestions([]);
-                                makeApiRequest(question);
+                                makeApiRequest(question); // No attachments for followup questions
                             }}
                         />
-
-
                     </div>
                 </div>
 

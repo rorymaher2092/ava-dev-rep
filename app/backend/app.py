@@ -63,7 +63,7 @@ from approaches.retrievethenreadvision import RetrieveThenReadVisionApproach
 from approaches.confluence_search import ConfluenceSearchService 
 from attachments.attachment_api import attachment_bp
 # In your main route file, make sure you have:
-from attachments.attachment_helpers import prepare_chat_with_attachments
+from attachments.attachment_helpers import fetch_attachments_for_chat
 from chat_history.cosmosdb import chat_history_cosmosdb_bp
 from config import (
     CONFIG_AGENT_CLIENT,
@@ -111,7 +111,7 @@ from prepdocs import (
 from prepdocslib.filestrategy import UploadUserFileStrategy
 from prepdocslib.listfilestrategy import File
 
-from blob_session import QuartBlobSession
+
 
 bp = Blueprint("routes", __name__, static_folder="static")
 # Fix Windows registry issue with mimetypes
@@ -242,70 +242,47 @@ async def chat(auth_claims: dict[str, Any]):
         return jsonify({"error": "request must be json"}), 415
     request_json = await request.get_json()
 
-    # Debug session info
-    session_id = session.get('attachment_session_id')
-    current_app.logger.info(f"🔍 DEBUG CHAT START:")
-    current_app.logger.info(f"🔍 Session ID from session: {session_id}")
-
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
 
     # Extract overrides BEFORE using it
     overrides = context.get("overrides", {})
-    should_consume = overrides.get("consume_attachments", False)
-
-    current_app.logger.info(f"🔍 Should consume attachments: {should_consume}")
+    
+    # NEW: Get attachment references from request
+    attachment_refs = overrides.get("attachment_refs", [])
+    
+    current_app.logger.info(f"🔍 Chat request received")
+    current_app.logger.info(f"🔍 Attachment refs: {len(attachment_refs)} references")
+    
+    # NEW: Fetch attachment content just-in-time if refs provided
+    attachment_sources = []
+    if attachment_refs:
+        current_app.logger.info(f"🔍 Fetching content for {len(attachment_refs)} attachment references")
+        try:
+            attachment_sources = await fetch_attachments_for_chat(attachment_refs)
+            current_app.logger.info(f"🔍 Successfully fetched {len(attachment_sources)} attachment sources")
+            
+            # Debug log each source briefly
+            for i, source in enumerate(attachment_sources):
+                current_app.logger.info(f"🔍 Source {i+1}: {source[:200]}...")
+                
+        except Exception as e:
+            current_app.logger.error(f"❌ Failed to fetch attachments: {str(e)}")
+            # Continue without attachments rather than failing the whole request
+            attachment_sources = []
+    
+    # Add attachment data to context
+    context["overrides"]["attachment_sources"] = attachment_sources
+    context["overrides"]["has_attachments"] = len(attachment_sources) > 0
+    context["overrides"]["attachment_count"] = len(attachment_sources)
+    
+    current_app.logger.info(f"🔍 Final context: {len(attachment_sources)} attachment sources added")
 
     # Extract the bot_id from the overrides in context
     bot_id = overrides.get("bot_id", DEFAULT_BOT_ID)
     bot_profile = BOTS.get(bot_id, BOTS[DEFAULT_BOT_ID])
     
     current_app.logger.info(f"Bot ID: {bot_id}, Bot Profile: {bot_profile.label}")
-
-    # IMPROVED LOGIC: Only process attachments if frontend signals we should
-    if should_consume:
-        current_app.logger.info("🔍 Frontend signaled consume_attachments=True, processing attachments...")
-        
-        # Check what's in session storage BEFORE calling prepare_chat_with_attachments
-        if session_id:
-            from attachments.attachment_api import get_session_attachments_for_chat
-            raw_session_data = get_session_attachments_for_chat(session_id)
-            current_app.logger.info(f"🔍 Raw session attachment data: {raw_session_data}")
-            
-            jira_count = len(raw_session_data.get("jira_tickets", []))
-            confluence_count = len(raw_session_data.get("confluence_pages", []))
-            current_app.logger.info(f"🔍 Session contains: {jira_count} Jira tickets, {confluence_count} Confluence pages")
-
-        # Import and call the attachment helper with consume=True
-        from attachments.attachment_helpers import prepare_chat_with_attachments
-        attachment_data = prepare_chat_with_attachments(should_consume=True)  # This will clear them!
-        
-        current_app.logger.info(f"🔍 Attachment helper returned:")
-        current_app.logger.info(f"🔍   - has_attachments: {attachment_data.get('has_attachments')}")
-        current_app.logger.info(f"🔍   - attachment_count: {attachment_data.get('attachment_count', 0)}")
-        current_app.logger.info(f"🔍   - sources length: {len(attachment_data.get('attachment_sources', []))}")
-        
-        # Debug each attachment source
-        for i, source in enumerate(attachment_data.get('attachment_sources', [])):
-            current_app.logger.info(f"🔍 Attachment source {i+1}: {source[:200]}...")
-        
-        # Add attachment data to context
-        context["overrides"]["attachment_sources"] = attachment_data.get("attachment_sources", [])
-        context["overrides"]["has_attachments"] = attachment_data.get("has_attachments", False)
-        context["overrides"]["attachment_count"] = attachment_data.get("attachment_count", 0)
-        
-        current_app.logger.info(f"🔍 Added {len(attachment_data.get('attachment_sources', []))} attachment sources to context")
-        
-    else:
-        current_app.logger.info("🔍 No consume_attachments flag, skipping attachment processing")
-        # Ensure we have empty attachment data
-        context["overrides"]["attachment_sources"] = []
-        context["overrides"]["has_attachments"] = False
-        context["overrides"]["attachment_count"] = 0
-
-    # Log what we're actually passing to the approach
-    current_app.logger.info(f"🔍 Final context overrides keys: {list(context['overrides'].keys())}")
-    current_app.logger.info(f"🔍 Attachment sources being passed: {len(context['overrides']['attachment_sources'])} sources")
 
     try:
         use_gpt4v = context.get("overrides", {}).get("use_gpt4v", False)
@@ -322,7 +299,7 @@ async def chat(auth_claims: dict[str, Any]):
                 current_app.config[CONFIG_CHAT_HISTORY_BROWSER_ENABLED],
             )
         
-        current_app.logger.info(f"🔍 About to call approach.run with context containing {len(context['overrides']['attachment_sources'])} attachment sources")
+        current_app.logger.info(f"🔍 About to call approach.run with context containing {len(attachment_sources)} attachment sources")
         
         result = await approach.run(
             request_json["messages"],
@@ -334,7 +311,7 @@ async def chat(auth_claims: dict[str, Any]):
         current_app.logger.error(f"❌ Chat endpoint error: {str(error)}")
         return error_response(error, "/chat")
 
-
+# 3. Update chat/stream endpoint similarly
 @bp.route("/chat/stream", methods=["POST"])
 @authenticated
 async def chat_stream(auth_claims: dict[str, Any]):
@@ -347,31 +324,28 @@ async def chat_stream(auth_claims: dict[str, Any]):
 
     # Extract overrides BEFORE using it
     overrides = context.get("overrides", {})
-    should_consume = overrides.get("consume_attachments", False)
+    
+    # NEW: Get attachment references from request
+    attachment_refs = overrides.get("attachment_refs", [])
+    
+    current_app.logger.info(f"🔍 STREAM: Chat request received")
+    current_app.logger.info(f"🔍 STREAM: Attachment refs: {len(attachment_refs)} references")
 
-    current_app.logger.info(f"🔍 STREAM: Should consume attachments: {should_consume}")
-
-    # IMPROVED LOGIC: Only process attachments if frontend signals we should
-    if should_consume:
-        current_app.logger.info("🔍 STREAM: Frontend signaled consume_attachments=True, processing attachments...")
-        
-        # Import and call the attachment helper with consume=True
-        from attachments.attachment_helpers import prepare_chat_with_attachments
-        attachment_data = prepare_chat_with_attachments(should_consume=True)  # This will clear them!
-        
-        current_app.logger.info(f"🔍 STREAM: Got {len(attachment_data.get('attachment_sources', []))} attachment sources")
-        
-        # Add attachment data to context
-        context["overrides"]["attachment_sources"] = attachment_data.get("attachment_sources", [])
-        context["overrides"]["has_attachments"] = attachment_data.get("has_attachments", False)
-        context["overrides"]["attachment_count"] = attachment_data.get("attachment_count", 0)
-        
-    else:
-        current_app.logger.info("🔍 STREAM: No consume_attachments flag, skipping attachment processing")
-        # Ensure we have empty attachment data
-        context["overrides"]["attachment_sources"] = []
-        context["overrides"]["has_attachments"] = False
-        context["overrides"]["attachment_count"] = 0
+    # NEW: Fetch attachment content just-in-time if refs provided
+    attachment_sources = []
+    if attachment_refs:
+        current_app.logger.info(f"🔍 STREAM: Fetching content for {len(attachment_refs)} attachment references")
+        try:
+            attachment_sources = await fetch_attachments_for_chat(attachment_refs)
+            current_app.logger.info(f"🔍 STREAM: Successfully fetched {len(attachment_sources)} attachment sources")
+        except Exception as e:
+            current_app.logger.error(f"❌ STREAM: Failed to fetch attachments: {str(e)}")
+            attachment_sources = []
+    
+    # Add attachment data to context
+    context["overrides"]["attachment_sources"] = attachment_sources
+    context["overrides"]["has_attachments"] = len(attachment_sources) > 0
+    context["overrides"]["attachment_count"] = len(attachment_sources)
 
     try:
         use_gpt4v = context.get("overrides", {}).get("use_gpt4v", False)
@@ -381,8 +355,6 @@ async def chat_stream(auth_claims: dict[str, Any]):
         else:
             approach = cast(Approach, current_app.config[CONFIG_CHAT_APPROACH])
 
-        # If session state is provided, persists the session state,
-        # else creates a new session_id depending on the chat history options enabled.
         session_state = request_json.get("session_state")
         if session_state is None:
             session_state = create_session_id(
@@ -400,7 +372,6 @@ async def chat_stream(auth_claims: dict[str, Any]):
         return response
     except Exception as error:
         return error_response(error, "/chat")
-
 
 # Send MSAL.js settings to the client UI
 @bp.route("/auth_setup", methods=["GET"])
@@ -1172,21 +1143,7 @@ async def close_clients():
 def create_app():
     app = Quart(__name__)
     
-    # Basic app configuration
-    app.config['SECRET_KEY'] = 'vocus-ava-attachments-fixed-key-2025'
     
-    # Configure Blob Storage sessions (no Redis needed!)
-    # This uses your existing Azure Storage account
-    app.config['SESSION_COOKIE_NAME'] = 'vocus_session'
-    app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SECURE'] = True  # Set False for local dev
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-    app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
-    app.config['SESSION_CONTAINER_NAME'] = 'ava-sessions'  # Container for sessions
-    
-    # Initialize Blob session storage
-    QuartBlobSession(app)
-
     app.register_blueprint(bp)
     app.register_blueprint(chat_history_cosmosdb_bp)
     

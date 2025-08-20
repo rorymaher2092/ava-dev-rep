@@ -1,141 +1,345 @@
-# attachment_helpers.py - Fixed to work with session storage
+# simple_attachment_helper.py - Just-in-time attachment fetching
+import aiohttp
+import base64
+import re
 from typing import Dict, List, Any, Optional
-from datetime import datetime
+from urllib.parse import urlparse
+from quart import current_app
 import dateutil.parser
-from quart import current_app, session
+from datetime import datetime
 
-def prepare_chat_with_attachments(should_consume: bool = False) -> dict:
+# Configuration - Replace with your actual values or environment variables
+JIRA_CONFIG = {
+    "base_url": "https://vocus.atlassian.net",
+    "api_token": "REDACTED_TOKEN",
+    "email": "svc.atlassian@vocus.com.au"
+}
+
+CONFLUENCE_CONFIG = {
+    "base_url": "https://vocus.atlassian.net/wiki",
+    "api_token": "REDACTED_TOKEN",
+    "email": "svc.atlassian@vocus.com.au"
+}
+
+async def fetch_attachments_for_chat(attachment_refs: List[Dict[str, Any]]) -> List[str]:
     """
-    Get attachments for current session and optionally consume (clear) them
+    Fetch attachment content fresh for chat context.
     
     Args:
-        should_consume: If True, clear attachments after preparing them for chat
-    """    
-    session_id = session.get('attachment_session_id')
-    current_app.logger.info(f"🔍 HELPER DEBUG: prepare_chat_with_attachments called")
-    current_app.logger.info(f"🔍   - session_id: {session_id}")
-    current_app.logger.info(f"🔍   - should_consume: {should_consume}")
+        attachment_refs: List of attachment references like:
+        [
+            {"type": "jira", "key": "PROJ-123"},
+            {"type": "confluence", "url": "https://...", "title": "Page Title"}
+        ]
     
-    # Get attachments directly from session storage
-    session_attach = {
-        "jira_tickets": [],
-        "confluence_pages": []
-    }
-    
-    if 'attachments_data' in session:
-        session_attach = {
-            "jira_tickets": session.get('attachments_data', {}).get('jira_tickets', []),
-            "confluence_pages": session.get('attachments_data', {}).get('confluence_pages', [])
-        }
-        current_app.logger.info(f"🔍   - Found attachments in session: {len(session_attach['jira_tickets'])} JIRA, {len(session_attach['confluence_pages'])} Confluence")
-    else:
-        current_app.logger.info("🔍   - No attachments_data in session")
-    
-    current_app.logger.info(f"🔍   - Raw session data: {session_attach}")
-    
-    # Build sources
-    attachment_sources = build_attachment_sources(session_attach)
-    
-    current_app.logger.info(f"🔍   - Built {len(attachment_sources)} attachment sources")
-    for i, source in enumerate(attachment_sources):
-        current_app.logger.info(f"🔍     Source {i+1}: {source[:100]}...")
-    
-    result = {
-        "attachment_sources": attachment_sources,
-        "has_attachments": len(attachment_sources) > 0,
-        "session_id": session_id,
-        "attachment_count": len(attachment_sources)
-    }
-    
-    # If we should consume the attachments, clear them after building sources
-    if should_consume and result["has_attachments"]:
-        current_app.logger.info(f"🗑️ Consuming and clearing {len(attachment_sources)} attachments for session: {session_id}")
-        try:
-            # Clear directly from session
-            if 'attachments_data' in session:
-                session['attachments_data'] = {
-                    "jira_tickets": [],
-                    "confluence_pages": [],
-                    "last_accessed": datetime.now().timestamp()
-                }
-                session.modified = True
-                current_app.logger.info(f"✅ Successfully cleared attachments from session")
-            else:
-                current_app.logger.warning(f"⚠️ No attachments_data to clear in session")
-        except Exception as e:
-            current_app.logger.error(f"❌ Failed to clear attachments: {str(e)}")
-    elif should_consume and not result["has_attachments"]:
-        current_app.logger.debug(f"🔍 No attachments to clear for session: {session_id}")
-    
-    current_app.logger.info(f"🔍   - Final result: {result}")
-    return result
-
-def get_session_id() -> str:
-    """Get or create a session ID for attachments (same logic as API)"""
-    import uuid
-    
-    if 'attachment_session_id' not in session:
-        session['attachment_session_id'] = str(uuid.uuid4())
-        session.permanent = True
-        current_app.logger.info(f"🔧 Created new attachment session in helpers: {session['attachment_session_id']}")
-    else:
-        current_app.logger.info(f"🔧 Using existing attachment session in helpers: {session['attachment_session_id']}")
-    
-    return session['attachment_session_id']
-
-def build_attachment_sources(session_attach: Dict[str, List[Dict[str, Any]]]) -> List[str]:
+    Returns:
+        List of formatted attachment sources ready for prompt inclusion
     """
-    Build attachment sources in the same format as text_sources.
-    Returns a list of formatted attachment strings.
-    """
-    current_app.logger.info(f"🔍 DEBUG - build_attachment_sources called with: {session_attach}")
+    if not attachment_refs:
+        return []
+    
+    current_app.logger.info(f"Fetching {len(attachment_refs)} attachments for chat")
     
     attachment_sources = []
     
-    # Process Jira tickets
-    jira_tickets = session_attach.get("jira_tickets", [])
-    current_app.logger.info(f"🔍 DEBUG - Processing {len(jira_tickets)} JIRA tickets")
+    for ref in attachment_refs:
+        try:
+            if ref.get("type") == "jira" and ref.get("key"):
+                source = await fetch_jira_ticket_source(ref["key"])
+                if source:
+                    attachment_sources.append(source)
+                    current_app.logger.info(f"Fetched JIRA ticket: {ref['key']}")
+            
+            elif ref.get("type") == "confluence" and ref.get("url"):
+                source = await fetch_confluence_page_source(ref["url"])
+                if source:
+                    attachment_sources.append(source)
+                    current_app.logger.info(f"Fetched Confluence page: {ref.get('title', ref['url'])}")
+            
+            else:
+                current_app.logger.warning(f"Invalid attachment reference: {ref}")
+                
+        except Exception as e:
+            current_app.logger.error(f"Failed to fetch attachment {ref}: {str(e)}")
+            # Continue with other attachments even if one fails
+            continue
     
-    for i, ticket in enumerate(jira_tickets):
-        current_app.logger.info(f"🔍 DEBUG - Processing JIRA ticket {i}: {ticket.get('key', 'NO_KEY')}")
-        ticket_age = get_time_ago(ticket.get("updated") or ticket.get("created"))
+    current_app.logger.info(f"Successfully fetched {len(attachment_sources)} attachment sources")
+    return attachment_sources
+
+async def fetch_jira_ticket_source(ticket_key: str) -> Optional[str]:
+    """Fetch a single JIRA ticket and format as source"""
+    try:
+        ticket_data = await fetch_jira_ticket_data(ticket_key)
+        if not ticket_data:
+            return None
         
-        # Format as a single source string (like text_sources)
-        ticket_source = f"""[JIRA TICKET: {ticket['key']}]
-Title: {ticket['summary']}
-Status: {ticket['status']} | Priority: {ticket['priority']} | Type: {ticket['issue_type']}
-Assignee: {ticket['assignee']} | Reporter: {ticket['reporter']}
+        ticket_age = get_time_ago(ticket_data.get("updated") or ticket_data.get("created"))
+        
+        # Format as a single source string
+        source = f"""[JIRA TICKET: {ticket_data['key']}]
+Title: {ticket_data['summary']}
+Status: {ticket_data['status']} | Priority: {ticket_data['priority']} | Type: {ticket_data['issue_type']}
+Assignee: {ticket_data['assignee']} | Reporter: {ticket_data['reporter']}
 Last Updated: {ticket_age}
-URL: {ticket['url']}
+URL: {ticket_data['url']}
 
 Description:
-{format_content_for_prompt(ticket['description'])}"""
+{format_content_for_prompt(ticket_data['description'])}"""
         
-        attachment_sources.append(ticket_source)
-        current_app.logger.info(f"🔍 DEBUG - Added JIRA ticket source (length: {len(ticket_source)})")
-    
-    # Process Confluence pages
-    confluence_pages = session_attach.get("confluence_pages", [])
-    current_app.logger.info(f"🔍 DEBUG - Processing {len(confluence_pages)} Confluence pages")
-    
-    for i, page in enumerate(confluence_pages):
-        current_app.logger.info(f"🔍 DEBUG - Processing Confluence page {i}: {page.get('title', 'NO_TITLE')}")
-        page_age = get_time_ago(page.get("last_modified"))
+        return source
         
-        # Format as a single source string (like text_sources)
-        page_source = f"""[CONFLUENCE PAGE: {page['title']}]
-Space: {page['space_name']} ({page['space_key']})
-Version: {page['version']} | Last Modified: {page_age}
-URL: {page['url']}
+    except Exception as e:
+        current_app.logger.error(f"Error fetching JIRA ticket {ticket_key}: {str(e)}")
+        return None
+
+async def fetch_confluence_page_source(page_url: str) -> Optional[str]:
+    """Fetch a single Confluence page and format as source"""
+    try:
+        page_data = await fetch_confluence_page_data(page_url)
+        if not page_data:
+            return None
+        
+        page_age = get_time_ago(page_data.get("last_modified"))
+        
+        # Format as a single source string
+        source = f"""[CONFLUENCE PAGE: {page_data['title']}]
+Space: {page_data['space_name']} ({page_data['space_key']})
+Version: {page_data['version']} | Last Modified: {page_age}
+URL: {page_data['url']}
 
 Content:
-{format_content_for_prompt(page['content'], max_length=2500)}"""
+{format_content_for_prompt(page_data['content'], max_length=2500)}"""
         
-        attachment_sources.append(page_source)
-        current_app.logger.info(f"🔍 DEBUG - Added Confluence page source (length: {len(page_source)})")
+        return source
+        
+    except Exception as e:
+        current_app.logger.error(f"Error fetching Confluence page {page_url}: {str(e)}")
+        return None
+
+# Validation functions for UI (lightweight checks)
+async def validate_jira_ticket(ticket_key: str) -> Dict[str, Any]:
+    """
+    Validate that a JIRA ticket exists and is accessible.
+    Returns basic info for UI display without fetching full content.
+    """
+    try:
+        # Just fetch basic fields for validation
+        auth_string = f"{JIRA_CONFIG['email']}:{JIRA_CONFIG['api_token']}"
+        auth_bytes = auth_string.encode('ascii')
+        auth_header = base64.b64encode(auth_bytes).decode('ascii')
+        
+        headers = {
+            'Authorization': f'Basic {auth_header}',
+            'Accept': 'application/json',
+        }
+        
+        # Only fetch key fields for validation
+        url = f"{JIRA_CONFIG['base_url']}/rest/api/3/issue/{ticket_key}?fields=key,summary,status,priority"
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    fields = data.get("fields", {})
+                    return {
+                        "valid": True,
+                        "key": data["key"],
+                        "summary": fields.get("summary", "No summary"),
+                        "status": fields.get("status", {}).get("name", "Unknown"),
+                        "priority": fields.get("priority", {}).get("name", "None") if fields.get("priority") else "None",
+                        "url": f"{JIRA_CONFIG['base_url']}/browse/{data['key']}"
+                    }
+                else:
+                    return {"valid": False, "error": f"Ticket not found or inaccessible (status: {response.status})"}
     
-    current_app.logger.info(f"🔍 DEBUG - build_attachment_sources returning {len(attachment_sources)} sources")
-    return attachment_sources
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+async def validate_confluence_page(page_url: str) -> Dict[str, Any]:
+    """
+    Validate that a Confluence page exists and is accessible.
+    Returns basic info for UI display without fetching full content.
+    """
+    try:
+        page_id = extract_confluence_page_id(page_url)
+        if not page_id:
+            return {"valid": False, "error": "Could not extract page ID from URL"}
+        
+        auth_string = f"{CONFLUENCE_CONFIG['email']}:{CONFLUENCE_CONFIG['api_token']}"
+        auth_bytes = auth_string.encode('ascii')
+        auth_header = base64.b64encode(auth_bytes).decode('ascii')
+        
+        headers = {
+            'Authorization': f'Basic {auth_header}',
+            'Accept': 'application/json',
+        }
+        
+        # Only fetch basic fields for validation
+        url = f"{CONFLUENCE_CONFIG['base_url']}/rest/api/content/{page_id}?expand=space,version"
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return {
+                        "valid": True,
+                        "title": data.get("title", "Untitled"),
+                        "space_key": data.get("space", {}).get("key", "Unknown"),
+                        "space_name": data.get("space", {}).get("name", "Unknown Space"),
+                        "version": data.get("version", {}).get("number", 1),
+                        "url": page_url
+                    }
+                else:
+                    return {"valid": False, "error": f"Page not found or inaccessible (status: {response.status})"}
+    
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+# Full data fetching functions (used by fetch_*_source functions)
+async def fetch_jira_ticket_data(ticket_key: str) -> Dict[str, Any]:
+    """Fetch full JIRA ticket data"""
+    auth_string = f"{JIRA_CONFIG['email']}:{JIRA_CONFIG['api_token']}"
+    auth_bytes = auth_string.encode('ascii')
+    auth_header = base64.b64encode(auth_bytes).decode('ascii')
+    
+    headers = {
+        'Authorization': f'Basic {auth_header}',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+    }
+    
+    url = f"{JIRA_CONFIG['base_url']}/rest/api/3/issue/{ticket_key}"
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            if response.status != 200:
+                raise Exception(f"JIRA API error {response.status}")
+            
+            data = await response.json()
+            fields = data.get("fields", {})
+            
+            return {
+                "id": data["id"],
+                "key": data["key"],
+                "summary": fields.get("summary", "No summary"),
+                "description": extract_jira_description(fields.get("description")),
+                "status": fields.get("status", {}).get("name", "Unknown"),
+                "priority": fields.get("priority", {}).get("name", "None") if fields.get("priority") else "None",
+                "assignee": fields.get("assignee", {}).get("displayName", "Unassigned") if fields.get("assignee") else "Unassigned",
+                "reporter": fields.get("reporter", {}).get("displayName", "Unknown") if fields.get("reporter") else "Unknown",
+                "created": fields.get("created"),
+                "updated": fields.get("updated"),
+                "issue_type": fields.get("issuetype", {}).get("name", "Unknown") if fields.get("issuetype") else "Unknown",
+                "url": f"{JIRA_CONFIG['base_url']}/browse/{data['key']}"
+            }
+
+async def fetch_confluence_page_data(page_url: str) -> Dict[str, Any]:
+    """Fetch full Confluence page data"""
+    page_id = extract_confluence_page_id(page_url)
+    if not page_id:
+        raise Exception("Could not extract page ID from URL")
+    
+    auth_string = f"{CONFLUENCE_CONFIG['email']}:{CONFLUENCE_CONFIG['api_token']}"
+    auth_bytes = auth_string.encode('ascii')
+    auth_header = base64.b64encode(auth_bytes).decode('ascii')
+    
+    headers = {
+        'Authorization': f'Basic {auth_header}',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+    }
+    
+    url = f"{CONFLUENCE_CONFIG['base_url']}/rest/api/content/{page_id}?expand=body.storage,space,version"
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
+            if response.status != 200:
+                raise Exception(f"Confluence API error {response.status}")
+            
+            data = await response.json()
+            
+            return {
+                "id": data["id"],
+                "title": data.get("title", "Untitled"),
+                "space_key": data.get("space", {}).get("key", "Unknown"),
+                "space_name": data.get("space", {}).get("name", "Unknown Space"),
+                "content": strip_confluence_html(data.get("body", {}).get("storage", {}).get("value", "")),
+                "version": data.get("version", {}).get("number", 1),
+                "last_modified": data.get("version", {}).get("when"),
+                "url": page_url
+            }
+
+# Helper functions (same as before)
+def extract_jira_description(description: Any) -> str:
+    """Extract clean text from Jira description (handles ADF format)"""
+    if not description:
+        return "No description"
+    
+    if isinstance(description, dict) and "content" in description:
+        return extract_text_from_adf(description["content"])
+    
+    if isinstance(description, str):
+        return description.strip()
+    
+    return "No description"
+
+def extract_text_from_adf(content: List[Dict[str, Any]]) -> str:
+    """Extract text from Atlassian Document Format (ADF)"""
+    text = ""
+    
+    def traverse(nodes):
+        nonlocal text
+        for node in nodes:
+            if node.get("type") == "text":
+                text += node.get("text", "")
+            elif node.get("type") == "hardBreak":
+                text += "\n"
+            elif "content" in node:
+                traverse(node["content"])
+            
+            if node.get("type") == "paragraph":
+                text += "\n"
+    
+    traverse(content)
+    return text.strip()
+
+def extract_confluence_page_id(page_url: str) -> Optional[str]:
+    """Extract page ID from Confluence URL"""
+    patterns = [
+        r'/pages/(\d+)',
+        r'pageId[=:](\d+)',
+        r'/(\d+)/[^/]*$'
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, page_url)
+        if match:
+            return match.group(1)
+    
+    return None
+
+def strip_confluence_html(html: str) -> str:
+    """Strip HTML and clean up Confluence content"""
+    if not html:
+        return ""
+    
+    # Remove HTML tags
+    html = re.sub(r'<[^>]*>', '', html)
+    
+    # Decode HTML entities
+    html = html.replace('&nbsp;', ' ')
+    html = html.replace('&amp;', '&')
+    html = html.replace('&lt;', '<')
+    html = html.replace('&gt;', '>')
+    html = html.replace('&quot;', '"')
+    html = html.replace('&#39;', "'")
+    
+    # Clean up whitespace
+    html = re.sub(r'\s+', ' ', html)
+    html = re.sub(r'\n\s*\n', '\n', html)
+    
+    return html.strip()
 
 def format_content_for_prompt(content: str, max_length: int = 2000) -> str:
     """Format content for optimal prompt consumption"""
@@ -164,22 +368,6 @@ def format_content_for_prompt(content: str, max_length: int = 2000) -> str:
     
     return content
 
-def has_attachments(session_attach: Dict[str, List[Dict[str, Any]]]) -> bool:
-    """Check if session has any attachments"""
-    return (
-        len(session_attach.get("jira_tickets", [])) > 0 or 
-        len(session_attach.get("confluence_pages", [])) > 0
-    )
-
-def get_attachment_summary(session_attach: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
-    """Get summary of attachments for logging/debugging"""
-    return {
-        "jira_tickets": len(session_attach.get("jira_tickets", [])),
-        "confluence_pages": len(session_attach.get("confluence_pages", [])),
-        "total_attachments": len(session_attach.get("jira_tickets", [])) + len(session_attach.get("confluence_pages", [])),
-        "has_attachments": has_attachments(session_attach)
-    }
-
 def get_time_ago(date_string: Optional[str]) -> str:
     """Get human-readable time difference"""
     if not date_string:
@@ -204,15 +392,3 @@ def get_time_ago(date_string: Optional[str]) -> str:
             return "Just now"
     except Exception:
         return "Unknown"
-
-# Legacy function for backwards compatibility
-def build_rich_attachment_context(session_attach: Dict[str, List[Dict[str, Any]]]) -> str:
-    """Legacy function - use build_attachment_sources instead"""
-    import warnings
-    warnings.warn(
-        "build_rich_attachment_context is deprecated. Use build_attachment_sources instead.",
-        DeprecationWarning,
-        stacklevel=2
-    )
-    attachment_sources = build_attachment_sources(session_attach)
-    return "\n\n".join(attachment_sources)
