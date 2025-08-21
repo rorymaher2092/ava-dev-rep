@@ -19,7 +19,7 @@ import { BotProfile, BOTS } from "../../config/botConfig";
 import { useBot } from "../../contexts/BotContext";
 
 // ADD THESE IMPORTS FOR YOUR NEW ICONS
-import confluenceLogo from "../../assets/confluenec-logo.png";
+import confluenceLogo from "../../assets/confluence-logo.png";
 import pdfIcon from "../../assets/pdf-icon.png"; // Replace with your actual PDF icon path
 
 interface Props {

@@ -1,7 +1,7 @@
 // src/components/BotContent/AvaSearchContent.tsx
 import React from "react";
 import { BaseBotContent, BotContentConfig } from "./BotContent";
-import confluencelogo from "../../assets/confluenec-logo.png";
+import confluencelogo from "../../assets/confluence-logo.png";
 import defendersheild from "../../assets/defender-sheild.png";
 
 export class AvaSearchContent extends BaseBotContent {

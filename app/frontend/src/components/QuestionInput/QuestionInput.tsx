@@ -1,8 +1,7 @@
-// components/QuestionInput/QuestionInput.tsx (Updated with SimpleAttachmentMenu)
 import { useState, useEffect, useContext } from "react";
 import { Stack, TextField } from "@fluentui/react";
 import { Button, Menu, MenuTrigger, MenuPopover, MenuList, MenuItem, Dialog, DialogSurface, DialogTitle, DialogBody, DialogActions, Input, Spinner } from "@fluentui/react-components";
-import { Send28Filled, Attach24Regular, PlugConnected24Regular, Bug24Regular } from "@fluentui/react-icons";
+import { Send28Filled, Attach24Regular } from "@fluentui/react-icons";
 import { useTranslation } from "react-i18next";
 
 import styles from "./QuestionInput.module.css";
@@ -12,6 +11,10 @@ import { requireLogin } from "../../authConfig";
 import { CompactArtifactSelector } from "../ArtifactSelector/CompactArtitfactSelector";
 import { useBot } from "../../contexts/BotContext";
 import { SimpleAttachmentMenu, AttachmentRef } from "../Attachments/AttachmentMenu";
+
+// Import logos
+import confluenceLogo from "../../assets/confluence-logo.png";
+import jiraLogo from "../../assets/jira-logo.png";
 
 interface Props {
   onSend: (question: string, attachmentRefs?: AttachmentRef[]) => void;
@@ -39,10 +42,10 @@ export const QuestionInput = ({
   const [attachmentsBusy, setAttachmentsBusy] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentRef[]>([]);
   
-  // Dialog states for attachment modals
-  const [jiraOpen, setJiraOpen] = useState(false);
+  // Menu state management
+  const [showJiraForm, setShowJiraForm] = useState(false);
+  const [showConfluenceForm, setShowConfluenceForm] = useState(false);
   const [jiraKey, setJiraKey] = useState("");
-  const [confOpen, setConfOpen] = useState(false);
   const [confUrl, setConfUrl] = useState("");
   const [confTitle, setConfTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +60,7 @@ export const QuestionInput = ({
 
   const disableRequiredAccessControl = requireLogin && !loggedIn;
   const sendDisabled = disabled || attachmentsBusy || !question.trim() || disableRequiredAccessControl;
+  const attachmentDisabled = disabled || attachmentsBusy || disableRequiredAccessControl; // Don't require text for attachments
 
   // Attachment validation functions
   const validateJiraTicket = async (ticketKey: string) => {
@@ -121,7 +125,7 @@ export const QuestionInput = ({
       
       setAttachments([...attachments, newAttachment]);
       setJiraKey("");
-      setJiraOpen(false);
+      setShowJiraForm(false);
       setError(null);
     } catch (e: any) {
       setError(e?.message || "Something went wrong");
@@ -168,7 +172,7 @@ export const QuestionInput = ({
       setAttachments([...attachments, newAttachment]);
       setConfUrl("");
       setConfTitle("");
-      setConfOpen(false);
+      setShowConfluenceForm(false);
       setError(null);
     } catch (e: any) {
       setError(e?.message || "Something went wrong");
@@ -222,7 +226,7 @@ export const QuestionInput = ({
         </Stack>
       )}
 
-      {/* Show attachment chips above input ONLY when attachments exist */}
+                {/* Show attachment chips above input ONLY when attachments exist */}
       {attachments.length > 0 && (
         <div style={{ 
           display: "flex", 
@@ -256,7 +260,8 @@ export const QuestionInput = ({
                     gap: 4,
                     opacity: 0.7
                   }}>
-                    🐛 [{attachment.key}]
+                    <img src={jiraLogo} alt="Jira" style={{ width: 16, height: 16 }} />
+                    [{attachment.key}]
                   </span>
                   {attachment.url ? (
                     <a 
@@ -293,7 +298,7 @@ export const QuestionInput = ({
                       setAttachments(newAttachments);
                     }} 
                     aria-label="Remove"
-                    disabled={attachmentsBusy}
+                    disabled={attachmentDisabled}
                     style={{ 
                       minWidth: 20, 
                       padding: 2,
@@ -326,7 +331,8 @@ export const QuestionInput = ({
                     gap: 4,
                     opacity: 0.7
                   }}>
-                    🔗 Confluence
+                    <img src={confluenceLogo} alt="Confluence" style={{ width: 16, height: 16 }} />
+                    Confluence
                   </span>
                   {attachment.url ? (
                     <a 
@@ -363,7 +369,7 @@ export const QuestionInput = ({
                       setAttachments(newAttachments);
                     }} 
                     aria-label="Remove"
-                    disabled={attachmentsBusy}
+                    disabled={attachmentDisabled}
                     style={{ 
                       minWidth: 20, 
                       padding: 2,
@@ -397,56 +403,261 @@ export const QuestionInput = ({
         <div className={styles.questionInputButtonsContainer}>
           {/* Clean pink attachment button above send button */}
           <div style={{ marginBottom: "8px" }}>
-            <Menu positioning="above-start">
+            <Menu 
+              positioning="above-start"
+              onOpenChange={(e, data) => {
+                // When menu closes, reset forms to main menu
+                if (!data.open) {
+                  setShowJiraForm(false);
+                  setShowConfluenceForm(false);
+                  setError(null);
+                }
+              }}
+            >
               <MenuTrigger disableButtonEnhancement>
                 <Button
                   icon={<Attach24Regular />}
                   appearance="subtle"
                   aria-label="Attach"
-                  disabled={sendDisabled}
+                  disabled={attachmentDisabled}
                   style={{
-                    backgroundColor: "#e91e63",
-                    color: "white",
-                    border: "none",
                     minWidth: "40px",
                     height: "40px"
                   }}
                 />
               </MenuTrigger>
               <MenuPopover style={{ 
-                background: "#fff", 
-                border: "1px solid #ddd", 
+                background: "var(--colorNeutralBackground1, #fff)", 
+                border: "1px solid var(--colorNeutralStroke2, #ddd)", 
                 borderRadius: 8, 
-                boxShadow: "0 8px 24px rgba(0,0,0,.12)" 
+                boxShadow: "0 8px 24px rgba(0,0,0,.12)",
+                padding: "16px",
+                minWidth: "320px"
               }}>
-                <MenuList>
-                  <MenuItem 
-                    icon={<PlugConnected24Regular />} 
-                    onClick={() => setConfOpen(true)}
-                    disabled={attachmentsBusy}
-                  >
-                    Add Confluence page
-                  </MenuItem>
-                  <MenuItem 
-                    icon={<Bug24Regular />} 
-                    onClick={() => setJiraOpen(true)}
-                    disabled={attachmentsBusy}
-                  >
-                    Add Jira ticket
-                  </MenuItem>
-                  {attachments.length > 0 && (
-                    <>
-                      <div style={{ borderTop: "1px solid #eee", margin: "4px 0" }} />
-                      <MenuItem 
-                        onClick={() => setAttachments([])} 
-                        style={{ color: "#b00020" }}
+                {!showJiraForm && !showConfluenceForm ? (
+                  // Main menu
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <div 
+                      style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        gap: "12px", 
+                        padding: "12px 8px", 
+                        borderRadius: "4px", 
+                        cursor: "pointer",
+                        transition: "background 0.2s"
+                      }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setShowConfluenceForm(true);
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--colorNeutralBackground2, #f5f5f5)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      <img src={confluenceLogo} alt="Confluence" style={{ width: 16, height: 16 }} />
+                      <span style={{ color: "var(--colorNeutralForeground1, #000)" }}>Add Confluence page</span>
+                    </div>
+                    
+                    <div 
+                      style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        gap: "12px", 
+                        padding: "12px 8px", 
+                        borderRadius: "4px", 
+                        cursor: "pointer",
+                        transition: "background 0.2s"
+                      }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setShowJiraForm(true);
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--colorNeutralBackground2, #f5f5f5)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      <img src={jiraLogo} alt="Jira" style={{ width: 16, height: 16 }} />
+                      <span style={{ color: "var(--colorNeutralForeground1, #000)" }}>Add Jira ticket</span>
+                    </div>
+                    
+                    {attachments.length > 0 && (
+                      <>
+                        <div style={{ borderTop: "1px solid var(--colorNeutralStroke2, #eee)", margin: "8px 0" }} />
+                        <div 
+                          style={{ 
+                            display: "flex", 
+                            alignItems: "center", 
+                            gap: "12px", 
+                            padding: "12px 8px", 
+                            borderRadius: "4px", 
+                            cursor: "pointer",
+                            transition: "background 0.2s",
+                            color: "#b00020"
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setAttachments([]);
+                            setError(null);
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = "var(--colorNeutralBackground2, #f5f5f5)"}
+                          onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                        >
+                          <span>Clear all attachments</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : showJiraForm ? (
+                  // Jira form
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                      <img src={jiraLogo} alt="Jira" style={{ width: 20, height: 20 }} />
+                      <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600, color: "var(--colorNeutralForeground1, #000)" }}>Add Jira Ticket</h3>
+                    </div>
+                    
+                    <div>
+                      <label style={{ fontSize: "12px", opacity: 0.8, display: "block", marginBottom: "4px", color: "var(--colorNeutralForeground2, #666)" }}>
+                        Issue key (e.g., PROJ-123)
+                      </label>
+                      <Input
+                        placeholder="Enter JIRA ticket key here..."
+                        value={jiraKey}
+                        onChange={(_, v) => setJiraKey(v.value)}
+                        onKeyDown={(e) => e.key === "Enter" && !attachmentsBusy && addJiraTicket()}
                         disabled={attachmentsBusy}
+                        style={{ 
+                          width: "100%",
+                          opacity: jiraKey ? 1 : 0.7,
+                          background: "var(--colorNeutralBackground1, #fff)",
+                          border: "1px solid var(--colorNeutralStroke2, #ddd)",
+                          color: "var(--colorNeutralForeground1, #000)"
+                        }}
+                      />
+                    </div>
+
+                    {error && (
+                      <div style={{ 
+                        padding: "8px", 
+                        background: "var(--colorPaletteRedBackground2, #FFE9E9)", 
+                        color: "var(--colorPaletteRedForeground1, #8B0000)", 
+                        borderRadius: "4px", 
+                        fontSize: "12px",
+                        border: "1px solid var(--colorPaletteRedBorder2, #ffcccc)"
+                      }}>
+                        {error}
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                      <Button 
+                        appearance="secondary" 
+                        onClick={() => {
+                          setShowJiraForm(false);
+                          setJiraKey("");
+                          setError(null);
+                        }} 
+                        disabled={attachmentsBusy}
+                        size="small"
                       >
-                        Clear all attachments
-                      </MenuItem>
-                    </>
-                  )}
-                </MenuList>
+                        Cancel
+                      </Button>
+                      <Button 
+                        appearance="primary" 
+                        onClick={addJiraTicket} 
+                        disabled={attachmentsBusy || !jiraKey.trim()}
+                        size="small"
+                      >
+                        {attachmentsBusy ? <Spinner size="tiny" /> : "Attach"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  // Confluence form
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                      <img src={confluenceLogo} alt="Confluence" style={{ width: 20, height: 20 }} />
+                      <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600, color: "var(--colorNeutralForeground1, #000)" }}>Add Confluence Page</h3>
+                    </div>
+                    
+                    <div>
+                      <label style={{ fontSize: "12px", opacity: 0.8, display: "block", marginBottom: "4px", color: "var(--colorNeutralForeground2, #666)" }}>
+                        Page URL
+                      </label>
+                      <Input
+                        placeholder="Paste your Confluence page URL here..."
+                        value={confUrl}
+                        onChange={(_, v) => setConfUrl(v.value)}
+                        disabled={attachmentsBusy}
+                        style={{ 
+                          width: "100%",
+                          opacity: confUrl ? 1 : 0.7,
+                          background: "var(--colorNeutralBackground1, #fff)",
+                          border: "1px solid var(--colorNeutralStroke2, #ddd)",
+                          color: "var(--colorNeutralForeground1, #000)"
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: "12px", opacity: 0.8, display: "block", marginBottom: "4px", color: "var(--colorNeutralForeground2, #666)" }}>
+                        Title (optional - will use page title if empty)
+                      </label>
+                      <Input
+                        placeholder="Optional: Custom display name..."
+                        value={confTitle}
+                        onChange={(_, v) => setConfTitle(v.value)}
+                        onKeyDown={(e) => e.key === "Enter" && !attachmentsBusy && addConfluencePage()}
+                        disabled={attachmentsBusy}
+                        style={{ 
+                          width: "100%",
+                          opacity: confTitle ? 1 : 0.7,
+                          background: "var(--colorNeutralBackground1, #fff)",
+                          border: "1px solid var(--colorNeutralStroke2, #ddd)",
+                          color: "var(--colorNeutralForeground1, #000)"
+                        }}
+                      />
+                    </div>
+
+                    {error && (
+                      <div style={{ 
+                        padding: "8px", 
+                        background: "var(--colorPaletteRedBackground2, #FFE9E9)", 
+                        color: "var(--colorPaletteRedForeground1, #8B0000)", 
+                        borderRadius: "4px", 
+                        fontSize: "12px",
+                        border: "1px solid var(--colorPaletteRedBorder2, #ffcccc)"
+                      }}>
+                        {error}
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                      <Button 
+                        appearance="secondary" 
+                        onClick={() => {
+                          setShowConfluenceForm(false);
+                          setConfUrl("");
+                          setConfTitle("");
+                          setError(null);
+                        }} 
+                        disabled={attachmentsBusy}
+                        size="small"
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        appearance="primary" 
+                        onClick={addConfluencePage} 
+                        disabled={attachmentsBusy || !confUrl.trim()}
+                        size="small"
+                      >
+                        {attachmentsBusy ? <Spinner size="tiny" /> : "Attach"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </MenuPopover>
             </Menu>
           </div>
@@ -462,102 +673,6 @@ export const QuestionInput = ({
         </div>
         {showSpeechInput && <SpeechInput updateQuestion={setQuestion} />}
       </Stack>
-
-      {/* Error display */}
-      {error && (
-        <div style={{ 
-          padding: 8, 
-          background: "#FFE9E9", 
-          color: "#8B0000", 
-          borderRadius: 6, 
-          fontSize: 12,
-          border: "1px solid #ffcccc",
-          marginTop: 8
-        }}>
-          {error}
-        </div>
-      )}
-
-      {/* JIRA Dialog */}
-      <Dialog open={jiraOpen} onOpenChange={(_, d) => setJiraOpen(d.open)}>
-        <DialogSurface>
-          <DialogBody>
-            <DialogTitle>Add Jira ticket</DialogTitle>
-            <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
-              <label style={{ fontSize: 12, opacity: .8 }}>
-                Issue key (e.g., PROJ-123)
-              </label>
-              <Input
-                placeholder="PROJ-123"
-                value={jiraKey}
-                onChange={(_, v) => setJiraKey(v.value)}
-                onKeyDown={(e) => e.key === "Enter" && !attachmentsBusy && addJiraTicket()}
-                disabled={attachmentsBusy}
-              />
-            </div>
-            <DialogActions>
-              <Button 
-                appearance="secondary" 
-                onClick={() => setJiraOpen(false)} 
-                disabled={attachmentsBusy}
-              >
-                Cancel
-              </Button>
-              <Button 
-                appearance="primary" 
-                onClick={addJiraTicket} 
-                disabled={attachmentsBusy || !jiraKey.trim()}
-              >
-                {attachmentsBusy ? <Spinner size="tiny" /> : "Attach"}
-              </Button>
-            </DialogActions>
-          </DialogBody>
-        </DialogSurface>
-      </Dialog>
-
-      {/* Confluence Dialog */}
-      <Dialog open={confOpen} onOpenChange={(_, d) => setConfOpen(d.open)}>
-        <DialogSurface>
-          <DialogBody>
-            <DialogTitle>Add Confluence page</DialogTitle>
-            <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
-              <label style={{ fontSize: 12, opacity: .8 }}>Page URL</label>
-              <Input
-                placeholder="https://vocus.atlassian.net/wiki/pages/123456/Some+Page"
-                value={confUrl}
-                onChange={(_, v) => setConfUrl(v.value)}
-                disabled={attachmentsBusy}
-              />
-              <label style={{ fontSize: 12, opacity: .8 }}>
-                Title (optional - will use page title if empty)
-              </label>
-              <Input
-                placeholder="Custom display title"
-                value={confTitle}
-                onChange={(_, v) => setConfTitle(v.value)}
-                onKeyDown={(e) => e.key === "Enter" && !attachmentsBusy && addConfluencePage()}
-                disabled={attachmentsBusy}
-              />
-            </div>
-            <DialogActions>
-              <Button 
-                appearance="secondary" 
-                onClick={() => setConfOpen(false)} 
-                disabled={attachmentsBusy}
-              >
-                Cancel
-              </Button>
-              <Button 
-                appearance="primary" 
-                onClick={addConfluencePage} 
-                disabled={attachmentsBusy || !confUrl.trim()}
-              >
-                {attachmentsBusy ? <Spinner size="tiny" /> : "Attach"}
-              </Button>
-            </DialogActions>
-          </DialogBody>
-        </DialogSurface>
-      </Dialog>
     </div>
   );
 };

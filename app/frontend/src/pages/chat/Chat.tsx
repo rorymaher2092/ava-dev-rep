@@ -7,7 +7,7 @@ import readNDJSONStream from "ndjson-readablestream";
 import { MicrosoftSignIn } from "../../MicrosoftSignIn"; // Add this with other imports
 
 import appLogo from "../../assets/ava.svg";
-import confluencelogo from "../../assets/confluenec-logo.png";
+import confluencelogo from "../../assets/confluence-logo.png";
 import defendersheild from "../../assets/defender-sheild.png";
 import styles from "./Chat.module.css";
 
