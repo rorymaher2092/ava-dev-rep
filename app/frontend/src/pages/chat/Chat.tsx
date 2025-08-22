@@ -116,7 +116,7 @@ const Chat = () => {
     const [showVectorOption, setShowVectorOption] = useState<boolean>(false);
     const [showUserUpload, setShowUserUpload] = useState<boolean>(false);
     const [showLanguagePicker, setshowLanguagePicker] = useState<boolean>(false);
-    const [showSpeechInput, setShowSpeechInput] = useState<boolean>(false);
+    const [showSpeechInput, setShowSpeechInput] = useState<boolean>(true);
     const [showSpeechOutputBrowser, setShowSpeechOutputBrowser] = useState<boolean>(false);
     const [showSpeechOutputAzure, setShowSpeechOutputAzure] = useState<boolean>(false);
     const [showChatHistoryBrowser, setShowChatHistoryBrowser] = useState<boolean>(false);

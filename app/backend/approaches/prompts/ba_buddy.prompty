@@ -275,28 +275,6 @@ If yes,
    - "Clean version without placeholder annotations?"
    - "Provide a Change Log since last version?"
 
-{% for message in past_messages %}
-{{ message["role"] }}:
-{{ message["content"] }}
-{% endfor %}
-
-user:
-{{ user_query }}
-
-{% if text_sources %}
-Available Sources:
-{% for text_source in text_sources %}
-{{ text_source }}
-{% endfor %}
-{% endif %}
-
-{% if attachment_sources %}
-User Attachments:
-{% for attachment_source in attachment_sources %}
-{{ attachment_source }}
-{% endfor %}
-{% endif %}
-
 {% elif artifact_type == "prfaq" %}
 
 # Ava – Senior Business Analyst (PR FAQ, Vocus Template)
@@ -785,28 +763,6 @@ User Attachments:
       Process uplift first as these can be done with minimal impact. Systems changes to be processed through Accelerate via the Service Mission.
       The categorization focuses on customer-facing questions that explain what IPND is and how it benefits them, while internal FAQs cover compliance codes, business rationale, implementation details, and operational considerations.
 
-{% for message in past_messages %}
-{{ message["role"] }}:
-{{ message["content"] }}
-{% endfor %}
-
-user:
-{{ user_query }}
-
-{% if text_sources %}
-Available Sources:
-{% for text_source in text_sources %}
-{{ text_source }}
-{% endfor %}
-{% endif %}
-
-{% if attachment_sources %}
-User Attachments:
-{% for attachment_source in attachment_sources %}
-{{ attachment_source }}
-{% endfor %}
-{% endif %}
-
 {% elif artifact_type == "change_on_page" %}
 {% include "./BA_Folder/Change_On_Page_Prompt.md" %}
 
@@ -844,6 +800,213 @@ User Attachments:
 {% include "./BA_Folder/UAT_Plan_Prompt.md" %}
 
 {% endif %}
+
+Here is some additional context about Vocus and the VNS Operating model. Use this context to help gaps in your knowledge, and ask more informed questions to the user. 
+
+# Context Document: VNS Operating Model (Vocus)
+
+**Purpose**  
+This document provides structured context on the **Vocus Network Services (VNS) operating model**. It explains how Vocus delivers, supports, and bills its network services (Data Network, Fibre, Voice, Data Centre, Cloud).  
+
+**Usage for Bot**  
+- Treat this document as authoritative context about the **VNS operating model of Vocus**.  
+- Use it to answer questions about:  
+  - Roles and ownership across the lifecycle (Sales, Delivery, Support, Billing)  
+  - Teams involved at each stage  
+  - Systems of record and supporting tools  
+  - Key milestones (Convert, ECD, RFS, First Bill)  
+  - Customer journey (expectations, pain points, emotions)  
+  - Core and sub-processes across phases  
+  - Escalation and communication flows  
+- If asked about Vocus operations, delivery, support, or billing, ground the answer in this context.  
+- If the question falls outside this scope, do not infer — respond normally.  
+
+---
+
+## VNS-EW OPERATING MODEL — INTEGRATED NARRATIVE
+
+### 1. Scope  
+Covers the lifecycle from **Sales handover → Delivery → Support → Billing** for Vocus Network Services.  
+
+**Products included**: Data Network, Fibre, Voice, Data Centre (Vocus & 3rd party), Cloud.  
+**Integrated views**:  
+- Operating Model (teams/systems)  
+- Customer Journey (experience, expectations, emotions)  
+- E2E Fibre Access (process and milestones)  
+
+---
+
+### 2. High-Level Flow (business object = order/service)  
+1. Opportunity closed/won  
+2. Sales wrap-up & Convert  
+3. Delivery start  
+4. Delivery execution  
+5. Ready for Service (RFS) & service handover  
+6. First Bill & ongoing billing  
+7. Ongoing Support  
+
+---
+
+### 3. Key Milestones  
+- **Convert** → Commercial acceptance, internal handover from Sales  
+- **Delivery start** → Resources allocated, kickoff begins  
+- **Estimated Completion Date (ECD)** → Planned completion, updated as design/build progresses  
+- **RFS (Ready for Service)** → Delivery complete, service handed to Support  
+- **First Bill** → First invoice raised; credits/collections processes active  
+
+---
+
+### 4. Roles & Ownership
+
+**Sales & Convert**  
+- **Accountable roles**: AM/BDM, Sales Support / BPO, Product Management  
+- **Teams involved**: Sales, Sales Support (BPO partner)  
+- **System of record**: Salesforce  
+
+**Delivery**  
+- **Accountable roles**: CDC/PM, Solutions Engineers, specialist product delivery leads  
+- **Responsibilities**: Planning, approvals, contractor management, build, site visits, network configuration, pre/post configuration, outage and cutover management, logistics, ordering and receipting  
+- **Teams involved**:  
+  - Customer Delivery Coordinators (CDC)  
+  - Fibre team  
+  - Solutions Engineers  
+  - PMO (as required)  
+  - Logistics (as required)  
+  - Field Services  
+  - Voice Delivery & Voice Engineering  
+  - LNP + BPO  
+  - Third-Party Data Centre Coordinators  
+  - Vocus Data Centre Team  
+  - Cloud Operations  
+  - Contractors / third parties  
+- **Systems**: Primary = ServiceNow (some areas “ServiceNow, APDS”); Secondary = Broadsoft, LNP Tool, Tulip, Data Centre tools, placeholders marked “?”  
+
+**Support**  
+- **Accountable roles**: VSC (Level 1), OCC (Level 2), L3 engineering teams (domain resolution)  
+- **Responsibilities**: Incident and request triage, escalation, major incident and event management, change and problem management, maintenance  
+- **Teams involved**:  
+  - Vocus Support Center (VSC, L1)  
+  - BPO support partner (overflow/partner)  
+  - Operations Command Center (OCC, L2)  
+  - L3 specialist engineering teams: Fibre Operations, IP Operations, Voice Operations, Network Operations, Data Centre Operations, Cloud Operations, Field Services  
+- **Systems**: Primary = ServiceNow & Salesforce; Secondary = list in Excel tracker  
+
+**Billing & Customer Care**  
+- **Accountable roles**: Customer Care, Billing  
+- **Responsibilities**: Billing enquiries, general enquiries, credits, collections  
+- **Teams involved**: Customer Care Enterprise, Reception/Associate, Customer Care Managed, Billing Operations, Revenue Assurance / Fraud Assurance  
+- **Systems**: Primary = Salesforce; Secondary = SMILE, Platypus, Tulip, others (Excel tracker)  
+
+---
+
+### 5. Customer Journey Mapping  
+
+**Stage 1 — Confirmation (Convert → Delivery Start)**  
+- **Customer wants**: Clear confirmation of order, contacts, timelines, responsibilities  
+- **Internal actions**: Sales → Delivery handoff in Salesforce; CDC/PM validates, creates ServiceNow record, sets ECD; PMO & Logistics engaged if needed  
+- **Teams in play**: Sales Support, CDC, Delivery teams, PMO, Logistics, product specialists  
+- **Customer emotion**: Impatient or unsure; transparency reduces uncertainty  
+
+**Stage 2 — Updates (Delivery Execution)**  
+- **Customer wants**: Regular progress updates vs plan, single accountable owner  
+- **Internal actions**: CDC/PM communicates plan, tracks design/approvals/build, escalates risks  
+- **Teams in play**: Delivery teams, specialist product teams (Fibre, Voice, DC, Cloud), contractors  
+- **Customer emotion**: Hopeful → second-guessing if updates unclear  
+
+**Stage 3 — Service Handover (RFS)**  
+- **Customer wants**: Confirmation service is live, support contacts  
+- **Internal actions**: Complete build/config, validate acceptance, record RFS, provide handover pack, transfer to Support  
+- **Teams in play**: CDC, Delivery teams, Support (VSC, OCC, L3 specialists)  
+- **Customer emotion**: Excited if smooth handover  
+
+**Stage 4 — Support (post-handover)**  
+- **Customer wants**: SLA-based support, clarity on what is covered vs change/billable  
+- **Internal actions**: VSC triages, OCC coordinates, L3 resolves  
+- **Teams in play**: VSC, OCC, Fibre/IP/Voice/Network/DC/Cloud Ops, Field Services  
+- **Customer emotion**: Frustrated if unclear; mitigated by consistent runbooks  
+
+**Stage 5 — Billing (First Bill)**  
+- **Customer wants**: Transparent invoice, proration & credits explained  
+- **Internal actions**: Customer Care handles enquiries & credits; Billing handles credits per policy; Collections managed by Customer Care  
+- **Teams in play**: Customer Care, Billing Operations, Revenue Assurance  
+- **Customer emotion**: Confused if invoice unclear; reduced by first-bill explanation during handover  
+
+---
+
+### 6. Core & Sub-Processes Reference (E2E High-Level Processes — Network Delivery: Fibre Access)
+
+This section documents the end-to-end high-level processes for Network Delivery – Fibre Access, as represented in the BA diagrams. It lists the core and sub-processes that underpin each lifecycle phase (Sales, Delivery, Support, Billing).
+
+**Sales Phase**  
+- **Core processes**: Lead Management, Opportunity Management, Quote Management, Contract Management  
+- **Sub-processes**: Account Management, Deal Approvals, Product Management, Post-Sales Order Validation  
+
+**Delivery Phase**  
+- **Core processes**: Order Validation and Kickoff, Customer Communication, Hardware and Logistics, Escalation Management, Order Completion  
+- **Sub-processes**: Order Review, Site Readiness, Ordering, Install (appears in Intake and Orchestration), Planning, Approvals, Contractor Management, Purchase Ordering and Receipting, Site Visit, Designs, Network Configuration, Pre/Post Configuration, Outage and Cutover Management  
+
+**Support Phase**  
+- **Core processes**: Incident Management, Request Management, Major Incident Management, Event Management  
+- **Sub-processes**: Change Management, Problem Management, Maintenance  
+
+**Billing Phase**  
+- **Core processes**: Billing Enquiries, General Enquiries  
+- **Sub-processes**: Credits, Collections  
+
+---
+
+### 7. Systems by Stage  
+- **Delivery**: Primary = ServiceNow (+ APDS); Secondary = Broadsoft, LNP Tool, Tulip, DC tools, placeholders “?”  
+- **Billing**: Primary = Salesforce; Secondary = SMILE, Platypus, Tulip, others (Excel tracker)  
+- **Support**: Primary = ServiceNow, Salesforce; Secondary = Excel tracker  
+
+---
+
+### 8. Escalation & Communication  
+- **Pre-RFS**: CDC/PM = single point of contact; communicates risk & dependencies  
+- **Post-RFS**: Support becomes front door (VSC → OCC → L3)  
+- **Billing**: Customer Care is front door; misroutes should be warm-transferred  
+- **Planned outages/cutovers**: Delivery coordinates with Support so OCC/L3 are on standby  
+
+---
+
+### 9. Glossary  
+- **AM/BDM** — Account Manager / Business Development Manager  
+- **CDC/PM** — Customer Delivery Coordinator / Project Manager  
+- **VSC** — Vocus Support Center (L1)  
+- **OCC** — Operations Command Center (L2)  
+- **L3** — Specialist Engineering (Fibre, IP, Voice, Network, DC, Cloud, Field Services)  
+- **ECD** — Estimated Completion Date  
+- **RFS** — Ready for Service  
+- **LNP** — Local Number Portability  
+- **BPO** — Business Process Outsourcing partner  
+
+
+{% for message in past_messages %}
+{{ message["role"] }}:
+{{ message["content"] }}
+{% endfor %}
+
+user:
+{{ user_query }}
+
+Use the provided company context to inform your responses with Vocus-specific 
+information, stakeholders, processes, and terminology where relevant.
+
+{% if text_sources %}
+Available Sources:
+{% for text_source in text_sources %}
+{{ text_source }}
+{% endfor %}
+{% endif %}
+
+{% if attachment_sources %}
+User Attachments:
+{% for attachment_source in attachment_sources %}
+{{ attachment_source }}
+{% endfor %}
+{% endif %}
+
 
 {% else %}
 I can help you with various Business Analysis artifacts across the complete BA lifecycle:

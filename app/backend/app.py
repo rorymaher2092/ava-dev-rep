@@ -669,7 +669,7 @@ async def setup_clients():
     USE_GPT4V = os.getenv("USE_GPT4V", "").lower() == "true"
     USE_USER_UPLOAD = os.getenv("USE_USER_UPLOAD", "").lower() == "true"
     ENABLE_LANGUAGE_PICKER = os.getenv("ENABLE_LANGUAGE_PICKER", "").lower() == "true"
-    USE_SPEECH_INPUT_BROWSER = os.getenv("USE_SPEECH_INPUT_BROWSER", "").lower() == "true"
+    USE_SPEECH_INPUT_BROWSER = "true"
     USE_SPEECH_OUTPUT_BROWSER = os.getenv("USE_SPEECH_OUTPUT_BROWSER", "").lower() == "true"
     USE_SPEECH_OUTPUT_AZURE = os.getenv("USE_SPEECH_OUTPUT_AZURE", "").lower() == "true"
     USE_CHAT_HISTORY_BROWSER = os.getenv("USE_CHAT_HISTORY_BROWSER", "").lower() == "true"

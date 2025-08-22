@@ -352,6 +352,12 @@
     },
     "useAgenticRetrieval": {
       "value": "${USE_AGENTIC_RETRIEVAL=false}"
+    },
+    "confluenceToken": {
+      "value": "${CONFLUENCE_TOKEN}"
+    },
+    "confluenceEmail": {
+      "value": "${CONFLUENCE_EMAIL}"
     }
   }
 }

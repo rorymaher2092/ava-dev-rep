@@ -35,7 +35,7 @@ export const BOTS: Record<string, BotProfile> = {
         label: "Coming Soon!",
         themeClass: "theme-orange",
         logo: avaOrange,
-        allowed_emails: ["Jamie.Gray@vocus.com.au", "Rory.Maher@vocus.com.au"]
+        allowed_emails: ["Jamie.Gray@vocus.com.au", "Rory.Maher@vocus.com.au", "Callum.Mayhook@vocus.com.au"]
     }
 };
 
