@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext } from "react";
 import { Stack, TextField } from "@fluentui/react";
 import { Button, Menu, MenuTrigger, MenuPopover, MenuList, MenuItem, Dialog, DialogSurface, DialogTitle, DialogBody, DialogActions, Input, Spinner } from "@fluentui/react-components";
-import { Send28Filled, Attach24Regular } from "@fluentui/react-icons";
+import { Send28Filled, Attach24Regular, Stop24Filled } from "@fluentui/react-icons";
 import { useTranslation } from "react-i18next";
 
 import styles from "./QuestionInput.module.css";
@@ -18,7 +18,9 @@ import jiraLogo from "../../assets/jira-logo.png";
 
 interface Props {
   onSend: (question: string, attachmentRefs?: AttachmentRef[]) => void;
+  onCancel?: () => void;
   disabled: boolean;
+  isGenerating?: boolean;
   initQuestion?: string;
   placeholder?: string;
   clearOnSend?: boolean;
@@ -29,7 +31,9 @@ interface Props {
 
 export const QuestionInput = ({
   onSend,
+  onCancel,
   disabled,
+  isGenerating, 
   placeholder,
   clearOnSend,
   initQuestion,
@@ -665,10 +669,11 @@ export const QuestionInput = ({
           <div className={styles.customTooltip}>{t("tooltips.submitQuestion")}</div>
           <Button
             size="large"
-            icon={<Send28Filled primaryFill="rgba(115, 118, 225, 1)" />}
-            disabled={sendDisabled}
-            onClick={doSend}
-            aria-label={t("tooltips.submitQuestion")}
+            icon={isGenerating ? <Stop24Filled primaryFill="rgba(220, 53, 69, 1)" /> : <Send28Filled primaryFill="rgba(115, 118, 225, 1)" />}
+            disabled={isGenerating ? false : sendDisabled}
+            onClick={isGenerating ? onCancel : doSend}
+            aria-label={isGenerating ? "Stop generation" : t("tooltips.submitQuestion")}
+            appearance={isGenerating ? "subtle" : "primary"}
           />
         </div>
         {showSpeechInput && <SpeechInput updateQuestion={setQuestion} />}

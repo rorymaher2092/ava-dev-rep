@@ -1,6 +1,6 @@
 // src/components/CompactArtifactSelector/CompactArtifactSelector.tsx
 import React, { useState } from 'react';
-import { ARTIFACT_CATEGORIES, getArtifactsByCategory } from '../../config/baArtifactConfig';
+import { ARTIFACT_CATEGORIES, getArtifactsByCategory, BA_ARTIFACT_TYPES } from '../../config/baArtifactConfig';
 import { useArtifact } from '../../contexts/ArtifactContext';
 import { useBot } from '../../contexts/BotContext';
 import styles from './CompactArtifactSelector.module.css';
@@ -39,17 +39,16 @@ export const CompactArtifactSelector: React.FC<CompactArtifactSelectorProps> = (
         onArtifactChanged?.(artifactType);
     };
 
-    const currentArtifact = selectedArtifactType ? 
-        Object.values(ARTIFACT_CATEGORIES).find(cat => 
-            getArtifactsByCategory(cat.id).some(art => art.id === selectedArtifactType)
-        ) : null;
+    // Get the current artifact details
+    const currentArtifact = selectedArtifactType ? BA_ARTIFACT_TYPES[selectedArtifactType] : null;
+    const currentCategory = currentArtifact ? ARTIFACT_CATEGORIES[currentArtifact.category] : null;
 
     return (
         <div className={styles.container}>
             <div className={styles.header}>
                 <span className={styles.label}>Current artifact:</span>
                 <span className={styles.currentArtifact}>
-                    {currentArtifact?.icon} {selectedArtifactType.replace('_', ' ')}
+                    {currentCategory?.icon} {currentArtifact?.label || selectedArtifactType}
                 </span>
                 <button 
                     className={styles.changeButton}

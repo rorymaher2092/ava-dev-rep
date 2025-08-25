@@ -124,6 +124,8 @@ const Chat = () => {
     const [showAgenticRetrievalOption, setShowAgenticRetrievalOption] = useState<boolean>(false);
     const [useAgenticRetrieval, setUseAgenticRetrieval] = useState<boolean>(false);
 
+    const [abortController, setAbortController] = useState<AbortController | null>(null);
+
 
     // --- Attachments typed union for backend ---
     type Attachment =
@@ -199,13 +201,18 @@ const Chat = () => {
         });
     };
 
-    const handleAsyncRequest = async (question: string, answers: [string, ChatAppResponse][], responseBody: ReadableStream<any>) => {
+    const handleAsyncRequest = async (question: string, answers: [string, ChatAppResponse][], responseBody: ReadableStream<any>, signal?: AbortSignal) => {
         let answer: string = "";
         let askResponse: ChatAppResponse = {} as ChatAppResponse;
 
         const updateState = (newContent: string) => {
             return new Promise(resolve => {
                 setTimeout(() => {
+                    // Check if cancelled before updating
+                    if (signal?.aborted) {
+                        resolve(null);
+                        return;
+                    }
                     answer += newContent;
                     const latestResponse: ChatAppResponse = {
                         ...askResponse,
@@ -216,9 +223,14 @@ const Chat = () => {
                 }, 33);
             });
         };
+        
         try {
             setIsStreaming(true);
             for await (const event of readNDJSONStream(responseBody)) {
+                // Check for cancellation
+                if (signal?.aborted) {
+                    break;
+                }
                 if (event["context"] && event["context"]["data_points"]) {
                     event["message"] = event["delta"];
                     askResponse = event as ChatAppResponse;
@@ -232,9 +244,16 @@ const Chat = () => {
                     throw Error(event["error"]);
                 }
             }
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                console.log('Stream was cancelled');
+            } else {
+                throw error;
+            }
         } finally {
             setIsStreaming(false);
         }
+        
         const fullResponse: ChatAppResponse = {
             ...askResponse,
             message: { content: answer, role: askResponse.message.role }
@@ -276,6 +295,15 @@ const Chat = () => {
     }, []);
 
     const makeApiRequest = async (question: string, attachmentRefs?: AttachmentRef[]) => {
+
+        // Extra code to deal with cancelled requests
+
+        if (abortController) {
+            abortController.abort();
+        }
+        const controller = new AbortController();
+        setAbortController(controller);
+
         lastQuestionRef.current = question;
         console.log("Sending API request with botId:", botId);
         
@@ -409,7 +437,7 @@ const Chat = () => {
 
             // Handle response (keep existing streaming/non-streaming logic)
             if (shouldStream) {
-                const parsedResponse: ChatAppResponse = await handleAsyncRequest(question, answers, response.body);
+                const parsedResponse: ChatAppResponse = await handleAsyncRequest(question, answers, response.body, controller.signal);
                 setAnswers([...answers, [question, parsedResponse]]);
 
                 if (useSuggestFollowupQuestions) {
@@ -438,10 +466,29 @@ const Chat = () => {
             }
             setSpeechUrls([...speechUrls, null]);
 
-        } catch (e) {
-            setError(e);
+        } catch (e: any) {
+            // Check if error is due to cancellation
+            if (e.name === 'AbortError') {
+                console.log('Request was cancelled');
+                // Don't set error state for cancelled requests
+            } else {
+                setError(e);
+            }
         } finally {
             setIsLoading(false);
+            setIsStreaming(false);
+            setAbortController(null);
+        }
+    };
+
+    // Add cancel function
+    const cancelGeneration = () => {
+        if (abortController) {
+            abortController.abort();
+            setAbortController(null);
+            setIsLoading(false);
+            setIsStreaming(false);
+            setError(undefined);
         }
     };
 
@@ -882,14 +929,16 @@ const Chat = () => {
                             clearOnSend
                             placeholder={t("defaultExamples.placeholder")}
                             disabled={isLoading}
-                            onSend={(question, attachmentRefs) => {  // Updated signature
+                            isGenerating={isLoading || isStreaming} // Add this
+                            onCancel={cancelGeneration} // Add this
+                            onSend={(question, attachmentRefs) => {
                                 makeApiRequest(question, attachmentRefs);
                             }}
                             showSpeechInput={showSpeechInput}
                             followupQuestions={currentFollowupQuestions}
                             onFollowupQuestionClicked={question => {
                                 setCurrentFollowupQuestions([]);
-                                makeApiRequest(question); // No attachments for followup questions
+                                makeApiRequest(question);
                             }}
                         />
                     </div>

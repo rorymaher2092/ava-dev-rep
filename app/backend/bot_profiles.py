@@ -62,9 +62,9 @@ BOTS: Dict[str, BotProfile] = {
     "ba": BotProfile(
     id="ba",
     label="BA Buddy",
-    model="o3-mini",
-    deployment="o3-mini",
-    api_version="2025-01-31",
+    model="o4-mini",
+    deployment="o4-mini",
+    api_version="2025-04-16",
     allowed_emails=["Jamie.Gray@vocus.com.au", "Rory.Maher@vocus.com.au", "Callum.Mayhook@vocus.com.au"],
     use_confluence_search=False,
     use_dual_search=False,
