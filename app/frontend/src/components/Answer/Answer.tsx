@@ -557,7 +557,7 @@ export const Answer = ({
                                 <textarea
                                     value={contentSuggestion}
                                     onChange={e => setContentSuggestion(e.target.value)}
-                                    placeholder="What Question would you like Ava to Answer..."
+                                    placeholder="Could you provide some more context? Where does this information exist?"
                                     style={{
                                         width: "100%",
                                         minHeight: "80px",

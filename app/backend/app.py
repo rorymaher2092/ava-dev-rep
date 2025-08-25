@@ -546,14 +546,13 @@ async def submit_feedback(auth_claims: dict[str, Any]):
 @authenticated
 async def submit_suggestion(auth_claims: dict[str, Any]):
     """
-    Endpoint to collect user suggestion on bad responses.
-    Stores feedback with user information for later analysis.
+    Endpoint to collect user suggestions on responses.
+    Stores suggestions in blob storage for later analysis.
     """
     if not request.is_json:
         return jsonify({"error": "request must be json"}), 415
     
     request_json = await request.get_json()
-    response_id = request_json.get("responseId")
     question = request_json.get("question")
     suggestion = request_json.get("suggestion", "")
     
@@ -563,40 +562,34 @@ async def submit_suggestion(auth_claims: dict[str, Any]):
     if not suggestion:
         return jsonify({"error": "suggestion must be provided"}), 400
     
-    # Add user information from auth claims
-    feedback_data = {
+    # Prepare suggestion data
+    suggestion_data = {
         "question": question,
         "suggestion": suggestion,
         "timestamp": time.time(),
         "userId": auth_claims.get("oid", ""),
-        "username": auth_claims.get("username", ""),
+        "username": auth_claims.get("preferred_username", auth_claims.get("upn", auth_claims.get("email", ""))),
         "name": auth_claims.get("name", "")
     }
     
-    # Log the feedback
-    current_app.logger.info("Feedback received: %s", json.dumps(feedback_data))
+    # Log the suggestion
+    current_app.logger.info("Content suggestion received: %s", json.dumps(suggestion_data, default=str))
     
-    # Store feedback in Cosmos DB if Cosmos is enabled
-    cosmos_enabled = os.getenv("USE_CHAT_HISTORY_COSMOS", "").lower() == "true"
-    current_app.logger.info(f"Cosmos enabled: {cosmos_enabled}")
-    
-    if cosmos_enabled:
-        try:
-            current_app.logger.info("Attempting to store feedback in Cosmos DB")
-            from chat_history.suggestions import SuggestionsCosmosDB
-            suggestion_db = SuggestionsCosmosDB()
-            await suggestion_db.initialize()
-            suggestion_id = await suggestion_db.add_suggestion(feedback_data)
-            await suggestion_db.close()
-            current_app.logger.info(f"Suggestion stored in Cosmos DB with ID: {suggestion_id}")
-            return jsonify({"message": "Suggestion submitted and stored successfully", "id": suggestion_id}), 200
-        except Exception as e:
-            current_app.logger.error(f"Error storing Suggestion in Cosmos DB: {str(e)}")
-            return jsonify({"message": "Suggestion logged but not stored", "error": str(e)}), 200
-    else:
-        current_app.logger.info("Cosmos DB not enabled, Suggestion only logged")
-    
-    return jsonify({"message": "Suggestion submitted successfully"}), 200
+    try:
+        # Import and use the blob storage class
+        from chat_history.suggestions import SuggestionsBlobStorage
+        
+        suggestion_storage = SuggestionsBlobStorage()
+        await suggestion_storage.initialize()
+        suggestion_id = await suggestion_storage.add_suggestion(suggestion_data)
+        await suggestion_storage.close()
+        
+        current_app.logger.info(f"Suggestion stored in blob storage with ID: {suggestion_id}")
+        return jsonify({"message": "Suggestion submitted and stored successfully", "id": suggestion_id}), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error storing suggestion in blob storage: {str(e)}")
+        return jsonify({"message": "Suggestion logged but not stored", "error": str(e)}), 500
 
 @bp.before_app_serving
 async def setup_clients():
