@@ -7,6 +7,11 @@ type HtmlParsedAnswer = {
     citationDetails: Map<string, { url: string; title: string; isConfluence: boolean }>;
 };
 
+// Add this function to detect if answer contains knowledge gap
+function hasKnowledgeGap(content: string): boolean {
+    return content.includes("[KNOWLEDGE_GAP]");
+}
+
 // Helper function to validate URL format
 function isValidUrl(str: string): boolean {
     try {
@@ -195,16 +200,26 @@ function cleanCitation(citation: string): string | null {
     return citation;
 }
 
-export function parseAnswerToHtml(answer: ChatAppResponse, isStreaming: boolean, onCitationClicked: (citationFilePath: string) => void): HtmlParsedAnswer {
+export function parseAnswerToHtml(
+    answer: ChatAppResponse,
+    isStreaming: boolean,
+    onCitationClicked: (citationFilePath: string) => void
+): HtmlParsedAnswer & { hasKnowledgeGap: boolean } {
     const contextDataPoints = answer.context.data_points;
     const citations: string[] = [];
     const citationDetails = new Map<string, { url: string; title: string; isConfluence: boolean }>();
 
-    console.log("Raw answer content:", answer.message.content);
-    console.log("Context data points:", contextDataPoints);
+    // Check for knowledge gap before processing
+    const hasGap = hasKnowledgeGap(answer.message.content);
 
-    // Preprocess to fix common citation issues
-    let parsedAnswer = preprocessCitations(answer.message.content.trim());
+    // Remove the knowledge gap tag from the displayed content
+    let cleanedContent = answer.message.content.replace(/\[KNOWLEDGE_GAP\]/g, "");
+
+    console.log("Raw answer content:", cleanedContent);
+    console.log("Has knowledge gap:", hasGap);
+
+    // Continue with existing parsing logic using cleanedContent instead of answer.message.content
+    let parsedAnswer = preprocessCitations(cleanedContent.trim());
 
     // Omit a citation that is still being typed during streaming
     if (isStreaming) {
@@ -328,6 +343,7 @@ export function parseAnswerToHtml(answer: ChatAppResponse, isStreaming: boolean,
     return {
         answerHtml: fragments.join(""),
         citations,
-        citationDetails
+        citationDetails,
+        hasKnowledgeGap: hasGap
     };
 }

@@ -57,6 +57,9 @@ import { BOTS, DEFAULT_BOT_ID, BotProfile } from "../../config/botConfig";
 import { useBot } from "../../contexts/BotContext"; // ✅ ADD
 import { useBotTheme } from "../../hooks/useBotTheme";
 
+// submitContent Suggestions
+import { submitContentSuggestion } from "../../api";
+
 import { InteractionRequiredAuthError } from "@azure/msal-browser";
 import { msalInstance } from "../../authConfig";
 
@@ -698,6 +701,20 @@ const Chat = () => {
         setSelectedAnswer(index);
     };
 
+    // Add this handler function in the Chat component
+    const handleContentSuggestion = async (suggestion: string, questionAsked: string) => {
+        try {
+            // Use the same token acquisition logic as makeApiRequest
+            const authToken = await getGraphToken();
+
+            // Submit the suggestion using the graph token (or auth token as fallback)
+            await submitContentSuggestion(questionAsked, suggestion, authToken);
+        } catch (error) {
+            console.error("Error submitting content suggestion:", error);
+            throw error; // Re-throw to let Answer component handle the error
+        }
+    };
+
     return (
         <div className={styles.container}>
             {/* Setting the page title using react-helmet-async */}
@@ -799,7 +816,7 @@ const Chat = () => {
                                         />
                                     </div>
                                     <div style={{ color: "var(--text)", fontWeight: "700", fontSize: "16px", marginBottom: "4px" }}>Secure</div>
-                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>Microsoft Entperise Security</div>
+                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>Microsoft Enterprise Security</div>
                                 </div>
                                 <div
                                     style={{
@@ -928,6 +945,8 @@ const Chat = () => {
                                                 onSupportingContentClicked={() => onToggleTab(AnalysisPanelTabs.SupportingContentTab, index)}
                                                 showSpeechOutputAzure={showSpeechOutputAzure}
                                                 showSpeechOutputBrowser={showSpeechOutputBrowser}
+                                                userQuestion={answer[0]} // Pass the user's question
+                                                onContentSuggestion={suggestion => handleContentSuggestion(suggestion, answer[0])}
                                             />
                                         </div>
                                     </div>
