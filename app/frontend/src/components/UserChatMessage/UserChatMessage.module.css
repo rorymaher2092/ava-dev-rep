@@ -6,12 +6,12 @@
   margin-bottom: 16px;
 }
 
-.message {
-  background: var(--surface-primary, #f8f9fa);
-  border: 1px solid var(--border-light, #e9ecef);
-  border-radius: 16px;
+.userMessage {
+  background: var(--user-message-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl);
   padding: 12px 16px;
-  color: var(--text-primary, #212529);
+  color: var(--user-message-text);
   font-size: 14px;
   line-height: 1.4;
   max-width: 80%;

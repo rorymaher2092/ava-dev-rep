@@ -70,7 +70,7 @@ BOTS: Dict[str, BotProfile] = {
     use_dual_search=False,
     primary_search_index="babuddyindex",
     custom_prompt_template="ba_buddy.prompty",
-    disable_rag=False,
+    disable_rag=True,
     valid_artifacts=[
         # Ideate Stage
         "dvf_prioritisation",

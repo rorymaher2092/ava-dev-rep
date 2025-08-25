@@ -62,11 +62,11 @@ export const UserChatMessage = ({ message, attachmentRefs }: Props) => {
     return (
         <div style={{
             display: 'flex',
+            justifyContent: 'flex-end',
+            marginBottom: '16px',
             flexDirection: 'column',
             alignItems: 'flex-end',
-            marginBottom: '16px',
-            gap: '8px',
-            width: '100%'
+            gap: '8px'
         }}>
             {/* Show attachments above the message */}
             {attachmentRefs && attachmentRefs.length > 0 && (
@@ -87,7 +87,7 @@ export const UserChatMessage = ({ message, attachmentRefs }: Props) => {
                 </div>
             )}
 
-            {/* Original message with original styling */}
+            {/* EXACT ORIGINAL MESSAGE COMPONENT - NO CHANGES */}
             <div className={styles.userMessage}>
                 <div style={{
                     fontSize: '15px',
