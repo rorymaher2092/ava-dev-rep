@@ -552,7 +552,7 @@ export const Answer = ({
                                 }}
                             >
                                 <div style={{ marginBottom: "12px", color: "var(--text)", fontSize: "14px", fontWeight: "500" }}>
-                                    Do you have a question you would like answered?!
+                                    What question would you like answered?
                                 </div>
                                 <textarea
                                     value={contentSuggestion}
