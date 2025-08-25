@@ -34,6 +34,7 @@ import { HistoryButton } from "../../components/HistoryButton";
 // import { SettingsButton } from "../../components/SettingsButton";
 import { ClearChatButton } from "../../components/ClearChatButton";
 import { UploadFile } from "../../components/UploadFile";
+
 import {
     useLogin,
     getToken,
@@ -58,6 +59,9 @@ import { useBotTheme } from "../../hooks/useBotTheme";
 
 // submitContent Suggestions
 import { submitContentSuggestion } from "../../api";
+
+import { InteractionRequiredAuthError } from "@azure/msal-browser";
+import { msalInstance } from "../../authConfig";
 
 const Chat = () => {
     const [searchParams] = useSearchParams();
@@ -121,6 +125,15 @@ const Chat = () => {
 
     const audio = useRef(new Audio()).current;
     const [isPlaying, setIsPlaying] = useState(false);
+
+    /* ─── Bot selection ─────────────────────────────────────────── */
+    const { botId, setBotId } = useBot();
+    console.log("Current botId:", botId); // Log the botId
+    const botProfile: BotProfile = BOTS[botId] ?? BOTS[DEFAULT_BOT_ID];
+
+    useBotTheme(botId);
+
+    const { t, i18n } = useTranslation();
 
     const speechConfig: SpeechConfig = {
         speechUrls,
@@ -222,10 +235,30 @@ const Chat = () => {
     })();
     const historyManager = useHistoryManager(historyProvider);
 
+    // In Chat.tsx, add this useEffect
+    useEffect(() => {
+        if (!isMicrosoftAuthenticated()) return;
+
+        // Proactively refresh tokens before they expire
+        const tokenRefreshInterval = setInterval(
+            async () => {
+                try {
+                    console.log("Proactive token refresh check");
+                    await getGraphToken(1); // Force refresh
+                } catch (error) {
+                    console.error("Proactive token refresh failed:", error);
+                    // Don't show error to user unless they're actively using the app
+                }
+            },
+            10 * 60 * 1000
+        ); // Every 10 minutes
+
+        return () => clearInterval(tokenRefreshInterval);
+    }, []);
+
     const makeApiRequest = async (question: string) => {
         lastQuestionRef.current = question;
         console.log("Sending API request with botId:", botId);
-        // Clear follow-up questions when a new question is asked
         setCurrentFollowupQuestions([]);
 
         error && setError(undefined);
@@ -233,44 +266,89 @@ const Chat = () => {
         setActiveCitation(undefined);
         setActiveAnalysisPanelTab(undefined);
 
-        // Check if user is authenticated with Microsoft before proceeding
-        if (!isMicrosoftAuthenticated()) {
-            setIsLoading(false);
+        try {
+            // STEP 1: Try to get authentication tokens directly
+            // This will trigger the proper error handling in getGraphToken
+            let authToken: string | undefined;
+            let graphToken: string | undefined;
 
-            // Show a user-friendly message
-            const confirmLogin = window.confirm("You need to sign in with Microsoft to use the chat feature. Would you like to sign in now?");
+            try {
+                console.log("Getting authentication tokens...");
+                authToken = await getToken();
+                graphToken = await getGraphToken();
+                console.log("✅ Tokens acquired successfully");
+            } catch (authError: any) {
+                console.log("❌ Token acquisition failed:", authError.message);
+                setIsLoading(false);
 
-            if (confirmLogin) {
-                try {
-                    await loginToMicrosoft();
-                    // After successful login, proceed with the API request
-                    return makeApiRequest(question); // Recursively call after login
-                } catch (error) {
-                    console.error("Microsoft login failed:", error);
-                    setError(new Error("Failed to sign in to Microsoft. Please try again."));
+                // Check if this is the session expiry error we're expecting
+                if (authError.message === "AUTHENTICATION_REQUIRED") {
+                    // Check if user had accounts before (session expired) vs no accounts (fresh user)
+                    const accounts = msalInstance.getAllAccounts();
+                    const hadAccountsInCache = accounts && accounts.length > 0;
+
+                    if (hadAccountsInCache) {
+                        // 🎯 SESSION EXPIRED SCENARIO
+                        console.log("🎯 Session expired - prompting for re-authentication");
+                        const shouldReauth = window.confirm("Your session has expired. Would you like to sign in again to continue?");
+
+                        if (shouldReauth) {
+                            try {
+                                console.log("Starting re-authentication...");
+                                await loginToMicrosoft();
+
+                                // Try to get tokens again after fresh login
+                                authToken = await getToken();
+                                graphToken = await getGraphToken();
+
+                                console.log("✅ Re-authentication successful, continuing with request");
+                                setIsLoading(true); // Continue with the request
+                            } catch (loginError) {
+                                console.error("Re-authentication failed:", loginError);
+                                setError(new Error("Failed to re-authenticate. Please refresh the page and try again."));
+                                return;
+                            }
+                        } else {
+                            setError(new Error("Authentication is required to use the chat feature."));
+                            return;
+                        }
+                    } else {
+                        // 🆕 FRESH USER SCENARIO
+                        console.log("🆕 Fresh user - prompting for initial login");
+                        const shouldLogin = window.confirm("You need to sign in with Microsoft to use the chat feature. Would you like to sign in now?");
+
+                        if (shouldLogin) {
+                            try {
+                                console.log("Starting initial authentication...");
+                                await loginToMicrosoft();
+
+                                // Try to get tokens after fresh login
+                                authToken = await getToken();
+                                graphToken = await getGraphToken();
+
+                                console.log("✅ Initial authentication successful, continuing with request");
+                                setIsLoading(true); // Continue with the request
+                            } catch (loginError) {
+                                console.error("Initial authentication failed:", loginError);
+                                setError(new Error("Failed to sign in to Microsoft. Please try again."));
+                                return;
+                            }
+                        } else {
+                            setError(new Error("Microsoft authentication is required to use the chat feature."));
+                            return;
+                        }
+                    }
+                } else {
+                    // Handle other unexpected authentication errors
+                    console.error("Unexpected authentication error:", authError);
+                    setError(new Error("Authentication failed. Please try signing in again."));
                     return;
                 }
-            } else {
-                // User cancelled login
-                setError(new Error("Microsoft sign-in is required to use the chat feature."));
-                return;
             }
-        }
 
-        // Get the regular auth token for backend authentication
-        const authToken = await getToken();
+            // STEP 2: If we get here, we have valid tokens - proceed with API call
+            console.log("🚀 Proceeding with API call...");
 
-        let graphtoken;
-        try {
-            graphtoken = await getGraphToken();
-            console.log(graphtoken);
-        } catch (error) {
-            console.error("Failed to get Graph token:", error);
-            // Continue without Graph token - the API can still work with App Service auth
-            graphtoken = await getToken();
-        }
-
-        try {
             const messages: ResponseMessage[] = answers.flatMap(a => [
                 { content: a[0], role: "user" },
                 { content: a[1].message.content, role: "assistant" }
@@ -302,28 +380,31 @@ const Chat = () => {
                         gpt4v_input: gpt4vInput,
                         language: i18n.language,
                         use_agentic_retrieval: useAgenticRetrieval,
-                        // bot_id: to select which bot is being used
                         bot_id: botId,
-                        graph_token: graphtoken,
+                        graph_token: graphToken,
                         ...(seed !== null ? { seed: seed } : {})
                     }
                 },
-                // AI Chat Protocol: Client must pass on any session state received from the server
                 session_state: answers.length ? answers[answers.length - 1][1].session_state : null
             };
 
+            console.log("📡 Making API call...");
             const response = await chatApi(request, shouldStream, authToken);
+
             if (!response.body) {
                 throw Error("No response body");
             }
             if (response.status > 299 || !response.ok) {
                 throw Error(`Request failed with status ${response.status}`);
             }
+
+            console.log("✅ API call successful, processing response...");
+
+            // STEP 3: Handle the response
             if (shouldStream) {
                 const parsedResponse: ChatAppResponse = await handleAsyncRequest(question, answers, response.body);
                 setAnswers([...answers, [question, parsedResponse]]);
 
-                // Set follow-up questions if available
                 if (useSuggestFollowupQuestions) {
                     setCurrentFollowupQuestions(parsedResponse.context?.followup_questions || []);
                 }
@@ -339,7 +420,6 @@ const Chat = () => {
                 }
                 setAnswers([...answers, [question, parsedResponse as ChatAppResponse]]);
 
-                // Set follow-up questions if available
                 if (useSuggestFollowupQuestions) {
                     setCurrentFollowupQuestions((parsedResponse as ChatAppResponse).context?.followup_questions || []);
                 }
@@ -349,14 +429,16 @@ const Chat = () => {
                     historyManager.addItem(parsedResponse.session_state, [...answers, [question, parsedResponse as ChatAppResponse]], authToken);
                 }
             }
+
             setSpeechUrls([...speechUrls, null]);
+            console.log("✅ Request completed successfully");
         } catch (e) {
+            console.error("❌ Request failed:", e);
             setError(e);
         } finally {
             setIsLoading(false);
         }
     };
-
     const clearChat = () => {
         lastQuestionRef.current = "";
         error && setError(undefined);
@@ -485,13 +567,6 @@ const Chat = () => {
 
         return () => clearInterval(interval);
     }, [client, loggedIn]);
-
-    /* ─── Bot selection ─────────────────────────────────────────── */
-    const { botId, setBotId } = useBot();
-    console.log("Current botId:", botId); // Log the botId
-    const botProfile: BotProfile = BOTS[botId] ?? BOTS[DEFAULT_BOT_ID];
-
-    useBotTheme(botId);
 
     // Listen for custom events and window resize
     useEffect(() => {
@@ -625,8 +700,6 @@ const Chat = () => {
 
         setSelectedAnswer(index);
     };
-
-    const { t, i18n } = useTranslation();
 
     // Add this handler function in the Chat component
     const handleContentSuggestion = async (suggestion: string, questionAsked: string) => {
