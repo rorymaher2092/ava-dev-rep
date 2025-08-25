@@ -30,7 +30,7 @@ class BotProfile:
         self.dual_search = use_dual_search
         self.primary_search_index = primary_search_index
         self.custom_prompt_template = custom_prompt_template
-        self.disable_rag = disable_rag,
+        self.disable_rag = disable_rag
         self.valid_artifacts = valid_artifacts or []  # Add this line
         
     

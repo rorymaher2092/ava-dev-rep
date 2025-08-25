@@ -101,12 +101,16 @@ const Chat = () => {
     const [isStreaming, setIsStreaming] = useState<boolean>(false);
     const [error, setError] = useState<unknown>();
 
+    // Type definition for conversation tuples
+    type AnswerTuple = [user: string, response: ChatAppResponse, attachmentRefs?: AttachmentRef[]];
+
     const [activeCitation, setActiveCitation] = useState<string>();
     const [activeAnalysisPanelTab, setActiveAnalysisPanelTab] = useState<AnalysisPanelTabs | undefined>(undefined);
 
     const [selectedAnswer, setSelectedAnswer] = useState<number>(0);
-    const [answers, setAnswers] = useState<[user: string, response: ChatAppResponse][]>([]);
-    const [streamedAnswers, setStreamedAnswers] = useState<[user: string, response: ChatAppResponse][]>([]);
+    const [answers, setAnswers] = useState<AnswerTuple[]>([]);
+    const [streamedAnswers, setStreamedAnswers] = useState<AnswerTuple[]>([]);
+    const [currentAttachments, setCurrentAttachments] = useState<AttachmentRef[]>([]);
     const [speechUrls, setSpeechUrls] = useState<(string | null)[]>([]);
 
     const [showGPT4VOptions, setShowGPT4VOptions] = useState<boolean>(false);
@@ -124,7 +128,9 @@ const Chat = () => {
     const [showAgenticRetrievalOption, setShowAgenticRetrievalOption] = useState<boolean>(false);
     const [useAgenticRetrieval, setUseAgenticRetrieval] = useState<boolean>(false);
 
+    // added to deal with cancelling mid request
     const [abortController, setAbortController] = useState<AbortController | null>(null);
+
 
 
     // --- Attachments typed union for backend ---
@@ -201,7 +207,7 @@ const Chat = () => {
         });
     };
 
-    const handleAsyncRequest = async (question: string, answers: [string, ChatAppResponse][], responseBody: ReadableStream<any>, signal?: AbortSignal) => {
+    const handleAsyncRequest = async (question: string, answers: AnswerTuple[], responseBody: ReadableStream<any>, signal?: AbortSignal) => {
         let answer: string = "";
         let askResponse: ChatAppResponse = {} as ChatAppResponse;
 
@@ -218,7 +224,7 @@ const Chat = () => {
                         ...askResponse,
                         message: { content: answer, role: askResponse.message.role }
                     };
-                    setStreamedAnswers([...answers, [question, latestResponse]]);
+                    setStreamedAnswers([...answers, [question, latestResponse, currentAttachments]]);
                     resolve(null);
                 }, 33);
             });
@@ -296,8 +302,10 @@ const Chat = () => {
 
     const makeApiRequest = async (question: string, attachmentRefs?: AttachmentRef[]) => {
 
-        // Extra code to deal with cancelled requests
+          // Store current attachments for loading/error states
+        setCurrentAttachments(attachmentRefs || []);
 
+        // Extra code to deal with cancelled requests
         if (abortController) {
             abortController.abort();
         }
@@ -438,7 +446,7 @@ const Chat = () => {
             // Handle response (keep existing streaming/non-streaming logic)
             if (shouldStream) {
                 const parsedResponse: ChatAppResponse = await handleAsyncRequest(question, answers, response.body, controller.signal);
-                setAnswers([...answers, [question, parsedResponse]]);
+                setAnswers([...answers, [question, parsedResponse, attachmentRefs]]);
 
                 if (useSuggestFollowupQuestions) {
                     setCurrentFollowupQuestions(parsedResponse.context?.followup_questions || []);
@@ -446,14 +454,17 @@ const Chat = () => {
 
                 if (typeof parsedResponse.session_state === "string" && parsedResponse.session_state !== "") {
                     const authToken = await getToken();
-                    historyManager.addItem(parsedResponse.session_state, [...answers, [question, parsedResponse]], authToken);
+                    // Convert to old format for history manager compatibility
+                    const historyData = [...answers, [question, parsedResponse, attachmentRefs]].map(answer => [answer[0], answer[1]] as [string, ChatAppResponse]);
+                    historyManager.addItem(parsedResponse.session_state, historyData, authToken);
                 }
+
             } else {
                 const parsedResponse: ChatAppResponseOrError = await response.json();
                 if (parsedResponse.error) {
                     throw Error(parsedResponse.error);
                 }
-                setAnswers([...answers, [question, parsedResponse as ChatAppResponse]]);
+                setAnswers([...answers, [question, parsedResponse as ChatAppResponse, attachmentRefs]]);
 
                 if (useSuggestFollowupQuestions) {
                     setCurrentFollowupQuestions((parsedResponse as ChatAppResponse).context?.followup_questions || []);
@@ -461,7 +472,9 @@ const Chat = () => {
 
                 if (typeof parsedResponse.session_state === "string" && parsedResponse.session_state !== "") {
                     const authToken = await getToken();
-                    historyManager.addItem(parsedResponse.session_state, [...answers, [question, parsedResponse as ChatAppResponse]], authToken);
+                    // Convert to old format for history manager compatibility
+                    const historyData = [...answers, [question, parsedResponse as ChatAppResponse, attachmentRefs]].map(answer => [answer[0], answer[1]] as [string, ChatAppResponse]);
+                    historyManager.addItem(parsedResponse.session_state, historyData, authToken);
                 }
             }
             setSpeechUrls([...speechUrls, null]);
@@ -478,6 +491,7 @@ const Chat = () => {
             setIsLoading(false);
             setIsStreaming(false);
             setAbortController(null);
+            setCurrentAttachments([]);
         }
     };
 
@@ -509,6 +523,7 @@ const Chat = () => {
         setCurrentFollowupQuestions([]);
         setIsLoading(false);
         setIsStreaming(false);
+        setCurrentAttachments([]); 
     };
 
     useEffect(() => chatMessageStreamEnd.current?.scrollIntoView({ behavior: "smooth" }), [isLoading]);
@@ -855,7 +870,10 @@ const Chat = () => {
                             {isStreaming &&
                                 streamedAnswers.map((streamedAnswer, index) => (
                                     <div key={index}>
-                                        <UserChatMessage message={streamedAnswer[0]} />
+                                        <UserChatMessage 
+                                            message={streamedAnswer[0]} 
+                                            attachmentRefs={streamedAnswer[2]} 
+                                        />
                                         <div className={styles.chatMessageGpt}>
                                             <Answer
                                                 isStreaming={true}
@@ -873,10 +891,14 @@ const Chat = () => {
                                         </div>
                                     </div>
                                 ))}
+
                             {!isStreaming &&
                                 answers.map((answer, index) => (
                                     <div key={index}>
-                                        <UserChatMessage message={answer[0]} />
+                                        <UserChatMessage 
+                                            message={answer[0]} 
+                                            attachmentRefs={answer[2]} 
+                                        />
                                         <div className={styles.chatMessageGpt}>
                                             <Answer
                                                 isStreaming={false}
@@ -894,19 +916,30 @@ const Chat = () => {
                                         </div>
                                     </div>
                                 ))}
+
                             {isLoading && (
                                 <>
-                                    <UserChatMessage message={lastQuestionRef.current} />
+                                    <UserChatMessage 
+                                        message={lastQuestionRef.current} 
+                                        attachmentRefs={currentAttachments} 
+                                    />
                                     <div className={styles.chatMessageGptMinWidth}>
                                         <AnswerLoading />
                                     </div>
                                 </>
                             )}
+
                             {error ? (
                                 <>
-                                    <UserChatMessage message={lastQuestionRef.current} />
+                                    <UserChatMessage 
+                                        message={lastQuestionRef.current}
+                                        attachmentRefs={currentAttachments} 
+                                    />
                                     <div className={styles.chatMessageGptMinWidth}>
-                                        <AnswerError error={error.toString()} onRetry={() => makeApiRequest(lastQuestionRef.current)} />
+                                        <AnswerError 
+                                            error={error.toString()} 
+                                            onRetry={() => makeApiRequest(lastQuestionRef.current, currentAttachments)} 
+                                        />
                                     </div>
                                 </>
                             ) : null}

@@ -64,7 +64,7 @@ ________________________________________________________________________________
 
 # Section Breakdown
 
-Here are the main sections of the a Change on a page which need to be completed. This contains a description of the type of information you need to ask the users for. 
+Here are the main sections of the Change on a page which need to be completed. This contains a description of the type of information you need to ask the users for. 
 
 1. Overview
 Instruction: Insert a simple, clear overview of what the initiative is delivering. Keep it to no more than 5 lines.

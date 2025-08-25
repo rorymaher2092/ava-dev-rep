@@ -1,16 +1,93 @@
 import styles from "./UserChatMessage.module.css";
+import { AttachmentRef } from "../Attachments/AttachmentMenu";
+import confluenceLogo from "../../assets/confluence-logo.png";
+import jiraLogo from "../../assets/jira-logo.png";
 
 interface Props {
     message: string;
+    attachmentRefs?: AttachmentRef[];
 }
 
-export const UserChatMessage = ({ message }: Props) => {
+const AttachmentChip = ({ attachment }: { attachment: AttachmentRef }) => {
+    const isJira = attachment.type === 'jira';
+    
+    return (
+        <div className={styles.attachmentChip}>
+            <div className={styles.attachmentIcon}>
+                <img 
+                    src={isJira ? jiraLogo : confluenceLogo} 
+                    alt={isJira ? "Jira" : "Confluence"} 
+                    width="16" 
+                    height="16" 
+                />
+            </div>
+            <div className={styles.attachmentContent}>
+                {isJira ? (
+                    <>
+                        <span className={styles.attachmentKey}>[{attachment.key}]</span>
+                        {attachment.url ? (
+                            <a 
+                                href={attachment.url} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className={styles.attachmentTitle}
+                                title={attachment.summary}
+                            >
+                                {attachment.summary || attachment.key}
+                            </a>
+                        ) : (
+                            <span className={styles.attachmentTitle} title={attachment.summary}>
+                                {attachment.summary || attachment.key}
+                            </span>
+                        )}
+                    </>
+                ) : (
+                    <a 
+                        href={attachment.url} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className={styles.attachmentTitle}
+                        title={attachment.title}
+                    >
+                        <span className={styles.attachmentPrefix}>Confluence:</span>
+                        {attachment.title || "Page"}
+                    </a>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export const UserChatMessage = ({ message, attachmentRefs }: Props) => {
     return (
         <div style={{
             display: 'flex',
-            justifyContent: 'flex-end',
-            marginBottom: '16px'
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            marginBottom: '16px',
+            gap: '8px',
+            width: '100%'
         }}>
+            {/* Show attachments above the message */}
+            {attachmentRefs && attachmentRefs.length > 0 && (
+                <div className={styles.attachmentsContainer}>
+                    <div className={styles.attachmentsHeader}>
+                        <span className={styles.attachmentsLabel}>
+                            Referenced {attachmentRefs.length} attachment{attachmentRefs.length !== 1 ? 's' : ''}
+                        </span>
+                    </div>
+                    <div className={styles.attachmentsList}>
+                        {attachmentRefs.map((attachment, index) => (
+                            <AttachmentChip 
+                                key={`${attachment.type}-${attachment.key || attachment.url}-${index}`} 
+                                attachment={attachment} 
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Original message with original styling */}
             <div className={styles.userMessage}>
                 <div style={{
                     fontSize: '15px',
