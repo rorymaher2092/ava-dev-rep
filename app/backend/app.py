@@ -8,6 +8,7 @@ import time
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any, Union, cast
+import uuid
 
 from azure.cognitiveservices.speech import (
     ResultReason,
@@ -59,6 +60,7 @@ from approaches.retrievethenread import RetrieveThenReadApproach
 from approaches.retrievethenreadvision import RetrieveThenReadVisionApproach
 from approaches.confluence_search import ConfluenceSearchService  
 from chat_history.cosmosdb import chat_history_cosmosdb_bp
+
 from config import (
     CONFIG_AGENT_CLIENT,
     CONFIG_AGENTIC_RETRIEVAL_ENABLED,
@@ -540,6 +542,55 @@ async def submit_feedback(auth_claims: dict[str, Any]):
     return jsonify({"message": "Feedback submitted successfully"}), 200
 
 
+@bp.route("/suggestion", methods=["POST"])
+@authenticated
+async def submit_suggestion(auth_claims: dict[str, Any]):
+    """
+    Endpoint to collect user suggestions on responses.
+    Stores suggestions in blob storage for later analysis.
+    """
+    if not request.is_json:
+        return jsonify({"error": "request must be json"}), 415
+    
+    request_json = await request.get_json()
+    question = request_json.get("question")
+    suggestion = request_json.get("suggestion", "")
+    
+    if not question:
+        return jsonify({"error": "A question is required"}), 400
+    
+    if not suggestion:
+        return jsonify({"error": "suggestion must be provided"}), 400
+    
+    # Prepare suggestion data
+    suggestion_data = {
+        "question": question,
+        "suggestion": suggestion,
+        "timestamp": time.time(),
+        "userId": auth_claims.get("oid", ""),
+        "username": auth_claims.get("preferred_username", auth_claims.get("upn", auth_claims.get("email", ""))),
+        "name": auth_claims.get("name", "")
+    }
+    
+    # Log the suggestion
+    current_app.logger.info("Content suggestion received: %s", json.dumps(suggestion_data, default=str))
+    
+    try:
+        # Import and use the blob storage class
+        from chat_history.suggestions import SuggestionsBlobStorage
+        
+        suggestion_storage = SuggestionsBlobStorage()
+        await suggestion_storage.initialize()
+        suggestion_id = await suggestion_storage.add_suggestion(suggestion_data)
+        await suggestion_storage.close()
+        
+        current_app.logger.info(f"Suggestion stored in blob storage with ID: {suggestion_id}")
+        return jsonify({"message": "Suggestion submitted and stored successfully", "id": suggestion_id}), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error storing suggestion in blob storage: {str(e)}")
+        return jsonify({"message": "Suggestion logged but not stored", "error": str(e)}), 500
+
 @bp.before_app_serving
 async def setup_clients():
     # Replace these with your own values, either in environment variables or directly here
@@ -941,7 +992,6 @@ def create_app():
     # Register feedback blueprint
     from chat_history.feedback_api import feedback_bp
     app.register_blueprint(feedback_bp)
-
 
     if os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):
         app.logger.info("APPLICATIONINSIGHTS_CONNECTION_STRING is set, enabling Azure Monitor")

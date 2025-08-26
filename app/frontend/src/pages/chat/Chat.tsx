@@ -43,7 +43,8 @@ import {
     getTokenClaims,
     getGraphToken,
     isMicrosoftAuthenticated,
-    loginToMicrosoft
+    loginToMicrosoft,
+    clearAllMsalCache
 } from "../../authConfig";
 import { useMsal } from "@azure/msal-react";
 import { TokenClaimsDisplay } from "../../components/TokenClaimsDisplay";
@@ -56,6 +57,9 @@ import BotSelector from "../../components/BotSelectorButton/BotSelector"; // adj
 import { BOTS, DEFAULT_BOT_ID, BotProfile } from "../../config/botConfig";
 import { useBot } from "../../contexts/BotContext"; // ✅ ADD
 import { useBotTheme } from "../../hooks/useBotTheme";
+
+// submitContent Suggestions
+import { submitContentSuggestion } from "../../api";
 
 import { InteractionRequiredAuthError } from "@azure/msal-browser";
 import { msalInstance } from "../../authConfig";
@@ -177,48 +181,114 @@ const Chat = () => {
         });
     };
 
-    const handleAsyncRequest = async (question: string, answers: [string, ChatAppResponse][], responseBody: ReadableStream<any>) => {
-        let answer: string = "";
-        let askResponse: ChatAppResponse = {} as ChatAppResponse;
+    const handleAsyncRequest = async (
+        question: string,
+        answers: [string, ChatAppResponse][],
+        responseBody: ReadableStream<any>
+        ) => {
+        let answer = "";
+        let askResponse = {} as ChatAppResponse;
+        let seededRow = false;
 
-        const updateState = (newContent: string) => {
-            return new Promise(resolve => {
-                setTimeout(() => {
-                    answer += newContent;
-                    const latestResponse: ChatAppResponse = {
-                        ...askResponse,
-                        message: { content: answer, role: askResponse.message.role }
-                    };
-                    setStreamedAnswers([...answers, [question, latestResponse]]);
-                    resolve(null);
-                }, 33);
+        // --- typewriter knobs ---
+        const STEP_CHARS = 6; // characters to reveal per animation frame (2–10 feels nice)
+        let queue = "";       // not-yet-rendered chars buffered from the network
+        let rafId: number | null = null;
+
+        const renderLatest = () => {
+            const role = askResponse?.message?.role ?? "assistant";
+            const latest: ChatAppResponse = { ...askResponse, message: { content: answer, role } };
+
+            setStreamedAnswers(prev => {
+            if (!seededRow) {
+                seededRow = true;
+                return [...answers, [question, latest]];
+            }
+            if (prev.length === 0) return [[question, latest]];
+            const next = prev.slice();
+            next[next.length - 1] = [question, latest];
+            return next;
             });
         };
+
+        const tick = () => {
+            // animate only when visible; background continues buffering
+            if (document.visibilityState !== "visible") {
+            rafId = null;
+            return;
+            }
+
+            if (queue.length > 0) {
+            const take = Math.min(STEP_CHARS, queue.length);
+            answer += queue.slice(0, take);
+            queue = queue.slice(take);
+            renderLatest();
+            }
+
+            // keep animating while there’s more to show
+            if (queue.length > 0) {
+            rafId = requestAnimationFrame(tick);
+            } else {
+            rafId = null;
+            }
+        };
+
+        const startAnimationIfNeeded = () => {
+            if (rafId == null && document.visibilityState === "visible" && queue.length > 0) {
+            rafId = requestAnimationFrame(tick);
+            }
+        };
+
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") {
+            // when the user comes back, animate the queued text
+            startAnimationIfNeeded();
+            } else if (rafId) {
+            // stop animating in the background (network still fills `queue`)
+            cancelAnimationFrame(rafId);
+            rafId = null;
+            }
+        };
+
+        document.addEventListener("visibilitychange", onVisibility);
+
+        setIsStreaming(true);
         try {
-            setIsStreaming(true);
             for await (const event of readNDJSONStream(responseBody)) {
-                if (event["context"] && event["context"]["data_points"]) {
-                    event["message"] = event["delta"];
-                    askResponse = event as ChatAppResponse;
-                } else if (event["delta"] && event["delta"]["content"]) {
-                    setIsLoading(false);
-                    await updateState(event["delta"]["content"]);
-                } else if (event["context"]) {
-                    // Update context with new keys from latest event
-                    askResponse.context = { ...askResponse.context, ...event["context"] };
-                } else if (event["error"]) {
-                    throw Error(event["error"]);
-                }
+            if (event.context?.data_points) {
+                event.message = event.delta;
+                askResponse = event as ChatAppResponse;
+            } else if (event.delta?.content) {
+                setIsLoading(false);
+                // accumulate raw chunk from server
+                queue += event.delta.content;
+                // animate it (if visible); otherwise it sits buffered
+                startAnimationIfNeeded();
+            } else if (event.context) {
+                askResponse.context = { ...askResponse.context, ...event.context };
+            } else if (event.error) {
+                throw Error(event.error);
+            }
             }
         } finally {
+            // drain any remaining buffer (finish fast, no animation)
+            if (queue.length) {
+            answer += queue;
+            queue = "";
+            renderLatest();
+            }
+            if (rafId) cancelAnimationFrame(rafId);
+            document.removeEventListener("visibilitychange", onVisibility);
             setIsStreaming(false);
         }
+
         const fullResponse: ChatAppResponse = {
             ...askResponse,
-            message: { content: answer, role: askResponse.message.role }
+            message: { content: answer, role: askResponse?.message?.role ?? "assistant" }
         };
         return fullResponse;
-    };
+        };  
+
 
     const client = useLogin ? useMsal().instance : undefined;
     const { loggedIn } = useContext(LoginContext);
@@ -234,23 +304,27 @@ const Chat = () => {
 
     // In Chat.tsx, add this useEffect
     useEffect(() => {
-        if (!isMicrosoftAuthenticated()) return;
+        const setupTokenRefresh = async () => {
+            const isAuthenticated = await isMicrosoftAuthenticated();
+            if (!isAuthenticated) return;
 
-        // Proactively refresh tokens before they expire
-        const tokenRefreshInterval = setInterval(
-            async () => {
-                try {
-                    console.log("Proactive token refresh check");
-                    await getGraphToken(1); // Force refresh
-                } catch (error) {
-                    console.error("Proactive token refresh failed:", error);
-                    // Don't show error to user unless they're actively using the app
-                }
-            },
-            10 * 60 * 1000
-        ); // Every 10 minutes
+            const tokenRefreshInterval = setInterval(
+                async () => {
+                    try {
+                        console.log("Proactive token refresh check");
+                        await getGraphToken(true);
+                    } catch (error) {
+                        console.error("Proactive token refresh failed:", error);
+                        await clearAllMsalCache(); // Clear cache if background refresh fails
+                    }
+                },
+                10 * 60 * 1000
+            );
 
-        return () => clearInterval(tokenRefreshInterval);
+            return () => clearInterval(tokenRefreshInterval);
+        };
+
+        setupTokenRefresh();
     }, []);
 
     const makeApiRequest = async (question: string) => {
@@ -263,89 +337,53 @@ const Chat = () => {
         setActiveCitation(undefined);
         setActiveAnalysisPanelTab(undefined);
 
-        try {
-            // STEP 1: Try to get authentication tokens directly
-            // This will trigger the proper error handling in getGraphToken
-            let authToken: string | undefined;
-            let graphToken: string | undefined;
 
+        try {
+            // ✅ Auth validation with immediate re-auth on failure
+            let authToken;
+            let graphToken;
+
+            
             try {
-                console.log("Getting authentication tokens...");
                 authToken = await getToken();
                 graphToken = await getGraphToken();
-                console.log("✅ Tokens acquired successfully");
-            } catch (authError: any) {
-                console.log("❌ Token acquisition failed:", authError.message);
-                setIsLoading(false);
+                
+                if (!authToken || !graphToken) {
+                    throw new Error("No auth token available");
+                }
+            } catch (authError) {
+                console.error("Auth failed:", authError);
+                
+                // Force immediate re-authentication for any auth error
+                const confirmLogin = window.confirm(
+                    "Your session has expired. Please sign in again to continue."
+                );
 
-                // Check if this is the session expiry error we're expecting
-                if (authError.message === "AUTHENTICATION_REQUIRED") {
-                    // Check if user had accounts before (session expired) vs no accounts (fresh user)
-                    const accounts = msalInstance.getAllAccounts();
-                    const hadAccountsInCache = accounts && accounts.length > 0;
+                if (!confirmLogin) {
+                    setError(new Error("Authentication required to continue"));
+                    setIsLoading(false);
+                    return;
+                }
 
-                    if (hadAccountsInCache) {
-                        // 🎯 SESSION EXPIRED SCENARIO
-                        console.log("🎯 Session expired - prompting for re-authentication");
-                        const shouldReauth = window.confirm("Your session has expired. Would you like to sign in again to continue?");
-
-                        if (shouldReauth) {
-                            try {
-                                console.log("Starting re-authentication...");
-                                await loginToMicrosoft();
-
-                                // Try to get tokens again after fresh login
-                                authToken = await getToken();
-                                graphToken = await getGraphToken();
-
-                                console.log("✅ Re-authentication successful, continuing with request");
-                                setIsLoading(true); // Continue with the request
-                            } catch (loginError) {
-                                console.error("Re-authentication failed:", loginError);
-                                setError(new Error("Failed to re-authenticate. Please refresh the page and try again."));
-                                return;
-                            }
-                        } else {
-                            setError(new Error("Authentication is required to use the chat feature."));
-                            return;
-                        }
-                    } else {
-                        // 🆕 FRESH USER SCENARIO
-                        console.log("🆕 Fresh user - prompting for initial login");
-                        const shouldLogin = window.confirm("You need to sign in with Microsoft to use the chat feature. Would you like to sign in now?");
-
-                        if (shouldLogin) {
-                            try {
-                                console.log("Starting initial authentication...");
-                                await loginToMicrosoft();
-
-                                // Try to get tokens after fresh login
-                                authToken = await getToken();
-                                graphToken = await getGraphToken();
-
-                                console.log("✅ Initial authentication successful, continuing with request");
-                                setIsLoading(true); // Continue with the request
-                            } catch (loginError) {
-                                console.error("Initial authentication failed:", loginError);
-                                setError(new Error("Failed to sign in to Microsoft. Please try again."));
-                                return;
-                            }
-                        } else {
-                            setError(new Error("Microsoft authentication is required to use the chat feature."));
-                            return;
-                        }
+                try {
+                    // Clear everything and force fresh login
+                    await clearAllMsalCache();
+                    await loginToMicrosoft();
+                    
+                    // Get fresh tokens after login
+                    authToken = await getToken();
+                    graphToken = await getGraphToken();
+                    
+                    if (!authToken || !graphToken) {
+                        throw new Error("Failed to obtain token after re-authentication");
                     }
-                } else {
-                    // Handle other unexpected authentication errors
-                    console.error("Unexpected authentication error:", authError);
-                    setError(new Error("Authentication failed. Please try signing in again."));
+                } catch (loginError) {
+                    console.error("Re-authentication failed:", loginError);
+                    setError(new Error("Failed to authenticate. Please refresh the page and try again."));
+                    setIsLoading(false);
                     return;
                 }
             }
-
-            // STEP 2: If we get here, we have valid tokens - proceed with API call
-            console.log("🚀 Proceeding with API call...");
-
             const messages: ResponseMessage[] = answers.flatMap(a => [
                 { content: a[0], role: "user" },
                 { content: a[1].message.content, role: "assistant" }
@@ -377,7 +415,7 @@ const Chat = () => {
                         gpt4v_input: gpt4vInput,
                         language: i18n.language,
                         use_agentic_retrieval: useAgenticRetrieval,
-                        bot_id: botId,
+                                                bot_id: botId,
                         graph_token: graphToken,
                         ...(seed !== null ? { seed: seed } : {})
                     }
@@ -698,6 +736,20 @@ const Chat = () => {
         setSelectedAnswer(index);
     };
 
+    // Add this handler function in the Chat component
+    const handleContentSuggestion = async (suggestion: string, questionAsked: string) => {
+        try {
+            // Use the same token acquisition logic as makeApiRequest
+            const authToken = await getGraphToken();
+
+            // Submit the suggestion using the graph token (or auth token as fallback)
+            await submitContentSuggestion(questionAsked, suggestion, authToken);
+        } catch (error) {
+            console.error("Error submitting content suggestion:", error);
+            throw error; // Re-throw to let Answer component handle the error
+        }
+    };
+
     return (
         <div className={styles.container}>
             {/* Setting the page title using react-helmet-async */}
@@ -799,7 +851,7 @@ const Chat = () => {
                                         />
                                     </div>
                                     <div style={{ color: "var(--text)", fontWeight: "700", fontSize: "16px", marginBottom: "4px" }}>Secure</div>
-                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>Microsoft Entperise Security</div>
+                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>Microsoft Enterprise Security</div>
                                 </div>
                                 <div
                                     style={{
@@ -928,6 +980,8 @@ const Chat = () => {
                                                 onSupportingContentClicked={() => onToggleTab(AnalysisPanelTabs.SupportingContentTab, index)}
                                                 showSpeechOutputAzure={showSpeechOutputAzure}
                                                 showSpeechOutputBrowser={showSpeechOutputBrowser}
+                                                userQuestion={answer[0]} // Pass the user's question
+                                                onContentSuggestion={suggestion => handleContentSuggestion(suggestion, answer[0])}
                                             />
                                         </div>
                                     </div>
