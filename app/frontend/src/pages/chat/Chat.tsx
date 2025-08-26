@@ -181,48 +181,114 @@ const Chat = () => {
         });
     };
 
-    const handleAsyncRequest = async (question: string, answers: [string, ChatAppResponse][], responseBody: ReadableStream<any>) => {
-        let answer: string = "";
-        let askResponse: ChatAppResponse = {} as ChatAppResponse;
+    const handleAsyncRequest = async (
+        question: string,
+        answers: [string, ChatAppResponse][],
+        responseBody: ReadableStream<any>
+        ) => {
+        let answer = "";
+        let askResponse = {} as ChatAppResponse;
+        let seededRow = false;
 
-        const updateState = (newContent: string) => {
-            return new Promise(resolve => {
-                setTimeout(() => {
-                    answer += newContent;
-                    const latestResponse: ChatAppResponse = {
-                        ...askResponse,
-                        message: { content: answer, role: askResponse.message.role }
-                    };
-                    setStreamedAnswers([...answers, [question, latestResponse]]);
-                    resolve(null);
-                }, 33);
+        // --- typewriter knobs ---
+        const STEP_CHARS = 6; // characters to reveal per animation frame (2–10 feels nice)
+        let queue = "";       // not-yet-rendered chars buffered from the network
+        let rafId: number | null = null;
+
+        const renderLatest = () => {
+            const role = askResponse?.message?.role ?? "assistant";
+            const latest: ChatAppResponse = { ...askResponse, message: { content: answer, role } };
+
+            setStreamedAnswers(prev => {
+            if (!seededRow) {
+                seededRow = true;
+                return [...answers, [question, latest]];
+            }
+            if (prev.length === 0) return [[question, latest]];
+            const next = prev.slice();
+            next[next.length - 1] = [question, latest];
+            return next;
             });
         };
+
+        const tick = () => {
+            // animate only when visible; background continues buffering
+            if (document.visibilityState !== "visible") {
+            rafId = null;
+            return;
+            }
+
+            if (queue.length > 0) {
+            const take = Math.min(STEP_CHARS, queue.length);
+            answer += queue.slice(0, take);
+            queue = queue.slice(take);
+            renderLatest();
+            }
+
+            // keep animating while there’s more to show
+            if (queue.length > 0) {
+            rafId = requestAnimationFrame(tick);
+            } else {
+            rafId = null;
+            }
+        };
+
+        const startAnimationIfNeeded = () => {
+            if (rafId == null && document.visibilityState === "visible" && queue.length > 0) {
+            rafId = requestAnimationFrame(tick);
+            }
+        };
+
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") {
+            // when the user comes back, animate the queued text
+            startAnimationIfNeeded();
+            } else if (rafId) {
+            // stop animating in the background (network still fills `queue`)
+            cancelAnimationFrame(rafId);
+            rafId = null;
+            }
+        };
+
+        document.addEventListener("visibilitychange", onVisibility);
+
+        setIsStreaming(true);
         try {
-            setIsStreaming(true);
             for await (const event of readNDJSONStream(responseBody)) {
-                if (event["context"] && event["context"]["data_points"]) {
-                    event["message"] = event["delta"];
-                    askResponse = event as ChatAppResponse;
-                } else if (event["delta"] && event["delta"]["content"]) {
-                    setIsLoading(false);
-                    await updateState(event["delta"]["content"]);
-                } else if (event["context"]) {
-                    // Update context with new keys from latest event
-                    askResponse.context = { ...askResponse.context, ...event["context"] };
-                } else if (event["error"]) {
-                    throw Error(event["error"]);
-                }
+            if (event.context?.data_points) {
+                event.message = event.delta;
+                askResponse = event as ChatAppResponse;
+            } else if (event.delta?.content) {
+                setIsLoading(false);
+                // accumulate raw chunk from server
+                queue += event.delta.content;
+                // animate it (if visible); otherwise it sits buffered
+                startAnimationIfNeeded();
+            } else if (event.context) {
+                askResponse.context = { ...askResponse.context, ...event.context };
+            } else if (event.error) {
+                throw Error(event.error);
+            }
             }
         } finally {
+            // drain any remaining buffer (finish fast, no animation)
+            if (queue.length) {
+            answer += queue;
+            queue = "";
+            renderLatest();
+            }
+            if (rafId) cancelAnimationFrame(rafId);
+            document.removeEventListener("visibilitychange", onVisibility);
             setIsStreaming(false);
         }
+
         const fullResponse: ChatAppResponse = {
             ...askResponse,
-            message: { content: answer, role: askResponse.message.role }
+            message: { content: answer, role: askResponse?.message?.role ?? "assistant" }
         };
         return fullResponse;
-    };
+        };  
+
 
     const client = useLogin ? useMsal().instance : undefined;
     const { loggedIn } = useContext(LoginContext);
