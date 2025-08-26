@@ -1,6 +1,13 @@
 // src/contexts/ArtifactContext.tsx
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { BA_ARTIFACT_TYPES, DEFAULT_ARTIFACT_TYPE, ArtifactType, ARTIFACT_CATEGORIES, ArtifactCategory } from '../config/baArtifactConfig';
+import { 
+    BA_ARTIFACT_TYPES, 
+    DEFAULT_ARTIFACT_TYPE, 
+    DEFAULT_CATEGORY, 
+    ArtifactType, 
+    ARTIFACT_CATEGORIES, 
+    ArtifactCategory 
+} from '../config/baArtifactConfig';
 
 interface ArtifactContextType {
     selectedArtifactType: string;
@@ -21,7 +28,7 @@ interface ArtifactProviderProps {
 
 export const ArtifactProvider: React.FC<ArtifactProviderProps> = ({ children }) => {
     const [selectedArtifactType, setSelectedArtifactType] = useState<string>(DEFAULT_ARTIFACT_TYPE);
-    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(DEFAULT_CATEGORY);
     const [isArtifactSelectionMode, setIsArtifactSelectionMode] = useState<boolean>(false);
 
     const getSelectedArtifact = (): ArtifactType => {
