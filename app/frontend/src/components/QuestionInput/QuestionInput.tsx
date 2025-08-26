@@ -64,7 +64,7 @@ export const QuestionInput = ({
 
   const disableRequiredAccessControl = requireLogin && !loggedIn;
   const sendDisabled = disabled || attachmentsBusy || !question.trim() || disableRequiredAccessControl;
-  const attachmentDisabled = disabled || attachmentsBusy || disableRequiredAccessControl; // Don't require text for attachments
+  const attachmentDisabled = disabled || attachmentsBusy || disableRequiredAccessControl;
 
   // Attachment validation functions
   const validateJiraTicket = async (ticketKey: string) => {
@@ -188,12 +188,10 @@ export const QuestionInput = ({
   const doSend = () => {
     if (sendDisabled) return;
     
-    // Pass both question and attachment references to parent
     onSend(question.trim(), attachments.length > 0 ? attachments : undefined);
     
     if (clearOnSend) {
       setQuestion("");
-      // Clear attachments after sending
       setAttachments([]);
     }
   };
@@ -230,7 +228,7 @@ export const QuestionInput = ({
         </Stack>
       )}
 
-                {/* Show attachment chips above input ONLY when attachments exist */}
+      {/* Show attachment chips above input ONLY when attachments exist */}
       {attachments.length > 0 && (
         <div style={{ 
           display: "flex", 
@@ -248,11 +246,11 @@ export const QuestionInput = ({
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 8,
-                    border: "1px solid var(--colorNeutralStroke1, #e1e1e1)",
+                    border: "1px solid var(--border)",
                     borderRadius: 999,
                     padding: "6px 10px",
-                    background: "var(--colorNeutralBackground1, #fff)",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                    background: "var(--surface-elevated)",
+                    boxShadow: "var(--shadow-sm)",
                     transition: "all 0.2s ease"
                   }}
                 >
@@ -274,7 +272,7 @@ export const QuestionInput = ({
                       rel="noreferrer" 
                       style={{ 
                         textDecoration: "none", 
-                        color: "inherit",
+                        color: "var(--text)",
                         fontSize: "0.875rem",
                         fontWeight: 500
                       }} 
@@ -287,7 +285,8 @@ export const QuestionInput = ({
                       title={attachment.summary || attachment.key || 'JIRA Ticket'}
                       style={{ 
                         fontSize: "0.875rem",
-                        fontWeight: 500
+                        fontWeight: 500,
+                        color: "var(--text, inherit)"
                       }}
                     >
                       {attachment.summary || attachment.key}
@@ -319,10 +318,10 @@ export const QuestionInput = ({
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 8,
-                    border: "1px solid var(--colorNeutralStroke1, #e1e1e1)",
+                    border: "1px solid var(--border, #e1e1e1)",
                     borderRadius: 999,
                     padding: "6px 10px",
-                    background: "var(--colorNeutralBackground1, #fff)",
+                    background: "var(--surface-elevated, #fff)",
                     boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
                     transition: "all 0.2s ease"
                   }}
@@ -345,7 +344,7 @@ export const QuestionInput = ({
                       rel="noreferrer" 
                       style={{ 
                         textDecoration: "none", 
-                        color: "inherit",
+                        color: "var(--text)",
                         fontSize: "0.875rem",
                         fontWeight: 500
                       }} 
@@ -358,7 +357,8 @@ export const QuestionInput = ({
                       title={attachment.title || attachment.url || 'Confluence Page'}
                       style={{ 
                         fontSize: "0.875rem",
-                        fontWeight: 500
+                        fontWeight: 500,
+                        color: "var(--text, inherit)"
                       }}
                     >
                       {attachment.title || attachment.url}
@@ -405,12 +405,11 @@ export const QuestionInput = ({
           maxLength={1000}
         />
         <div className={styles.questionInputButtonsContainer}>
-          {/* Clean pink attachment button above send button */}
+          {/* Attachment button above send button */}
           <div style={{ marginBottom: "8px" }}>
             <Menu 
               positioning="above-start"
               onOpenChange={(e, data) => {
-                // When menu closes, reset forms to main menu
                 if (!data.open) {
                   setShowJiraForm(false);
                   setShowConfluenceForm(false);
@@ -431,15 +430,14 @@ export const QuestionInput = ({
                 />
               </MenuTrigger>
               <MenuPopover style={{ 
-                background: "var(--colorNeutralBackground1, #fff)", 
-                border: "1px solid var(--colorNeutralStroke2, #ddd)", 
-                borderRadius: 8, 
-                boxShadow: "0 8px 24px rgba(0,0,0,.12)",
+                background: "var(--surface-elevated)", 
+                border: "1px solid var(--border)", 
+                borderRadius: "var(--radius-md)", 
+                boxShadow: "var(--shadow-lg)",
                 padding: "16px",
                 minWidth: "320px"
               }}>
                 {!showJiraForm && !showConfluenceForm ? (
-                  // Main menu
                   <div style={{ display: "flex", flexDirection: "column" }}>
                     <div 
                       style={{ 
@@ -456,11 +454,11 @@ export const QuestionInput = ({
                         e.stopPropagation();
                         setShowConfluenceForm(true);
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--colorNeutralBackground2, #f5f5f5)"}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-hover)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
                       <img src={confluenceLogo} alt="Confluence" style={{ width: 16, height: 16 }} />
-                      <span style={{ color: "var(--colorNeutralForeground1, #000)" }}>Add Confluence page</span>
+                      <span style={{ color: "var(--text)" }}>Add Confluence page</span>
                     </div>
                     
                     <div 
@@ -478,16 +476,16 @@ export const QuestionInput = ({
                         e.stopPropagation();
                         setShowJiraForm(true);
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--colorNeutralBackground2, #f5f5f5)"}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-hover)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
                       <img src={jiraLogo} alt="Jira" style={{ width: 16, height: 16 }} />
-                      <span style={{ color: "var(--colorNeutralForeground1, #000)" }}>Add Jira ticket</span>
+                      <span style={{ color: "var(--text)" }}>Add Jira ticket</span>
                     </div>
                     
                     {attachments.length > 0 && (
                       <>
-                        <div style={{ borderTop: "1px solid var(--colorNeutralStroke2, #eee)", margin: "8px 0" }} />
+                        <div style={{ borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
                         <div 
                           style={{ 
                             display: "flex", 
@@ -505,7 +503,7 @@ export const QuestionInput = ({
                             setAttachments([]);
                             setError(null);
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = "var(--colorNeutralBackground2, #f5f5f5)"}
+                          onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-hover)"}
                           onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                         >
                           <span>Clear all attachments</span>
@@ -514,15 +512,14 @@ export const QuestionInput = ({
                     )}
                   </div>
                 ) : showJiraForm ? (
-                  // Jira form
                   <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
                       <img src={jiraLogo} alt="Jira" style={{ width: 20, height: 20 }} />
-                      <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600, color: "var(--colorNeutralForeground1, #000)" }}>Add Jira Ticket</h3>
+                      <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600, color: "var(--text)" }}>Add Jira Ticket</h3>
                     </div>
                     
                     <div>
-                      <label style={{ fontSize: "12px", opacity: 0.8, display: "block", marginBottom: "4px", color: "var(--colorNeutralForeground2, #666)" }}>
+                      <label style={{ fontSize: "12px", opacity: 0.8, display: "block", marginBottom: "4px", color: "var(--text-muted)" }}>
                         Issue key (e.g., PROJ-123)
                       </label>
                       <Input
@@ -533,10 +530,7 @@ export const QuestionInput = ({
                         disabled={attachmentsBusy}
                         style={{ 
                           width: "100%",
-                          opacity: jiraKey ? 1 : 0.7,
-                          background: "var(--colorNeutralBackground1, #fff)",
-                          border: "1px solid var(--colorNeutralStroke2, #ddd)",
-                          color: "var(--colorNeutralForeground1, #000)"
+                          opacity: jiraKey ? 1 : 0.7
                         }}
                       />
                     </div>
@@ -544,11 +538,11 @@ export const QuestionInput = ({
                     {error && (
                       <div style={{ 
                         padding: "8px", 
-                        background: "var(--colorPaletteRedBackground2, #FFE9E9)", 
-                        color: "var(--colorPaletteRedForeground1, #8B0000)", 
-                        borderRadius: "4px", 
+                        background: "var(--error)", 
+                        color: "var(--vocus-white)", 
+                        borderRadius: "var(--radius-sm)", 
                         fontSize: "12px",
-                        border: "1px solid var(--colorPaletteRedBorder2, #ffcccc)"
+                        border: "1px solid var(--error)"
                       }}>
                         {error}
                       </div>
@@ -578,15 +572,14 @@ export const QuestionInput = ({
                     </div>
                   </div>
                 ) : (
-                  // Confluence form
                   <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
                       <img src={confluenceLogo} alt="Confluence" style={{ width: 20, height: 20 }} />
-                      <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600, color: "var(--colorNeutralForeground1, #000)" }}>Add Confluence Page</h3>
+                      <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600, color: "var(--text)" }}>Add Confluence Page</h3>
                     </div>
                     
                     <div>
-                      <label style={{ fontSize: "12px", opacity: 0.8, display: "block", marginBottom: "4px", color: "var(--colorNeutralForeground2, #666)" }}>
+                      <label style={{ fontSize: "12px", opacity: 0.8, display: "block", marginBottom: "4px", color: "var(--text-muted)" }}>
                         Page URL
                       </label>
                       <Input
@@ -596,16 +589,13 @@ export const QuestionInput = ({
                         disabled={attachmentsBusy}
                         style={{ 
                           width: "100%",
-                          opacity: confUrl ? 1 : 0.7,
-                          background: "var(--colorNeutralBackground1, #fff)",
-                          border: "1px solid var(--colorNeutralStroke2, #ddd)",
-                          color: "var(--colorNeutralForeground1, #000)"
+                          opacity: confUrl ? 1 : 0.7
                         }}
                       />
                     </div>
 
                     <div>
-                      <label style={{ fontSize: "12px", opacity: 0.8, display: "block", marginBottom: "4px", color: "var(--colorNeutralForeground2, #666)" }}>
+                      <label style={{ fontSize: "12px", opacity: 0.8, display: "block", marginBottom: "4px", color: "var(--text-muted)" }}>
                         Title (optional - will use page title if empty)
                       </label>
                       <Input
@@ -616,10 +606,7 @@ export const QuestionInput = ({
                         disabled={attachmentsBusy}
                         style={{ 
                           width: "100%",
-                          opacity: confTitle ? 1 : 0.7,
-                          background: "var(--colorNeutralBackground1, #fff)",
-                          border: "1px solid var(--colorNeutralStroke2, #ddd)",
-                          color: "var(--colorNeutralForeground1, #000)"
+                          opacity: confTitle ? 1 : 0.7
                         }}
                       />
                     </div>
@@ -627,11 +614,11 @@ export const QuestionInput = ({
                     {error && (
                       <div style={{ 
                         padding: "8px", 
-                        background: "var(--colorPaletteRedBackground2, #FFE9E9)", 
-                        color: "var(--colorPaletteRedForeground1, #8B0000)", 
-                        borderRadius: "4px", 
+                        background: "var(--error)", 
+                        color: "var(--vocus-white)", 
+                        borderRadius: "var(--radius-sm)", 
                         fontSize: "12px",
-                        border: "1px solid var(--colorPaletteRedBorder2, #ffcccc)"
+                        border: "1px solid var(--error)"
                       }}>
                         {error}
                       </div>

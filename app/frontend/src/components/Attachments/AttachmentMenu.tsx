@@ -68,7 +68,7 @@ async function validateConfluencePage(pageUrl: string): Promise<{valid: boolean;
   }
 }
 
-/* ────────────── Styled Chip Component (from your old code) ────────────── */
+/* ────────────── Styled Chip Component (Dark Mode Fixed) ────────────── */
 
 const Chip = ({
   prefix,
@@ -88,10 +88,10 @@ const Chip = ({
       display: "inline-flex",
       alignItems: "center",
       gap: 8,
-      border: "1px solid var(--colorNeutralStroke1, #e1e1e1)",
+      border: "1px solid var(--border, #e1e1e1)",
       borderRadius: 999,
       padding: "6px 10px",
-      background: "var(--colorNeutralBackground1, #fff)",
+      background: "var(--surface-elevated, #fff)",
       boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
       opacity: disabled ? 0.6 : 1,
       transition: "all 0.2s ease"
@@ -105,7 +105,7 @@ const Chip = ({
         rel="noreferrer" 
         style={{ 
           textDecoration: "none", 
-          color: "inherit",
+          color: "var(--text, inherit)",
           fontSize: "0.875rem",
           fontWeight: 500
         }} 
@@ -118,7 +118,8 @@ const Chip = ({
         title={title}
         style={{ 
           fontSize: "0.875rem",
-          fontWeight: 500
+          fontWeight: 500,
+          color: "var(--text, inherit)"
         }}
       >
         {title}
@@ -278,11 +279,11 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
       {error && (
         <div style={{ 
           padding: 8, 
-          background: "#FFE9E9", 
-          color: "#8B0000", 
+          background: "var(--colorPaletteRedBackground2, #FFE9E9)", 
+          color: "var(--colorPaletteRedForeground1, #8B0000)", 
           borderRadius: 6, 
           fontSize: 12,
-          border: "1px solid #ffcccc"
+          border: "1px solid var(--colorPaletteRedBorder2, #ffcccc)"
         }}>
           {error}
         </div>
@@ -369,8 +370,8 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
             </Button>
           </MenuTrigger>
           <MenuPopover style={{ 
-            background: "#fff", 
-            border: "1px solid #ddd", 
+            background: "var(--surface-elevated, #fff)", 
+            border: "1px solid var(--border, #ddd)", 
             borderRadius: 8, 
             boxShadow: "0 8px 24px rgba(0,0,0,.12)" 
           }}>
@@ -391,7 +392,7 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
               </MenuItem>
               {totalAttachments > 0 && (
                 <>
-                  <div style={{ borderTop: "1px solid #eee", margin: "4px 0" }} />
+                  <div style={{ borderTop: "1px solid var(--border-light, #eee)", margin: "4px 0" }} />
                   <MenuItem 
                     onClick={clearAll} 
                     style={{ color: "#b00020" }}
@@ -407,7 +408,7 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
 
         {busy && <Spinner size="tiny" />}
         {!hideAttachmentCount && totalAttachments > 0 && (
-          <span style={{ fontSize: 12, color: "#666" }}>
+          <span style={{ fontSize: 12, color: "var(--text-muted, #666)" }}>
             {totalAttachments} attachment{totalAttachments !== 1 ? "s" : ""}
           </span>
         )}

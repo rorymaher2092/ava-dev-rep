@@ -35,7 +35,7 @@
 
 .attachmentsLabel {
   font-size: 12px;
-  color: var(--text-secondary, #6c757d);
+  color: var(--text-secondary);
   opacity: 0.8;
   font-weight: 500;
 }
@@ -49,19 +49,23 @@
 .attachmentChip {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: var(--surface-secondary, #fff);
-  border: 1px solid var(--border-light, #e9ecef);
-  border-radius: 8px;
-  padding: 8px 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  transition: all 0.2s ease;
+  gap: 10px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 13px;
+  width: 300px;
+  min-width: 300px;
+  max-width: 300px;
 }
 
 .attachmentChip:hover {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  border-color: var(--border-hover, #ced4da);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary);
+  transform: translateY(-1px);
 }
 
 .attachmentIcon {
@@ -69,6 +73,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  opacity: 0.8;
 }
 
 .attachmentContent {
@@ -77,31 +82,74 @@
   gap: 2px;
   min-width: 0;
   flex: 1;
+  overflow: hidden;
 }
 
 .attachmentKey {
   font-weight: 600;
-  color: var(--color-jira, #0066cc);
+  color: #0066cc;
   font-size: 11px;
-  opacity: 0.8;
+  opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachmentPrefix {
+  font-weight: 600;
+  color: #0052cc;
+  opacity: 0.7;
+  margin-right: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .attachmentTitle {
-  color: var(--text-primary, #212529);
+  color: var(--text);
   text-decoration: none;
   font-weight: 500;
   line-height: 1.3;
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .attachmentTitle:hover {
   text-decoration: underline;
-  color: var(--color-link-hover, #0056b3);
+  color: var(--primary);
+}
+
+/* Dark mode specific overrides */
+[data-theme="dark"] .attachmentChip {
+  background: var(--surface);
+  border-color: var(--border-light);
+}
+
+[data-theme="dark"] .attachmentChip:hover {
+  background: var(--surface-hover);
+  border-color: var(--primary);
+}
+
+[data-theme="dark"] .attachmentKey {
+  color: #4da6ff; /* lighter blue for dark mode */
+}
+
+[data-theme="dark"] .attachmentPrefix {
+  color: #66b3ff; /* lighter blue for dark mode */
+}
+
+[data-theme="dark"] .attachmentTitle {
+  color: var(--text);
+}
+
+[data-theme="dark"] .attachmentTitle:hover {
+  color: var(--primary);
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .message,
+  .userMessage,
   .attachmentsContainer {
     max-width: 95%;
   }

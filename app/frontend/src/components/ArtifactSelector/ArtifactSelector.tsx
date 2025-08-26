@@ -1,6 +1,11 @@
 // src/components/ArtifactSelector/ArtifactSelector.tsx
 import React from 'react';
-import { ARTIFACT_CATEGORIES, getArtifactsByCategory } from '../../config/baArtifactConfig';
+import { 
+    ARTIFACT_CATEGORIES, 
+    getArtifactsByCategory,
+    getCategoryStatusMessage,
+    categoryHasArtifacts 
+} from '../../config/baArtifactConfig';
 import { useArtifact } from '../../contexts/ArtifactContext';
 import styles from './ArtifactSelector.module.css';
 
@@ -55,21 +60,27 @@ export const ArtifactSelector: React.FC<ArtifactSelectorProps> = ({ onArtifactSe
             {/* Artifact Row (Bottom Tier) - Only show when category is selected */}
             {selectedCategory && (
                 <div className={styles.artifactSection}>
-                    <div className={styles.artifactGrid}>
-                        {getArtifactsByCategory(selectedCategory).map((artifact) => (
-                            <button
-                                key={artifact.id}
-                                className={`${styles.artifactButton} ${
-                                    selectedArtifactType === artifact.id ? styles.selectedArtifact : ''
-                                }`}
-                                onClick={() => handleArtifactSelect(artifact.id)}
-                                title={artifact.description}
-                            >
-                                {artifact.icon && <span className={styles.artifactIcon}>{artifact.icon}</span>}
-                                <span className={styles.artifactLabel}>{artifact.label}</span>
-                            </button>
-                        ))}
-                    </div>
+                    {categoryHasArtifacts(selectedCategory) ? (
+                        <div className={styles.artifactGrid}>
+                            {getArtifactsByCategory(selectedCategory).map((artifact) => (
+                                <button
+                                    key={artifact.id}
+                                    className={`${styles.artifactButton} ${
+                                        selectedArtifactType === artifact.id ? styles.selectedArtifact : ''
+                                    }`}
+                                    onClick={() => handleArtifactSelect(artifact.id)}
+                                    title={artifact.description}
+                                >
+                                    {artifact.icon && <span className={styles.artifactIcon}>{artifact.icon}</span>}
+                                    <span className={styles.artifactLabel}>{artifact.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className={styles.inDevelopmentMessage}>
+                            {getCategoryStatusMessage(selectedCategory)}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
