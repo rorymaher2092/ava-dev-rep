@@ -43,7 +43,8 @@ import {
     getTokenClaims,
     getGraphToken,
     isMicrosoftAuthenticated,
-    loginToMicrosoft
+    loginToMicrosoft,
+    clearAllMsalCache
 } from "../../authConfig";
 import { useMsal } from "@azure/msal-react";
 import { TokenClaimsDisplay } from "../../components/TokenClaimsDisplay";
@@ -237,23 +238,27 @@ const Chat = () => {
 
     // In Chat.tsx, add this useEffect
     useEffect(() => {
-        if (!isMicrosoftAuthenticated()) return;
+        const setupTokenRefresh = async () => {
+            const isAuthenticated = await isMicrosoftAuthenticated();
+            if (!isAuthenticated) return;
 
-        // Proactively refresh tokens before they expire
-        const tokenRefreshInterval = setInterval(
-            async () => {
-                try {
-                    console.log("Proactive token refresh check");
-                    await getGraphToken(1); // Force refresh
-                } catch (error) {
-                    console.error("Proactive token refresh failed:", error);
-                    // Don't show error to user unless they're actively using the app
-                }
-            },
-            10 * 60 * 1000
-        ); // Every 10 minutes
+            const tokenRefreshInterval = setInterval(
+                async () => {
+                    try {
+                        console.log("Proactive token refresh check");
+                        await getGraphToken(true);
+                    } catch (error) {
+                        console.error("Proactive token refresh failed:", error);
+                        await clearAllMsalCache(); // Clear cache if background refresh fails
+                    }
+                },
+                10 * 60 * 1000
+            );
 
-        return () => clearInterval(tokenRefreshInterval);
+            return () => clearInterval(tokenRefreshInterval);
+        };
+
+        setupTokenRefresh();
     }, []);
 
     const makeApiRequest = async (question: string) => {
@@ -266,89 +271,53 @@ const Chat = () => {
         setActiveCitation(undefined);
         setActiveAnalysisPanelTab(undefined);
 
-        try {
-            // STEP 1: Try to get authentication tokens directly
-            // This will trigger the proper error handling in getGraphToken
-            let authToken: string | undefined;
-            let graphToken: string | undefined;
 
+        try {
+            // ✅ Auth validation with immediate re-auth on failure
+            let authToken;
+            let graphToken;
+
+            
             try {
-                console.log("Getting authentication tokens...");
                 authToken = await getToken();
                 graphToken = await getGraphToken();
-                console.log("✅ Tokens acquired successfully");
-            } catch (authError: any) {
-                console.log("❌ Token acquisition failed:", authError.message);
-                setIsLoading(false);
+                
+                if (!authToken || !graphToken) {
+                    throw new Error("No auth token available");
+                }
+            } catch (authError) {
+                console.error("Auth failed:", authError);
+                
+                // Force immediate re-authentication for any auth error
+                const confirmLogin = window.confirm(
+                    "Your session has expired. Please sign in again to continue."
+                );
 
-                // Check if this is the session expiry error we're expecting
-                if (authError.message === "AUTHENTICATION_REQUIRED") {
-                    // Check if user had accounts before (session expired) vs no accounts (fresh user)
-                    const accounts = msalInstance.getAllAccounts();
-                    const hadAccountsInCache = accounts && accounts.length > 0;
+                if (!confirmLogin) {
+                    setError(new Error("Authentication required to continue"));
+                    setIsLoading(false);
+                    return;
+                }
 
-                    if (hadAccountsInCache) {
-                        // 🎯 SESSION EXPIRED SCENARIO
-                        console.log("🎯 Session expired - prompting for re-authentication");
-                        const shouldReauth = window.confirm("Your session has expired. Would you like to sign in again to continue?");
-
-                        if (shouldReauth) {
-                            try {
-                                console.log("Starting re-authentication...");
-                                await loginToMicrosoft();
-
-                                // Try to get tokens again after fresh login
-                                authToken = await getToken();
-                                graphToken = await getGraphToken();
-
-                                console.log("✅ Re-authentication successful, continuing with request");
-                                setIsLoading(true); // Continue with the request
-                            } catch (loginError) {
-                                console.error("Re-authentication failed:", loginError);
-                                setError(new Error("Failed to re-authenticate. Please refresh the page and try again."));
-                                return;
-                            }
-                        } else {
-                            setError(new Error("Authentication is required to use the chat feature."));
-                            return;
-                        }
-                    } else {
-                        // 🆕 FRESH USER SCENARIO
-                        console.log("🆕 Fresh user - prompting for initial login");
-                        const shouldLogin = window.confirm("You need to sign in with Microsoft to use the chat feature. Would you like to sign in now?");
-
-                        if (shouldLogin) {
-                            try {
-                                console.log("Starting initial authentication...");
-                                await loginToMicrosoft();
-
-                                // Try to get tokens after fresh login
-                                authToken = await getToken();
-                                graphToken = await getGraphToken();
-
-                                console.log("✅ Initial authentication successful, continuing with request");
-                                setIsLoading(true); // Continue with the request
-                            } catch (loginError) {
-                                console.error("Initial authentication failed:", loginError);
-                                setError(new Error("Failed to sign in to Microsoft. Please try again."));
-                                return;
-                            }
-                        } else {
-                            setError(new Error("Microsoft authentication is required to use the chat feature."));
-                            return;
-                        }
+                try {
+                    // Clear everything and force fresh login
+                    await clearAllMsalCache();
+                    await loginToMicrosoft();
+                    
+                    // Get fresh tokens after login
+                    authToken = await getToken();
+                    graphToken = await getGraphToken();
+                    
+                    if (!authToken || !graphToken) {
+                        throw new Error("Failed to obtain token after re-authentication");
                     }
-                } else {
-                    // Handle other unexpected authentication errors
-                    console.error("Unexpected authentication error:", authError);
-                    setError(new Error("Authentication failed. Please try signing in again."));
+                } catch (loginError) {
+                    console.error("Re-authentication failed:", loginError);
+                    setError(new Error("Failed to authenticate. Please refresh the page and try again."));
+                    setIsLoading(false);
                     return;
                 }
             }
-
-            // STEP 2: If we get here, we have valid tokens - proceed with API call
-            console.log("🚀 Proceeding with API call...");
-
             const messages: ResponseMessage[] = answers.flatMap(a => [
                 { content: a[0], role: "user" },
                 { content: a[1].message.content, role: "assistant" }
@@ -380,7 +349,7 @@ const Chat = () => {
                         gpt4v_input: gpt4vInput,
                         language: i18n.language,
                         use_agentic_retrieval: useAgenticRetrieval,
-                        bot_id: botId,
+                                                bot_id: botId,
                         graph_token: graphToken,
                         ...(seed !== null ? { seed: seed } : {})
                     }

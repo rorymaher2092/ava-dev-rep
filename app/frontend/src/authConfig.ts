@@ -290,9 +290,8 @@ export const getToken = async (): Promise<string | undefined> => {
 // In authConfig.ts, add interaction tracking
 let isInteractionInProgress = false;
 
-// Updated authConfig.ts - Add this improved getGraphToken function
-
-export const getGraphToken = async (retryCount = 0): Promise<string | undefined> => {
+// Remove the automatic login attempts - let users trigger it manually
+export const getGraphToken = async (forceReauth = false): Promise<string | undefined> => {
     if (!useLogin || !msalInstance) {
         console.log("MSAL not available");
         return undefined;
@@ -302,67 +301,80 @@ export const getGraphToken = async (retryCount = 0): Promise<string | undefined>
         const accounts = msalInstance.getAllAccounts();
         const account = msalInstance.getActiveAccount() || accounts[0];
 
-        if (!account) {
-            console.log("No Microsoft account found");
-            throw new Error("AUTHENTICATION_REQUIRED");
+        if (!account || forceReauth) {
+            if (forceReauth) {
+                console.log("Force re-auth requested, clearing cache");
+                await clearAllMsalCache();
+            }
+            throw new Error("No Microsoft account found or re-auth forced");
         }
 
-        msalInstance.setActiveAccount(account);
-
         try {
-            console.log(`Attempting token acquisition (retry: ${retryCount})`);
-
             const response = await msalInstance.acquireTokenSilent({
                 scopes: ["https://graph.microsoft.com/.default"],
                 account: account,
-                forceRefresh: retryCount > 0
+                forceRefresh: forceReauth
             });
 
-            // Check token expiry
+            // Validate token isn't about to expire (5 minutes buffer)
             const expiresOn = response.expiresOn;
             const now = new Date();
             const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
 
             if (expiresOn && expiresOn < fiveMinutesFromNow) {
-                console.log("Token expires soon, forcing refresh");
-                if (retryCount === 0) {
-                    return getGraphToken(1);
-                }
+                console.log("Token expires soon, getting fresh token");
+                return getGraphToken(true); // Force refresh
             }
 
-            console.log("✅ Graph token acquired successfully");
+            console.log("Graph token acquired successfully");
             return response.accessToken;
-        } catch (silentError: unknown) {
+        } catch (silentError) {
             console.error("Silent token acquisition failed:", silentError);
 
             if (silentError instanceof InteractionRequiredAuthError) {
-                console.log("🚨 InteractionRequiredAuthError detected - session expired");
-
-                // 🔑 KEY FIX: Clear cache and throw the right error
-                console.log("Clearing stale cache...");
-                await msalInstance.clearCache();
-                msalInstance.setActiveAccount(null);
-                globalThis.cachedAppServicesToken = null;
-
-                // 🔑 CRITICAL: Throw the error that makeApiRequest is looking for
-                throw new Error("AUTHENTICATION_REQUIRED");
+                // ✅ Clear cache IMMEDIATELY when interaction is required
+                console.log("Interaction required, clearing MSAL cache");
+                await clearAllMsalCache();
+                throw new Error("INTERACTION_REQUIRED");
             }
-
-            // For other errors, just rethrow
             throw silentError;
         }
-    } catch (error: unknown) {
+    } catch (error) {
         console.error("Error getting Graph token:", error);
-
-        // Make sure we always throw AUTHENTICATION_REQUIRED for auth issues
-        if (error instanceof Error && error.message === "AUTHENTICATION_REQUIRED") {
-            throw error; // Pass it through
-        }
-
-        // For unexpected errors, also treat as auth required
-        throw new Error("AUTHENTICATION_REQUIRED");
+        throw error;
     }
 };
+
+// Add comprehensive cache clearing function
+export const clearAllMsalCache = async (): Promise<void> => {
+    try {
+        // Clear MSAL instance cache
+        msalInstance.clearCache();
+        
+        // Clear active account
+        msalInstance.setActiveAccount(null);
+        
+        // Clear localStorage items related to MSAL
+        Object.keys(localStorage).forEach(key => {
+            if (key.includes('msal') || key.includes('microsoft') || key.includes('login')) {
+                localStorage.removeItem(key);
+            }
+        });
+        
+        // Clear sessionStorage items related to MSAL
+        Object.keys(sessionStorage).forEach(key => {
+            if (key.includes('msal') || key.includes('microsoft') || key.includes('login')) {
+                sessionStorage.removeItem(key);
+            }
+        });
+        
+        console.log("All MSAL cache cleared");
+    } catch (error) {
+        console.error("Error clearing MSAL cache:", error);
+    }
+};
+
+
 // Add a specific login function for Microsoft
 export const loginToMicrosoft = async (): Promise<void> => {
     try {
