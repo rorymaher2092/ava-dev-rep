@@ -42,7 +42,7 @@ export const ARTIFACT_CATEGORIES: Record<string, ArtifactCategory> = {
         label: "Design",
         icon: "🎨",
         description: "Feature design and process planning",
-        artifacts: ["story_map"]
+        artifacts: ["story_map", "acceptance_criteria"]
     },
     refine_plan: {
         id: "refine_plan",
@@ -102,6 +102,15 @@ export const BA_ARTIFACT_TYPES: Record<string, ArtifactType> = {
         category: "design",
         promptHint: "Collaborate with AI to create a Story Map with the following details:\n- User journey flow\n- Epic and story organization\n- Priority and release planning\n- User value mapping\n- Dependency identification",
         customInstructions: "Help create a user story map that visualizes the complete user journey and organizes features into a logical flow with clear priorities."
+    },
+    acceptance_criteria: {
+        id: "acceptance_criteria",
+        label: "Acceptance Criteria",
+        description: "Define testable conditions for feature completion",
+        icon: "✅",
+        category: "design",
+        promptHint: "Collaborate with AI to create Acceptance Criteria with the following details:\n- Feature or story description\n- Testable conditions\n- Success scenarios\n- Edge cases and constraints\n- Definition of done",
+        customInstructions: "Help create clear, testable acceptance criteria that define when a feature or story is considered complete and ready for delivery."
     }
 };
 

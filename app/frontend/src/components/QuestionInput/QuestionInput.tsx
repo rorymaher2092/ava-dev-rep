@@ -402,7 +402,6 @@ export const QuestionInput = ({
           onCompositionStart={() => setIsComposing(true)}
           onCompositionEnd={() => setIsComposing(false)}
           aria-label={effectivePlaceholder || "Ask a question"}
-          maxLength={1000}
         />
         <div className={styles.questionInputButtonsContainer}>
           {/* Attachment button above send button */}
