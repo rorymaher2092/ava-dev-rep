@@ -394,7 +394,7 @@ export const QuestionInput = ({
           disabled={disableRequiredAccessControl}
           placeholder={effectivePlaceholder}
           multiline
-          resizable={false}
+          resizable={true}
           borderless
           value={question}
           onChange={(_, newValue) => setQuestion(newValue ?? "")}

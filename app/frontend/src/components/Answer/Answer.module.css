@@ -6,6 +6,8 @@
     box-shadow: var(--shadow-md);
     backdrop-filter: blur(10px);
     width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -64,6 +66,15 @@
     border-radius: var(--radius-md);
     overflow: hidden;
     box-shadow: var(--shadow-sm);
+}
+
+.answerText {
+    overflow-x: auto;
+}
+
+.answerText table {
+    min-width: 100%;
+    white-space: nowrap;
 }
 
 .answerText td, .answerText th {

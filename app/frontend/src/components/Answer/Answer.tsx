@@ -159,11 +159,11 @@ export const Answer = ({
     const sanitizedAnswerHtml = DOMPurify.sanitize(parsedAnswer.answerHtml);
 
     const handleCopy = () => {
-        // Single replace to remove all HTML tags to remove the citations
-        const textToCopy = sanitizedAnswerHtml.replace(/<a [^>]*><sup>\d+<\/sup><\/a>|<[^>]+>/g, "");
-
+        // Copy the original markdown content instead of processed HTML
+        const markdownContent = answer.message.content;
+        
         navigator.clipboard
-            .writeText(textToCopy)
+            .writeText(markdownContent)
             .then(() => {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);

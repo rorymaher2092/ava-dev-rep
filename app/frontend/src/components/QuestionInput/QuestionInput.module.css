@@ -8,6 +8,10 @@
     border: 1px solid var(--border);
     overflow: visible;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    resize: none;
 }
 
 [data-theme="dark"] .questionInputContainer {
@@ -48,20 +52,39 @@
 .questionInputTextArea {
     width: 100%;
     line-height: 1.6;
-    max-height: 10rem;
-    overflow-y: hidden;
+    min-height: 2.5rem;
+    max-height: 15rem;
+    overflow-y: auto;
     background: transparent;
     border: none;
     outline: none;
     color: var(--text);
     font-size: 1rem;
     resize: none;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    scrollbar-width: thin;
+    -ms-overflow-style: auto;
+}
+
+.questionInputTextArea :global(textarea) {
+    resize: vertical !important;
+    min-height: 2.5rem;
 }
 
 .questionInputTextArea::-webkit-scrollbar {
-    display: none;
+    width: 6px;
+}
+
+.questionInputTextArea::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.questionInputTextArea::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+.questionInputTextArea::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
 }
 
 .questionInputTextArea::placeholder {

@@ -35,7 +35,7 @@ export const ARTIFACT_CATEGORIES: Record<string, ArtifactCategory> = {
         label: "Define",
         icon: "📝",
         description: "Define business requirements and stakeholder analysis",
-        artifacts: ["business_discovery", "prfaq", "change_on_page"]
+        artifacts: ["business_discovery", "prfaq", "change_on_page", "change_schedule"]
     },
     design: {
         id: "design",
@@ -91,6 +91,15 @@ export const BA_ARTIFACT_TYPES: Record<string, ArtifactType> = {
         category: "define",
         promptHint: "Collaborate with AI to create a Change on a Page with the following details:\n- Change overview and rationale\n- Key stakeholders affected\n- Timeline and milestones\n- Success measures\n- Key messages",
         customInstructions: "Help create a concise one-page change summary that clearly communicates the what, why, when, and how of the change initiative for stakeholder distribution."
+    },
+    change_schedule: {
+        id: "change_schedule",
+        label: "Change Schedule",
+        description: "Detailed timeline and scheduling for change implementation",
+        icon: "📅",
+        category: "define",
+        promptHint: "Collaborate with AI to create a Change Schedule with the following details:\n- Implementation timeline\n- Key milestones and deliverables\n- Resource allocation\n- Dependencies and risks\n- Communication schedule",
+        customInstructions: "Help create a comprehensive change schedule that outlines the timeline, milestones, resources, and dependencies for successful change implementation."
     },
 
     // Design Stage - Production Ready
