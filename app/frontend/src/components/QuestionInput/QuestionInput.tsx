@@ -50,6 +50,7 @@ export const QuestionInput = ({
   const [showJiraForm, setShowJiraForm] = useState(false);
   const [showConfluenceForm, setShowConfluenceForm] = useState(false);
   const [jiraKey, setJiraKey] = useState("");
+  const [jiraUrl, setJiraUrl] = useState("");
   const [confUrl, setConfUrl] = useState("");
   const [confTitle, setConfTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +84,22 @@ export const QuestionInput = ({
     }
   };
 
+  const validateJiraUrl = async (jiraUrl: string) => {
+    try {
+      const response = await fetch('/api/attachments/validate/jira-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ jiraUrl: jiraUrl.trim() })
+      });
+      
+      const result = await response.json();
+      return response.ok ? { valid: true, data: result } : { valid: false, error: result.error };
+    } catch (error) {
+      return { valid: false, error: error instanceof Error ? error.message : 'Network error' };
+    }
+  };
+
   const validateConfluencePage = async (pageUrl: string) => {
     try {
       const response = await fetch('/api/attachments/validate/confluence', {
@@ -104,31 +121,63 @@ export const QuestionInput = ({
     setError(null);
     try {
       const key = jiraKey.trim().toUpperCase();
-      if (!key) return;
+      const url = jiraUrl.trim();
       
-      if (attachments.some(a => a.type === 'jira' && a.key === key)) {
-        setError(`Ticket ${key} is already attached`);
+      // Must have either key or URL
+      if (!key && !url) {
+        setError("Please enter either a JIRA ticket key or URL");
         return;
       }
       
-      const result = await validateJiraTicket(key);
+      let result;
+      let attachmentKey;
+      
+      if (url) {
+        // Validate URL first
+        try {
+          new URL(url);
+        } catch {
+          setError("Please enter a valid URL");
+          return;
+        }
+        
+        // Check if URL is already attached
+        if (attachments.some(a => a.type === 'jira' && a.url === url)) {
+          setError("This JIRA URL is already attached");
+          return;
+        }
+        
+        result = await validateJiraUrl(url);
+        attachmentKey = result.data?.key || url;
+      } else {
+        // Check if key is already attached
+        if (attachments.some(a => a.type === 'jira' && a.key === key)) {
+          setError(`Ticket ${key} is already attached`);
+          return;
+        }
+        
+        result = await validateJiraTicket(key);
+        attachmentKey = result.data.key;
+      }
+      
       if (!result.valid) {
-        setError(result.error || 'Failed to validate ticket');
+        setError(result.error || 'Failed to validate JIRA item');
         return;
       }
       
       const newAttachment: AttachmentRef = {
         type: 'jira',
-        key: result.data.key,
-        title: result.data.summary,
-        summary: result.data.summary,
+        key: attachmentKey,
+        title: result.data.summary || result.data.title || attachmentKey,
+        summary: result.data.summary || result.data.title,
         status: result.data.status,
         priority: result.data.priority,
-        url: result.data.url
+        url: url || result.data.url
       };
       
       setAttachments([...attachments, newAttachment]);
       setJiraKey("");
+      setJiraUrl("");
       setShowJiraForm(false);
       setError(null);
     } catch (e: any) {
@@ -235,7 +284,11 @@ export const QuestionInput = ({
           flexWrap: "wrap", 
           gap: 8, 
           padding: "8px 0",
-          marginBottom: 8
+          marginBottom: 8,
+          width: "100%",
+          maxWidth: "100%",
+          overflow: "hidden",
+          boxSizing: "border-box"
         }}>
           {attachments.map((attachment, index) => {
             if (attachment.type === 'jira') {
@@ -251,7 +304,10 @@ export const QuestionInput = ({
                     padding: "6px 10px",
                     background: "var(--surface-elevated)",
                     boxShadow: "var(--shadow-sm)",
-                    transition: "all 0.2s ease"
+                    transition: "all 0.2s ease",
+                    maxWidth: "100%",
+                    overflow: "hidden",
+                    boxSizing: "border-box"
                   }}
                 >
                   <span style={{ 
@@ -274,7 +330,11 @@ export const QuestionInput = ({
                         textDecoration: "none", 
                         color: "var(--text)",
                         fontSize: "0.875rem",
-                        fontWeight: 500
+                        fontWeight: 500,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        maxWidth: "200px"
                       }} 
                       title={attachment.summary || attachment.key || 'JIRA Ticket'}
                     >
@@ -286,7 +346,11 @@ export const QuestionInput = ({
                       style={{ 
                         fontSize: "0.875rem",
                         fontWeight: 500,
-                        color: "var(--text, inherit)"
+                        color: "var(--text, inherit)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        maxWidth: "200px"
                       }}
                     >
                       {attachment.summary || attachment.key}
@@ -323,7 +387,10 @@ export const QuestionInput = ({
                     padding: "6px 10px",
                     background: "var(--surface-elevated, #fff)",
                     boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-                    transition: "all 0.2s ease"
+                    transition: "all 0.2s ease",
+                    maxWidth: "100%",
+                    overflow: "hidden",
+                    boxSizing: "border-box"
                   }}
                 >
                   <span style={{ 
@@ -346,7 +413,11 @@ export const QuestionInput = ({
                         textDecoration: "none", 
                         color: "var(--text)",
                         fontSize: "0.875rem",
-                        fontWeight: 500
+                        fontWeight: 500,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        maxWidth: "200px"
                       }} 
                       title={attachment.title || attachment.url || 'Confluence Page'}
                     >
@@ -358,7 +429,11 @@ export const QuestionInput = ({
                       style={{ 
                         fontSize: "0.875rem",
                         fontWeight: 500,
-                        color: "var(--text, inherit)"
+                        color: "var(--text, inherit)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        maxWidth: "200px"
                       }}
                     >
                       {attachment.title || attachment.url}
@@ -519,17 +594,33 @@ export const QuestionInput = ({
                     
                     <div>
                       <label style={{ fontSize: "12px", opacity: 0.8, display: "block", marginBottom: "4px", color: "var(--text-muted)" }}>
-                        Issue key (e.g., PROJ-123)
+                        Issue key (e.g., PROJ-123) - Optional if URL provided
                       </label>
                       <Input
                         placeholder="Enter JIRA ticket key here..."
                         value={jiraKey}
                         onChange={(_, v) => setJiraKey(v.value)}
-                        onKeyDown={(e) => e.key === "Enter" && !attachmentsBusy && addJiraTicket()}
                         disabled={attachmentsBusy}
                         style={{ 
                           width: "100%",
                           opacity: jiraKey ? 1 : 0.7
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: "12px", opacity: 0.8, display: "block", marginBottom: "4px", color: "var(--text-muted)" }}>
+                        Ticket URL - Optional if key provided
+                      </label>
+                      <Input
+                        placeholder="Paste JIRA ticket URL here..."
+                        value={jiraUrl}
+                        onChange={(_, v) => setJiraUrl(v.value)}
+                        onKeyDown={(e) => e.key === "Enter" && !attachmentsBusy && addJiraTicket()}
+                        disabled={attachmentsBusy}
+                        style={{ 
+                          width: "100%",
+                          opacity: jiraUrl ? 1 : 0.7
                         }}
                       />
                     </div>
@@ -553,6 +644,7 @@ export const QuestionInput = ({
                         onClick={() => {
                           setShowJiraForm(false);
                           setJiraKey("");
+                          setJiraUrl("");
                           setError(null);
                         }} 
                         disabled={attachmentsBusy}
@@ -563,7 +655,7 @@ export const QuestionInput = ({
                       <Button 
                         appearance="primary" 
                         onClick={addJiraTicket} 
-                        disabled={attachmentsBusy || !jiraKey.trim()}
+                        disabled={attachmentsBusy || (!jiraKey.trim() && !jiraUrl.trim())}
                         size="small"
                       >
                         {attachmentsBusy ? <Spinner size="tiny" /> : "Attach"}
@@ -652,7 +744,6 @@ export const QuestionInput = ({
             </Menu>
           </div>
           
-          <div className={styles.customTooltip}>{t("tooltips.submitQuestion")}</div>
           <Button
             size="large"
             icon={isGenerating ? <Stop24Filled primaryFill="rgba(220, 53, 69, 1)" /> : <Send28Filled primaryFill="rgba(115, 118, 225, 1)" />}

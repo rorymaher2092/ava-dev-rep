@@ -2,16 +2,18 @@
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg);
     width: 100%;
+    max-width: 100%;
     padding: 1rem;
     background: transparent;
     backdrop-filter: blur(20px);
     border: 1px solid var(--border);
-    overflow: visible;
+    overflow: hidden;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: row;
     align-items: flex-end;
     resize: none;
+    box-sizing: border-box;
 }
 
 [data-theme="dark"] .questionInputContainer {
@@ -51,10 +53,12 @@
 
 .questionInputTextArea {
     width: 100%;
+    max-width: 100%;
     line-height: 1.6;
     min-height: 2.5rem;
     max-height: 15rem;
     overflow-y: auto;
+    overflow-x: hidden;
     background: transparent;
     border: none;
     outline: none;
@@ -63,6 +67,7 @@
     resize: none;
     scrollbar-width: thin;
     -ms-overflow-style: auto;
+    box-sizing: border-box;
 }
 
 .questionInputTextArea :global(textarea) {
@@ -137,6 +142,8 @@
 
 .questionInputWrapper {
     width: 100%;
+    max-width: 100%;
+    overflow: hidden;
 }
 
 @media (min-width: 992px) {
