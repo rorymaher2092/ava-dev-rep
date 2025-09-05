@@ -880,7 +880,7 @@ const Chat = () => {
                             )}
                         </div>
                     ) : (
-                        <div className={styles.chatMessageStream}>
+                        <div className={`${styles.chatMessageStream} ${botId === 'ba' ? styles.baBot : ''}`}>
                             {isStreaming &&
                                 streamedAnswers.map((streamedAnswer, index) => (
                                     <div key={index}>
@@ -962,7 +962,7 @@ const Chat = () => {
                     )}
 
                     <div
-                        className={styles.chatInput}
+                        className={`${styles.chatInput} ${botId === 'ba' ? styles.baBot : ''}`}
                         style={{
                             right: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
                             left: isHistoryPanelOpen && !isMobile ? "320px" : "0",

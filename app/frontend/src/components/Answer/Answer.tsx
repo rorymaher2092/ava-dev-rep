@@ -378,13 +378,26 @@ export const Answer = ({
 
                 {/* Answer content */}
                 <div
+                    className={styles.answerText}
                     style={{
                         color: "var(--text)",
                         lineHeight: "1.6",
-                        fontSize: "15px"
+                        fontSize: "15px",
+                        padding: "0 8px"
                     }}
                 >
-                    <ReactMarkdown children={sanitizedAnswerHtml} rehypePlugins={[rehypeRaw]} remarkPlugins={[remarkGfm]} />
+                    <ReactMarkdown 
+                        children={sanitizedAnswerHtml} 
+                        rehypePlugins={[rehypeRaw]} 
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                            table: ({children}) => (
+                                <div className={styles.tableWrapper}>
+                                    <table>{children}</table>
+                                </div>
+                            )
+                        }}
+                    />
                 </div>
 
                 {/* Feedback section */}
