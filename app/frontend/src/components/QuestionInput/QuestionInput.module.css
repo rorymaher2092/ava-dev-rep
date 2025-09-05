@@ -52,6 +52,7 @@
 }
 
 .questionInputTextArea {
+    flex: 1;
     width: 100%;
     max-width: 100%;
     line-height: 1.6;
@@ -71,8 +72,12 @@
 }
 
 .questionInputTextArea :global(textarea) {
-    resize: vertical !important;
+    resize: none !important;
     min-height: 2.5rem;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
 }
 
 .questionInputTextArea::-webkit-scrollbar {

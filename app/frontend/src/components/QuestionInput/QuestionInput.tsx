@@ -469,7 +469,7 @@ export const QuestionInput = ({
           disabled={disableRequiredAccessControl}
           placeholder={effectivePlaceholder}
           multiline
-          resizable={true}
+          resizable={false}
           borderless
           value={question}
           onChange={(_, newValue) => setQuestion(newValue ?? "")}
@@ -746,7 +746,7 @@ export const QuestionInput = ({
           
           <Button
             size="large"
-            icon={isGenerating ? <Stop24Filled primaryFill="rgba(220, 53, 69, 1)" /> : <Send28Filled primaryFill="rgba(115, 118, 225, 1)" />}
+            icon={isGenerating ? <Stop24Filled primaryFill="var(--primary)" /> : <Send28Filled primaryFill="rgba(115, 118, 225, 1)" />}
             disabled={isGenerating ? false : sendDisabled}
             onClick={isGenerating ? onCancel : doSend}
             aria-label={isGenerating ? "Stop generation" : t("tooltips.submitQuestion")}

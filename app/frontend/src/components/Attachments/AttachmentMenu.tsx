@@ -314,7 +314,6 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
                       [{attachment.key}]
                     </span>
                   }
-                  href={attachment.url}
                   title={attachment.summary || attachment.key || 'JIRA Ticket'}
                   onRemove={() => removeAttachment(index)}
                   disabled={busy}
