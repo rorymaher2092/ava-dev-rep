@@ -231,3 +231,31 @@ export async function submitFeedbackApi(
     const dataResponse: SimpleAPIResponse = await response.json();
     return dataResponse;
 }
+
+export async function submitContentSuggestion(
+    questionAsked: string,
+    suggestedContent: string,
+    idToken?: string // ⬅ matches submitFeedbackApi param list
+): Promise<void> {
+    const headers = await getHeaders(idToken);
+
+    // If you kept the server URL prefix /api/content-suggestions  ➜ see previous answer
+    const response = await fetch(
+        `${BACKEND_URI}/suggestion`, // consistent with feedback
+        {
+            method: "POST",
+            headers: { ...headers, "Content-Type": "application/json" },
+            body: JSON.stringify({
+                question: questionAsked,
+                suggestion: suggestedContent
+            })
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(`Submitting content suggestion failed: ${response.statusText}`);
+    }
+
+    // backend returns {message, id}.  Parse only if you need it.
+    // await response.json();
+}

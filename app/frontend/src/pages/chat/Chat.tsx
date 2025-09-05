@@ -34,6 +34,7 @@ import { HistoryButton } from "../../components/HistoryButton";
 // import { SettingsButton } from "../../components/SettingsButton";
 import { ClearChatButton } from "../../components/ClearChatButton";
 import { UploadFile } from "../../components/UploadFile";
+
 import {
     useLogin,
     getToken,
@@ -42,7 +43,8 @@ import {
     getTokenClaims,
     getGraphToken,
     isMicrosoftAuthenticated,
-    loginToMicrosoft
+    loginToMicrosoft,
+    clearAllMsalCache
 } from "../../authConfig";
 import { useMsal } from "@azure/msal-react";
 import { TokenClaimsDisplay } from "../../components/TokenClaimsDisplay";
@@ -60,9 +62,12 @@ import { BotContentFactory } from "../../components/BotContent/BotContentFactory
 // Import BaArtififactContext
 import { useArtifact } from "../../contexts/ArtifactContext";
 
+// submitContent Suggestions
+import { submitContentSuggestion } from "../../api";
+
 import { InteractionRequiredAuthError } from "@azure/msal-browser";
 import { msalInstance } from "../../authConfig";
-import {AttachmentRef} from "../../components/Attachments/AttachmentMenu";
+import { AttachmentRef } from "../../components/Attachments/AttachmentMenu";
 
 const Chat = () => {
     const [searchParams] = useSearchParams();
@@ -131,36 +136,39 @@ const Chat = () => {
     // added to deal with cancelling mid request
     const [abortController, setAbortController] = useState<AbortController | null>(null);
 
-
-
     // --- Attachments typed union for backend ---
     type Attachment =
-    | { kind: "jira_ticket"; key: string }
-    | { kind: "confluence_page"; url: string; title?: string }
-    | { kind: "file"; name: string; size: number; mime?: string };
+        | { kind: "jira_ticket"; key: string }
+        | { kind: "confluence_page"; url: string; title?: string }
+        | { kind: "file"; name: string; size: number; mime?: string };
 
     // These match what QuestionInput emits (keep minimal)
     type UITicket = { key: string };
     type UIConfluence = { url: string; title?: string };
 
     // Merge UI args into a single attachments[] payload
-    function toAttachments(
-    tickets?: UITicket[],
-    confluence?: UIConfluence[],
-    files?: File[]
-    ): Attachment[] {
-    const out: Attachment[] = [];
-    (tickets ?? []).forEach(t => t?.key && out.push({ kind: "jira_ticket", key: t.key }));
-    (confluence ?? []).forEach(p => p?.url && out.push({ kind: "confluence_page", url: p.url, title: p.title }));
-    (files ?? []).forEach(f => out.push({ kind: "file", name: f.name, size: f.size, mime: f.type }));
-    return out;
+    function toAttachments(tickets?: UITicket[], confluence?: UIConfluence[], files?: File[]): Attachment[] {
+        const out: Attachment[] = [];
+        (tickets ?? []).forEach(t => t?.key && out.push({ kind: "jira_ticket", key: t.key }));
+        (confluence ?? []).forEach(p => p?.url && out.push({ kind: "confluence_page", url: p.url, title: p.title }));
+        (files ?? []).forEach(f => out.push({ kind: "file", name: f.name, size: f.size, mime: f.type }));
+        return out;
     }
 
     // Add artifact context
-    const { selectedArtifactType, getSelectedArtifact } = useArtifact ();
+    const { selectedArtifactType, getSelectedArtifact } = useArtifact();
 
     const audio = useRef(new Audio()).current;
     const [isPlaying, setIsPlaying] = useState(false);
+
+    /* ─── Bot selection ─────────────────────────────────────────── */
+    const { botId, setBotId } = useBot();
+    console.log("Current botId:", botId); // Log the botId
+    const botProfile: BotProfile = BOTS[botId] ?? BOTS[DEFAULT_BOT_ID];
+
+    useBotTheme(botId);
+
+    const { t, i18n } = useTranslation();
 
     const speechConfig: SpeechConfig = {
         speechUrls,
@@ -208,61 +216,122 @@ const Chat = () => {
     };
 
     const handleAsyncRequest = async (question: string, answers: AnswerTuple[], responseBody: ReadableStream<any>, signal?: AbortSignal) => {
-        let answer: string = "";
-        let askResponse: ChatAppResponse = {} as ChatAppResponse;
+        let answer = "";
+        let askResponse = {} as ChatAppResponse;
+        let seededRow = false;
 
-        const updateState = (newContent: string) => {
-            return new Promise(resolve => {
-                setTimeout(() => {
-                    // Check if cancelled before updating
-                    if (signal?.aborted) {
-                        resolve(null);
-                        return;
-                    }
-                    answer += newContent;
-                    const latestResponse: ChatAppResponse = {
-                        ...askResponse,
-                        message: { content: answer, role: askResponse.message.role }
-                    };
-                    setStreamedAnswers([...answers, [question, latestResponse, currentAttachments]]);
-                    resolve(null);
-                }, 33);
+        // --- typewriter knobs ---
+        const STEP_CHARS = 6; // characters to reveal per animation frame (2–10 feels nice)
+        let queue = ""; // not-yet-rendered chars buffered from the network
+        let rafId: number | null = null;
+
+        const renderLatest = () => {
+            const role = askResponse?.message?.role ?? "assistant";
+            const latest: ChatAppResponse = { ...askResponse, message: { content: answer, role } };
+
+            setStreamedAnswers(prev => {
+                if (!seededRow) {
+                    seededRow = true;
+                    return [...answers, [question, latest]];
+                }
+                if (prev.length === 0) return [[question, latest]];
+                const next = prev.slice();
+                next[next.length - 1] = [question, latest];
+                return next;
             });
         };
-        
+
+        const tick = () => {
+            // Check for cancellation first
+            if (signal?.aborted) {
+                rafId = null;
+                return;
+            }
+            
+            // animate only when visible; background continues buffering
+            if (document.visibilityState !== "visible") {
+                rafId = null;
+                return;
+            }
+
+            if (queue.length > 0) {
+                const take = Math.min(STEP_CHARS, queue.length);
+                answer += queue.slice(0, take);
+                queue = queue.slice(take);
+                renderLatest();
+            }
+
+            // keep animating while there’s more to show
+            if (queue.length > 0) {
+                rafId = requestAnimationFrame(tick);
+            } else {
+                rafId = null;
+            }
+        };
+
+        const startAnimationIfNeeded = () => {
+            if (rafId == null && document.visibilityState === "visible" && queue.length > 0) {
+                rafId = requestAnimationFrame(tick);
+            }
+        };
+
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") {
+                // when the user comes back, animate the queued text
+                startAnimationIfNeeded();
+            } else if (rafId) {
+                // stop animating in the background (network still fills `queue`)
+                cancelAnimationFrame(rafId);
+                rafId = null;
+            }
+        };
+
+        document.addEventListener("visibilitychange", onVisibility);
+
+        setIsStreaming(true);
         try {
-            setIsStreaming(true);
             for await (const event of readNDJSONStream(responseBody)) {
                 // Check for cancellation
                 if (signal?.aborted) {
                     break;
                 }
-                if (event["context"] && event["context"]["data_points"]) {
-                    event["message"] = event["delta"];
+                
+                if (event.context?.data_points) {
+                    event.message = event.delta;
                     askResponse = event as ChatAppResponse;
-                } else if (event["delta"] && event["delta"]["content"]) {
+                } else if (event.delta?.content) {
                     setIsLoading(false);
-                    await updateState(event["delta"]["content"]);
-                } else if (event["context"]) {
-                    // Update context with new keys from latest event
-                    askResponse.context = { ...askResponse.context, ...event["context"] };
-                } else if (event["error"]) {
-                    throw Error(event["error"]);
+                    // accumulate raw chunk from server
+                    queue += event.delta.content;
+                    // animate it (if visible); otherwise it sits buffered
+                    startAnimationIfNeeded();
+                } else if (event.context) {
+                    askResponse.context = { ...askResponse.context, ...event.context };
+                } else if (event.error) {
+                    throw Error(event.error);
                 }
             }
         } catch (error: any) {
-            if (error.name === 'AbortError') {
-                console.log('Stream was cancelled');
+            if (error.name === "AbortError") {
+                console.log("Stream was cancelled");
             } else {
                 throw error;
             }
         } finally {
+            // drain any remaining buffer (finish fast, no animation)
+            if (queue.length) {
+                answer += queue;
+                queue = "";
+                renderLatest();
+            }
+            if (rafId) cancelAnimationFrame(rafId);
+            document.removeEventListener("visibilitychange", onVisibility);
             setIsStreaming(false);
         }
-        
+
         const fullResponse: ChatAppResponse = {
             ...askResponse,
-            message: { content: answer, role: askResponse.message.role }
+            message: { content: answer, role: askResponse?.message?.role ?? "assistant" }
         };
         return fullResponse;
     };
@@ -281,28 +350,31 @@ const Chat = () => {
 
     // In Chat.tsx, add this useEffect
     useEffect(() => {
-        if (!isMicrosoftAuthenticated()) return;
+        const setupTokenRefresh = async () => {
+            const isAuthenticated = await isMicrosoftAuthenticated();
+            if (!isAuthenticated) return;
 
-        // Proactively refresh tokens before they expire
-        const tokenRefreshInterval = setInterval(
-            async () => {
-                try {
-                    console.log("Proactive token refresh check");
-                    await getGraphToken(1); // Force refresh
-                } catch (error) {
-                    console.error("Proactive token refresh failed:", error);
-                    // Don't show error to user unless they're actively using the app
-                }
-            },
-            10 * 60 * 1000
-        ); // Every 10 minutes
+            const tokenRefreshInterval = setInterval(
+                async () => {
+                    try {
+                        console.log("Proactive token refresh check");
+                        await getGraphToken(true);
+                    } catch (error) {
+                        console.error("Proactive token refresh failed:", error);
+                        await clearAllMsalCache(); // Clear cache if background refresh fails
+                    }
+                },
+                10 * 60 * 1000
+            );
 
-        return () => clearInterval(tokenRefreshInterval);
+            return () => clearInterval(tokenRefreshInterval);
+        };
+
+        setupTokenRefresh();
     }, []);
 
     const makeApiRequest = async (question: string, attachmentRefs?: AttachmentRef[]) => {
-
-          // Store current attachments for loading/error states
+        // Store current attachments for loading/error states
         setCurrentAttachments(attachmentRefs || []);
 
         // Extra code to deal with cancelled requests
@@ -314,71 +386,64 @@ const Chat = () => {
 
         lastQuestionRef.current = question;
         console.log("Sending API request with botId:", botId);
-        
+
         // Log attachment references if any
         if (attachmentRefs && attachmentRefs.length > 0) {
             console.log("Including attachment references:", attachmentRefs);
         }
-        
+
         setCurrentFollowupQuestions([]);
         error && setError(undefined);
         setIsLoading(true);
         setActiveCitation(undefined);
         setActiveAnalysisPanelTab(undefined);
 
-        // Microsoft auth validation (keep existing logic)
-        let hasValidMicrosoftAuth = false;
-        let retryCount = 0;
-        const maxRetries = 2;
+        try {
+            // ✅ Auth validation with immediate re-auth on failure
+            let authToken;
+            let graphToken;
 
-        while (!hasValidMicrosoftAuth && retryCount < maxRetries) {
             try {
-                const testToken = await getGraphToken();
-                if (testToken) {
-                    hasValidMicrosoftAuth = true;
-                    console.log("Microsoft auth validated successfully");
-                }
-            } catch (error) {
-                console.error(`Auth validation attempt ${retryCount + 1} failed:`, error);
-                retryCount++;
+                authToken = await getToken();
+                graphToken = await getGraphToken();
 
-                if (retryCount >= maxRetries) {
+                if (!authToken || !graphToken) {
+                    throw new Error("No auth token available");
+                }
+            } catch (authError) {
+                console.error("Auth failed:", authError);
+
+                // Force immediate re-authentication for any auth error
+                const confirmLogin = window.confirm("Your session has expired. Please sign in again to continue.");
+
+                if (!confirmLogin) {
+                    setError(new Error("Authentication required to continue"));
                     setIsLoading(false);
-                    const confirmLogin = window.confirm("Unable to verify Microsoft authentication. Would you like to sign in again?");
-                    if (confirmLogin) {
-                        try {
-                            msalInstance.clearCache();
-                            await loginToMicrosoft();
-                            const newToken = await getGraphToken();
-                            if (newToken) {
-                                hasValidMicrosoftAuth = true;
-                            }
-                        } catch (loginError) {
-                            console.error("Microsoft re-authentication failed:", loginError);
-                            setError(new Error("Failed to authenticate with Microsoft. Please try again."));
-                            return;
-                        }
-                    } else {
-                        setError(new Error("Microsoft authentication is required to use the chat feature."));
-                        return;
+                    return;
+                }
+
+                try {
+                    // Clear everything and force fresh login
+                    await clearAllMsalCache();
+                    await loginToMicrosoft();
+
+                    // Get fresh tokens after login
+                    authToken = await getToken();
+                    graphToken = await getGraphToken();
+
+                    if (!authToken || !graphToken) {
+                        throw new Error("Failed to obtain token after re-authentication");
                     }
+                } catch (loginError) {
+                    console.error("Re-authentication failed:", loginError);
+                    setError(new Error("Failed to authenticate. Please refresh the page and try again."));
+                    setIsLoading(false);
+                    return;
                 }
             }
-        }
-
-        if (!hasValidMicrosoftAuth) {
-            setIsLoading(false);
-            setError(new Error("Unable to establish Microsoft authentication."));
-            return;
-        }
-
-        try {
-            const authToken = await getToken();
-            const graphtoken = await getGraphToken();
-
             // Get artifact information for BA bot
             let artifactContext = {};
-            if (botId === 'ba') {
+            if (botId === "ba") {
                 const selectedArtifact = getSelectedArtifact();
                 artifactContext = {
                     artifact_type: selectedArtifactType,
@@ -425,17 +490,19 @@ const Chat = () => {
                         language: i18n.language,
                         use_agentic_retrieval: useAgenticRetrieval,
                         bot_id: botId,
-                        graph_token: graphtoken,
+                        graph_token: graphToken,
                         artifact_type: selectedArtifactType,
                         // NEW: Include attachment references for just-in-time fetching
                         attachment_refs: attachmentRefs || [],
-                        ...(seed !== null ? { seed: seed } : {}),
+                        ...(seed !== null ? { seed: seed } : {})
                     }
                 },
                 session_state: answers.length ? answers[answers.length - 1][1].session_state : null
             };
 
+            console.log("📡 Making API call...");
             const response = await chatApi(request, shouldStream, authToken);
+
             if (!response.body) {
                 throw Error("No response body");
             }
@@ -443,9 +510,11 @@ const Chat = () => {
                 throw Error(`Request failed with status ${response.status}`);
             }
 
-            // Handle response (keep existing streaming/non-streaming logic)
+            console.log("✅ API call successful, processing response...");
+
+            // STEP 3: Handle the response
             if (shouldStream) {
-                const parsedResponse: ChatAppResponse = await handleAsyncRequest(question, answers, response.body, controller.signal);
+                const parsedResponse: ChatAppResponse = await handleAsyncRequest(question, answers, response.body, abortController?.signal);
                 setAnswers([...answers, [question, parsedResponse, attachmentRefs]]);
 
                 if (useSuggestFollowupQuestions) {
@@ -455,17 +524,18 @@ const Chat = () => {
                 if (typeof parsedResponse.session_state === "string" && parsedResponse.session_state !== "") {
                     const authToken = await getToken();
                     // Convert to old format for history manager compatibility
-                    const historyData = [...answers, [question, parsedResponse, attachmentRefs]].map(answer => [answer[0], answer[1]] as [string, ChatAppResponse]);
-                    
+                    const historyData = [...answers, [question, parsedResponse, attachmentRefs]].map(
+                        answer => [answer[0], answer[1]] as [string, ChatAppResponse]
+                    );
+
                     // Add bot context for history saving
                     const historyContext = {
                         bot_id: botId,
-                        artifact_label: botId === 'ba' ? getSelectedArtifact().label : undefined
+                        artifact_label: botId === "ba" ? getSelectedArtifact().label : undefined
                     };
-                    
+
                     historyManager.addItem(parsedResponse.session_state, historyData, authToken, historyContext);
                 }
-
             } else {
                 const parsedResponse: ChatAppResponseOrError = await response.json();
                 if (parsedResponse.error) {
@@ -480,23 +550,25 @@ const Chat = () => {
                 if (typeof parsedResponse.session_state === "string" && parsedResponse.session_state !== "") {
                     const authToken = await getToken();
                     // Convert to old format for history manager compatibility
-                    const historyData = [...answers, [question, parsedResponse as ChatAppResponse, attachmentRefs]].map(answer => [answer[0], answer[1]] as [string, ChatAppResponse]);
-                    
+                    const historyData = [...answers, [question, parsedResponse as ChatAppResponse, attachmentRefs]].map(
+                        answer => [answer[0], answer[1]] as [string, ChatAppResponse]
+                    );
+
                     // Add bot context for history saving
                     const historyContext = {
                         bot_id: botId,
-                        artifact_label: botId === 'ba' ? getSelectedArtifact().label : undefined
+                        artifact_label: botId === "ba" ? getSelectedArtifact().label : undefined
                     };
-                    
+
                     historyManager.addItem(parsedResponse.session_state, historyData, authToken, historyContext);
                 }
             }
-            setSpeechUrls([...speechUrls, null]);
 
+            setSpeechUrls([...speechUrls, null]);
         } catch (e: any) {
             // Check if error is due to cancellation
-            if (e.name === 'AbortError') {
-                console.log('Request was cancelled');
+            if (e.name === "AbortError") {
+                console.log("Request was cancelled");
                 // Don't set error state for cancelled requests
             } else {
                 setError(e);
@@ -525,7 +597,6 @@ const Chat = () => {
         makeApiRequest(message);
     };
 
-
     const clearChat = () => {
         lastQuestionRef.current = "";
         error && setError(undefined);
@@ -537,7 +608,7 @@ const Chat = () => {
         setCurrentFollowupQuestions([]);
         setIsLoading(false);
         setIsStreaming(false);
-        setCurrentAttachments([]); 
+        setCurrentAttachments([]);
     };
 
     useEffect(() => chatMessageStreamEnd.current?.scrollIntoView({ behavior: "smooth" }), [isLoading]);
@@ -655,13 +726,6 @@ const Chat = () => {
 
         return () => clearInterval(interval);
     }, [client, loggedIn]);
-
-    /* ─── Bot selection ─────────────────────────────────────────── */
-    const { botId, setBotId } = useBot();
-    console.log("Current botId:", botId); // Log the botId
-    const botProfile: BotProfile = BOTS[botId] ?? BOTS[DEFAULT_BOT_ID];
-
-    useBotTheme(botId);
 
     // Listen for custom events and window resize
     useEffect(() => {
@@ -796,7 +860,19 @@ const Chat = () => {
         setSelectedAnswer(index);
     };
 
-    const { t, i18n } = useTranslation();
+    // Add this handler function in the Chat component
+    const handleContentSuggestion = async (suggestion: string, questionAsked: string) => {
+        try {
+            // Use the same token acquisition logic as makeApiRequest
+            const authToken = await getGraphToken();
+
+            // Submit the suggestion using the graph token (or auth token as fallback)
+            await submitContentSuggestion(questionAsked, suggestion, authToken);
+        } catch (error) {
+            console.error("Error submitting content suggestion:", error);
+            throw error; // Re-throw to let Answer component handle the error
+        }
+    };
 
     return (
         <div className={styles.container}>
@@ -880,14 +956,11 @@ const Chat = () => {
                             )}
                         </div>
                     ) : (
-                        <div className={`${styles.chatMessageStream} ${botId === 'ba' ? styles.baBot : ''}`}>
+                        <div className={`${styles.chatMessageStream} ${botId === "ba" ? styles.baBot : ""}`}>
                             {isStreaming &&
                                 streamedAnswers.map((streamedAnswer, index) => (
                                     <div key={index}>
-                                        <UserChatMessage 
-                                            message={streamedAnswer[0]} 
-                                            attachmentRefs={streamedAnswer[2]} 
-                                        />
+                                        <UserChatMessage message={streamedAnswer[0]} attachmentRefs={streamedAnswer[2]} />
                                         <div className={styles.chatMessageGpt}>
                                             <Answer
                                                 isStreaming={true}
@@ -909,10 +982,7 @@ const Chat = () => {
                             {!isStreaming &&
                                 answers.map((answer, index) => (
                                     <div key={index}>
-                                        <UserChatMessage 
-                                            message={answer[0]} 
-                                            attachmentRefs={answer[2]} 
-                                        />
+                                        <UserChatMessage message={answer[0]} attachmentRefs={answer[2]} />
                                         <div className={styles.chatMessageGpt}>
                                             <Answer
                                                 isStreaming={false}
@@ -926,6 +996,8 @@ const Chat = () => {
                                                 onSupportingContentClicked={() => onToggleTab(AnalysisPanelTabs.SupportingContentTab, index)}
                                                 showSpeechOutputAzure={showSpeechOutputAzure}
                                                 showSpeechOutputBrowser={showSpeechOutputBrowser}
+                                                userQuestion={answer[0]} // Pass the user's question
+                                                onContentSuggestion={suggestion => handleContentSuggestion(suggestion, answer[0])}
                                             />
                                         </div>
                                     </div>
@@ -933,10 +1005,7 @@ const Chat = () => {
 
                             {isLoading && (
                                 <>
-                                    <UserChatMessage 
-                                        message={lastQuestionRef.current} 
-                                        attachmentRefs={currentAttachments} 
-                                    />
+                                    <UserChatMessage message={lastQuestionRef.current} attachmentRefs={currentAttachments} />
                                     <div className={styles.chatMessageGptMinWidth}>
                                         <AnswerLoading />
                                     </div>
@@ -945,15 +1014,9 @@ const Chat = () => {
 
                             {error ? (
                                 <>
-                                    <UserChatMessage 
-                                        message={lastQuestionRef.current}
-                                        attachmentRefs={currentAttachments} 
-                                    />
+                                    <UserChatMessage message={lastQuestionRef.current} attachmentRefs={currentAttachments} />
                                     <div className={styles.chatMessageGptMinWidth}>
-                                        <AnswerError 
-                                            error={error.toString()} 
-                                            onRetry={() => makeApiRequest(lastQuestionRef.current, currentAttachments)} 
-                                        />
+                                        <AnswerError error={error.toString()} onRetry={() => makeApiRequest(lastQuestionRef.current, currentAttachments)} />
                                     </div>
                                 </>
                             ) : null}
@@ -962,7 +1025,7 @@ const Chat = () => {
                     )}
 
                     <div
-                        className={`${styles.chatInput} ${botId === 'ba' ? styles.baBot : ''}`}
+                        className={`${styles.chatInput} ${botId === "ba" ? styles.baBot : ""}`}
                         style={{
                             right: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
                             left: isHistoryPanelOpen && !isMobile ? "320px" : "0",

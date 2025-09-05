@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { loginToMicrosoft, logoutFromMicrosoft, isMicrosoftAuthenticated, getUsername, getGraphToken } from "./authConfig";
+import { loginToMicrosoft, logoutFromMicrosoft, isMicrosoftAuthenticated, getUsername, getGraphToken, clearAllMsalCache   } from "./authConfig";
 import { InteractionRequiredAuthError } from "@azure/msal-browser";
 
 export const MicrosoftSignIn: React.FC = () => {
     const [isMsAuthenticated, setIsMsAuthenticated] = useState(false);
     const [msUsername, setMsUsername] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [authError, setAuthError] = useState<string | null>(null);
 
+    // Add the useEffect right here:
     useEffect(() => {
         checkMicrosoftAuth();
 
@@ -18,20 +20,19 @@ export const MicrosoftSignIn: React.FC = () => {
                         await getGraphToken();
                     } catch (error) {
                         console.error("Session validation failed:", error);
-                        // Force re-check of auth status
-                        await checkMicrosoftAuth();
+                        await checkMicrosoftAuth(); // Force re-check
                     }
                 }
             },
             5 * 60 * 1000
-        ); // Check every 5 minutes
+        );
 
         return () => clearInterval(interval);
     }, [isMsAuthenticated]);
 
     const checkMicrosoftAuth = async () => {
         try {
-            // First check if we have accounts (async now!)
+            setAuthError(null);
             const hasAccounts = await isMicrosoftAuthenticated();
 
             if (!hasAccounts) {
@@ -40,32 +41,44 @@ export const MicrosoftSignIn: React.FC = () => {
                 return;
             }
 
-            // Try to get a token to verify it actually works
             await getGraphToken();
             setIsMsAuthenticated(true);
 
-            // Get username
             const username = await getUsername();
             setMsUsername(username);
         } catch (error) {
             console.log("Auth check failed:", error);
+            
+            await clearAllMsalCache();
             setIsMsAuthenticated(false);
             setMsUsername(null);
+            
+            // ✅ Type guard the error before accessing .message
+            if (error instanceof Error && error.message === "INTERACTION_REQUIRED") {
+                setAuthError("Session expired. Please sign in again.");
+            } else {
+                // Handle other error types
+                setAuthError("Authentication failed. Please sign in again.");
+            }
         }
     };
 
     const handleMicrosoftLogin = async () => {
         setLoading(true);
+        setAuthError(null);
         try {
+            // ✅ Always clear cache before login attempt
+            await clearAllMsalCache();
             await loginToMicrosoft();
             await checkMicrosoftAuth();
         } catch (error) {
             console.error("Microsoft login failed:", error);
-            alert("Failed to sign in to Microsoft. Please try again.");
+            setAuthError("Failed to sign in. Please try again.");
         } finally {
             setLoading(false);
         }
     };
+
 
     const handleMicrosoftLogout = async () => {
         setLoading(true);

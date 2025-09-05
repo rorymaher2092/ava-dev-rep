@@ -13,6 +13,7 @@ import { parseAnswerToHtml } from "./AnswerParser";
 import avaLogo from "../../assets/ava.svg"; // Ava logo import
 import { SpeechOutputBrowser } from "./SpeechOutputBrowser";
 import { SpeechOutputAzure } from "./SpeechOutputAzure";
+import { submitContentSuggestion } from "../../api";
 
 // Ensure you are importing the correct bot logo from your BotConfig
 import { BotProfile, BOTS } from "../../config/botConfig";
@@ -21,6 +22,7 @@ import { useBot } from "../../contexts/BotContext";
 // ADD THESE IMPORTS FOR YOUR NEW ICONS
 import confluenceLogo from "../../assets/confluence-logo.png";
 import pdfIcon from "../../assets/pdf-icon.png"; // Replace with your actual PDF icon path
+import { TextFieldBase } from "@fluentui/react";
 
 interface Props {
     answer: ChatAppResponse;
@@ -35,6 +37,8 @@ interface Props {
     //showFollowupQuestions?: boolean;
     showSpeechOutputBrowser?: boolean;
     showSpeechOutputAzure?: boolean;
+    userQuestion?: string; // Pass the user's question to the component
+    onContentSuggestion?: (suggestion: string, questionAsked: string) => void;
 }
 
 export const Answer = ({
@@ -49,7 +53,9 @@ export const Answer = ({
     //onFollowupQuestionClicked,
     //showFollowupQuestions,
     showSpeechOutputAzure,
-    showSpeechOutputBrowser
+    showSpeechOutputBrowser,
+    userQuestion,
+    onContentSuggestion
 }: Props) => {
     const followupQuestions = answer.context?.followup_questions;
     const { t } = useTranslation();
@@ -155,6 +161,10 @@ export const Answer = ({
         }
     };
 
+    const [showContentSuggestion, setShowContentSuggestion] = useState(false);
+    const [contentSuggestion, setContentSuggestion] = useState("");
+    const [isSubmittingSuggestion, setIsSubmittingSuggestion] = useState(false);
+
     const parsedAnswer = useMemo(() => parseAnswerToHtml(answer, isStreaming, handleCitationClick), [answer, isStreaming]);
     const sanitizedAnswerHtml = DOMPurify.sanitize(parsedAnswer.answerHtml);
 
@@ -211,6 +221,34 @@ export const Answer = ({
             setShowFeedbackDialog(false);
         } catch (error) {
             console.error("Error submitting feedback:", error);
+        }
+    };
+
+    const handleContentSuggestionSubmit = async () => {
+        if (!contentSuggestion.trim()) return;
+
+        setIsSubmittingSuggestion(true);
+
+        try {
+            // Get the original question from the conversation
+            const userQuestion = answer.message.content; // You might need to pass this from parent
+
+            // Call the API to save the suggestion
+            if (onContentSuggestion) {
+                await onContentSuggestion(contentSuggestion, userQuestion);
+            }
+
+            // Clear and close the form
+            setContentSuggestion("");
+            setShowContentSuggestion(false);
+
+            // Show success message (you could also use a toast notification)
+            alert("Thank you! Your content suggestion has been submitted.");
+        } catch (error) {
+            console.error("Error submitting content suggestion:", error);
+            alert("Sorry, there was an error submitting your suggestion. Please try again.");
+        } finally {
+            setIsSubmittingSuggestion(false);
         }
     };
 
@@ -407,76 +445,184 @@ export const Answer = ({
                             marginTop: "20px",
                             display: "flex",
                             alignItems: "center",
-                            justifyContent: "space-between"
+                            justifyContent: "space-between",
+                            flexWrap: "wrap",
+                            gap: "12px"
                         }}
                     >
-                        {!feedbackGiven ? (
-                            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                                <span style={{ color: "var(--text-secondary)", fontSize: "14px" }}>Was this helpful?</span>
-                                <button
-                                    onClick={() => handleFeedback("positive")}
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                            {!feedbackGiven ? (
+                                <>
+                                    <span style={{ color: "var(--text-secondary)", fontSize: "14px" }}>Was this helpful?</span>
+                                    <button
+                                        onClick={() => handleFeedback("positive")}
+                                        style={{
+                                            backgroundColor: "transparent",
+                                            border: "1px solid var(--border)",
+                                            borderRadius: "20px",
+                                            padding: "6px 12px",
+                                            color: "var(--text)",
+                                            cursor: "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "6px",
+                                            fontSize: "14px",
+                                            transition: "all 0.2s ease"
+                                        }}
+                                        onMouseEnter={e => {
+                                            e.currentTarget.style.backgroundColor = "rgba(40, 167, 69, 0.1)";
+                                            e.currentTarget.style.borderColor = "#28a745";
+                                        }}
+                                        onMouseLeave={e => {
+                                            e.currentTarget.style.backgroundColor = "transparent";
+                                            e.currentTarget.style.borderColor = "var(--border)";
+                                        }}
+                                    >
+                                        👍 Yes
+                                    </button>
+                                    <button
+                                        onClick={() => handleFeedback("negative")}
+                                        style={{
+                                            backgroundColor: "transparent",
+                                            border: "1px solid var(--border)",
+                                            borderRadius: "20px",
+                                            padding: "6px 12px",
+                                            color: "var(--text)",
+                                            cursor: "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "6px",
+                                            fontSize: "14px",
+                                            transition: "all 0.2s ease"
+                                        }}
+                                        onMouseEnter={e => {
+                                            e.currentTarget.style.backgroundColor = "rgba(220, 53, 69, 0.1)";
+                                            e.currentTarget.style.borderColor = "#dc3545";
+                                        }}
+                                        onMouseLeave={e => {
+                                            e.currentTarget.style.backgroundColor = "transparent";
+                                            e.currentTarget.style.borderColor = "var(--border)";
+                                        }}
+                                    >
+                                        👎 No
+                                    </button>
+
+                                    {/* Add Content button - only show if knowledge gap detected */}
+                                    {parsedAnswer.hasKnowledgeGap && (
+                                        <button
+                                            onClick={() => setShowContentSuggestion(!showContentSuggestion)}
+                                            style={{
+                                                backgroundColor: "transparent",
+                                                border: "1px solid var(--border)",
+                                                borderRadius: "20px",
+                                                padding: "6px 12px",
+                                                color: "var(--text)",
+                                                cursor: "pointer",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "6px",
+                                                fontSize: "14px",
+                                                transition: "all 0.2s ease"
+                                            }}
+                                            onMouseEnter={e => {
+                                                e.currentTarget.style.backgroundColor = "rgba(0, 123, 255, 0.1)";
+                                                e.currentTarget.style.borderColor = "#007bff";
+                                            }}
+                                            onMouseLeave={e => {
+                                                e.currentTarget.style.backgroundColor = "transparent";
+                                                e.currentTarget.style.borderColor = "var(--border)";
+                                            }}
+                                        >
+                                            ➕ Content Request
+                                        </button>
+                                    )}
+                                </>
+                            ) : (
+                                <div
                                     style={{
-                                        backgroundColor: "transparent",
-                                        border: "1px solid var(--border)",
-                                        borderRadius: "20px",
-                                        padding: "6px 12px",
-                                        color: "var(--text)",
-                                        cursor: "pointer",
+                                        color: "var(--primary)",
+                                        fontSize: "14px",
                                         display: "flex",
                                         alignItems: "center",
-                                        gap: "6px",
-                                        fontSize: "14px",
-                                        transition: "all 0.2s ease"
-                                    }}
-                                    onMouseEnter={e => {
-                                        e.currentTarget.style.backgroundColor = "rgba(40, 167, 69, 0.1)";
-                                        e.currentTarget.style.borderColor = "#28a745";
-                                    }}
-                                    onMouseLeave={e => {
-                                        e.currentTarget.style.backgroundColor = "transparent";
-                                        e.currentTarget.style.borderColor = "var(--border)";
+                                        gap: "6px"
                                     }}
                                 >
-                                    👍 Yes
-                                </button>
-                                <button
-                                    onClick={() => handleFeedback("negative")}
-                                    style={{
-                                        backgroundColor: "transparent",
-                                        border: "1px solid var(--border)",
-                                        borderRadius: "20px",
-                                        padding: "6px 12px",
-                                        color: "var(--text)",
-                                        cursor: "pointer",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "6px",
-                                        fontSize: "14px",
-                                        transition: "all 0.2s ease"
-                                    }}
-                                    onMouseEnter={e => {
-                                        e.currentTarget.style.backgroundColor = "rgba(220, 53, 69, 0.1)";
-                                        e.currentTarget.style.borderColor = "#dc3545";
-                                    }}
-                                    onMouseLeave={e => {
-                                        e.currentTarget.style.backgroundColor = "transparent";
-                                        e.currentTarget.style.borderColor = "var(--border)";
-                                    }}
-                                >
-                                    👎 No
-                                </button>
-                            </div>
-                        ) : (
+                                    ✓ Thank you for your feedback!
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Content suggestion dropdown */}
+                        {showContentSuggestion && parsedAnswer.hasKnowledgeGap && (
                             <div
                                 style={{
-                                    color: "var(--primary)",
-                                    fontSize: "14px",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "6px"
+                                    width: "100%",
+                                    marginTop: "12px",
+                                    padding: "16px",
+                                    backgroundColor: "var(--surface-hover)",
+                                    border: "1px solid var(--border)",
+                                    borderRadius: "12px"
                                 }}
                             >
-                                ✓ Thank you for your feedback!
+                                <div style={{ marginBottom: "12px", color: "var(--text)", fontSize: "14px", fontWeight: "500" }}>
+                                    What question would you like answered?
+                                </div>
+                                <textarea
+                                    value={contentSuggestion}
+                                    onChange={e => setContentSuggestion(e.target.value)}
+                                    placeholder="Could you provide some more context? Where does this information exist?"
+                                    style={{
+                                        width: "100%",
+                                        minHeight: "80px",
+                                        padding: "8px 12px",
+                                        border: "1px solid var(--border)",
+                                        borderRadius: "8px",
+                                        backgroundColor: "var(--surface)",
+                                        color: "var(--text)",
+                                        fontSize: "14px",
+                                        resize: "vertical",
+                                        fontFamily: "inherit"
+                                    }}
+                                />
+                                <div style={{ marginTop: "12px", display: "flex", gap: "8px" }}>
+                                    <button
+                                        onClick={handleContentSuggestionSubmit}
+                                        disabled={!contentSuggestion.trim() || isSubmittingSuggestion}
+                                        style={{
+                                            padding: "6px 16px",
+                                            backgroundColor: "var(--primary)",
+                                            color: "white",
+                                            border: "none",
+                                            borderRadius: "6px",
+                                            cursor: contentSuggestion.trim() && !isSubmittingSuggestion ? "pointer" : "not-allowed",
+                                            fontSize: "14px",
+                                            fontWeight: "500",
+                                            opacity: !contentSuggestion.trim() || isSubmittingSuggestion ? 0.6 : 1,
+                                            transition: "all 0.2s ease"
+                                        }}
+                                    >
+                                        {isSubmittingSuggestion ? "Submitting..." : "Submit"}
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowContentSuggestion(false);
+                                            setContentSuggestion("");
+                                        }}
+                                        style={{
+                                            padding: "6px 16px",
+                                            backgroundColor: "transparent",
+                                            color: "var(--text)",
+                                            border: "1px solid var(--border)",
+                                            borderRadius: "6px",
+                                            cursor: "pointer",
+                                            fontSize: "14px",
+                                            fontWeight: "500",
+                                            transition: "all 0.2s ease"
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>
