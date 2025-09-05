@@ -74,7 +74,7 @@ export class IndexedDBProvider implements IHistoryProvider {
         return loadedItems;
     }
 
-    async addItem(id: string, answers: Answers): Promise<void> {
+    async addItem(id: string, answers: Answers, idToken?: string, context?: any): Promise<void> {
         const timestamp = new Date().getTime();
         const db = await this.init(); // 自動的に初期化
         const tx = db.transaction(this.storeName, "readwrite");

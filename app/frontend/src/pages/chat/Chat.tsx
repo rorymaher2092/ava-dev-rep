@@ -456,7 +456,14 @@ const Chat = () => {
                     const authToken = await getToken();
                     // Convert to old format for history manager compatibility
                     const historyData = [...answers, [question, parsedResponse, attachmentRefs]].map(answer => [answer[0], answer[1]] as [string, ChatAppResponse]);
-                    historyManager.addItem(parsedResponse.session_state, historyData, authToken);
+                    
+                    // Add bot context for history saving
+                    const historyContext = {
+                        bot_id: botId,
+                        artifact_label: botId === 'ba' ? getSelectedArtifact().label : undefined
+                    };
+                    
+                    historyManager.addItem(parsedResponse.session_state, historyData, authToken, historyContext);
                 }
 
             } else {
@@ -474,7 +481,14 @@ const Chat = () => {
                     const authToken = await getToken();
                     // Convert to old format for history manager compatibility
                     const historyData = [...answers, [question, parsedResponse as ChatAppResponse, attachmentRefs]].map(answer => [answer[0], answer[1]] as [string, ChatAppResponse]);
-                    historyManager.addItem(parsedResponse.session_state, historyData, authToken);
+                    
+                    // Add bot context for history saving
+                    const historyContext = {
+                        bot_id: botId,
+                        artifact_label: botId === 'ba' ? getSelectedArtifact().label : undefined
+                    };
+                    
+                    historyManager.addItem(parsedResponse.session_state, historyData, authToken, historyContext);
                 }
             }
             setSpeechUrls([...speechUrls, null]);
