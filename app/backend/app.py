@@ -37,6 +37,7 @@ from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
 from opentelemetry.instrumentation.httpx import (
     HTTPXClientInstrumentor,
 )
+
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 from quart import (
     Blueprint,
@@ -51,7 +52,6 @@ from quart import (
     session,
 )
 from quart_cors import cors
-import redis
 from quart_session import Session
 
 from bot_profiles import BotProfile, BOTS, DEFAULT_BOT_ID
@@ -66,6 +66,10 @@ from attachments.attachment_api import attachment_bp
 # In your main route file, make sure you have:
 from attachments.attachment_helpers import fetch_attachments_for_chat
 from chat_history.cosmosdb import chat_history_cosmosdb_bp
+from blob_session import QuartBlobSession
+from attachments.document_attachment_api import document_bp
+from attachments.session_cleanup import session_cleanup_bp
+from chat_history.feedback_api import feedback_bp
 
 from config import (
     CONFIG_AGENT_CLIENT,
@@ -1194,15 +1198,29 @@ async def close_clients():
 def create_app():
     app = Quart(__name__)
     
+    # ADD: Basic app configuration for sessions
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'vocus-ava-attachments-2025')
     
+    # ADD: Configure Blob Storage sessions
+    app.config['SESSION_COOKIE_NAME'] = 'vocus_session'
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SECURE'] = True  # Set False for local dev
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
+    app.config['SESSION_CONTAINER_NAME'] = 'ephemeral-attachments'
+    
+    # ADD: Initialize Blob session storage
+    QuartBlobSession(app)
+    
+    # Existing blueprints
     app.register_blueprint(bp)
     app.register_blueprint(chat_history_cosmosdb_bp)
-    
-    # Register feedback blueprint
-    from chat_history.feedback_api import feedback_bp
     app.register_blueprint(feedback_bp)
-
-    app.register_blueprint(attachment_bp)
+    app.register_blueprint(attachment_bp)  # Your existing attachment blueprint
+    
+    # ADD: New blueprints for document support
+    app.register_blueprint(document_bp)
+    app.register_blueprint(session_cleanup_bp)
 
 
     if os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):

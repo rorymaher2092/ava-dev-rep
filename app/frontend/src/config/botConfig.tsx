@@ -28,7 +28,14 @@ export const BOTS: Record<string, BotProfile> = {
         label: "Accelerate Assistant",
         themeClass: "theme-green",
         logo: avaGreen,
-        allowed_emails: ["Jamie.Gray@vocus.com.au", "Rory.Maher@vocus.com.au", "Callum.Mayhook@vocus.com.au", "Mitchell.Holt", "Rob.Ison", "Will.Hamilton"]
+        allowed_emails: [
+            "Jamie.Gray@vocus.com.au",
+            "Rory.Maher@vocus.com.au",
+            "Callum.Mayhook@vocus.com.au",
+            "Mitchell.Holt@vocus.com.au",
+            "Rob.Ison@vocus.com.au",
+            "Will.Hamilton@vocus.com.au"
+        ]
     },
     tender: {
         id: "tender",

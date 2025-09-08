@@ -15,13 +15,38 @@ from pathlib import Path
 
 # Import SAS storage and session helpers
 from .sas_storage import sas_storage
-from .attachment_helpers import (
-    get_or_create_session_id,
-    add_attachment_to_session,
-    remove_attachment_from_session,
-    get_attachment_counts,
-    get_unified_session_attachments
-)
+# Placeholder functions for missing session helpers
+def get_or_create_session_id():
+    session_id = session.get('session_id')
+    if not session_id:
+        session_id = str(uuid.uuid4())
+        session['session_id'] = session_id
+    return session_id
+
+def add_attachment_to_session(attachment_type, attachment_info):
+    attachments = session.get('attachments', {})
+    type_key = f"{attachment_type}s"
+    if type_key not in attachments:
+        attachments[type_key] = []
+    attachments[type_key].append(attachment_info)
+    session['attachments'] = attachments
+    return True
+
+def remove_attachment_from_session(attachment_type, attachment_id):
+    attachments = session.get('attachments', {})
+    type_key = f"{attachment_type}s"
+    if type_key in attachments:
+        attachments[type_key] = [a for a in attachments[type_key] if a.get('id') != attachment_id]
+        session['attachments'] = attachments
+    return True
+
+def get_attachment_counts():
+    attachments = session.get('attachments', {})
+    total = sum(len(v) for v in attachments.values())
+    return {'total': total}
+
+def get_unified_session_attachments():
+    return session.get('attachments', {})
 
 document_bp = Blueprint("documents", __name__, url_prefix="/api/attachments/documents")
 

@@ -16,17 +16,16 @@ export const enum VectorFields {
     TextAndImageEmbeddings = "textAndImageEmbeddings"
 }
 
-
 // Add this interface for the attachment reference type
 export interface AttachmentRef {
-  type: 'jira' | 'confluence';
-  key?: string;       // For JIRA tickets
-  url?: string;       // For Confluence pages
-  title?: string;     // Display name
-  summary?: string;   // For display purposes
-  status?: string;    // For JIRA tickets
-  priority?: string;  // For JIRA tickets
-  space_name?: string; // For Confluence pages
+    type: "jira" | "confluence" | "document";
+    key?: string; // For JIRA tickets
+    url?: string; // For Confluence pages
+    title?: string; // Display name
+    summary?: string; // For display purposes
+    status?: string; // For JIRA tickets
+    priority?: string; // For JIRA tickets
+    space_name?: string; // For Confluence pages
 }
 
 export type ChatAppRequestOverrides = {

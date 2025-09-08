@@ -22,6 +22,44 @@ CONFLUENCE_CONFIG = {
     "email": os.getenv("CONFLUENCE_EMAIL")
 }
 
+# ADD this new function to handle document sources
+async def fetch_document_source(doc_ref: Dict[str, Any]) -> Optional[str]:
+    """Fetch document from blob storage and format as source"""
+    try:
+        from attachments.sas_storage import sas_storage
+        from attachments.document_attachment_api import extract_text_from_file_data
+        
+        # Get content from blob
+        blob_path = doc_ref.get("blob_path")
+        if not blob_path:
+            current_app.logger.error(f"No blob_path in doc_ref: {doc_ref}")
+            return None
+            
+        current_app.logger.info(f"Fetching document from blob: {blob_path}")
+        file_data = await sas_storage.get_attachment_content(blob_path)
+        
+        # Extract text content
+        content = await extract_text_from_file_data(
+            file_data,
+            doc_ref.get("fileType", ".txt"),
+            doc_ref.get("filename", "document")
+        )
+        
+        # Format as source
+        source = f"""[DOCUMENT: {doc_ref.get('filename', 'Unknown')}]
+Type: {doc_ref.get('fileType', 'Unknown')}
+Size: {doc_ref.get('size', 0)} bytes
+Uploaded: {doc_ref.get('uploaded_at', 'Unknown')}
+
+Content:
+{content}"""
+        
+        return source
+        
+    except Exception as e:
+        current_app.logger.error(f"Error fetching document: {str(e)}")
+        return None
+
 async def fetch_attachments_for_chat(attachment_refs: List[Dict[str, Any]]) -> List[str]:
     """
     Fetch attachment content fresh for chat context.
@@ -30,7 +68,8 @@ async def fetch_attachments_for_chat(attachment_refs: List[Dict[str, Any]]) -> L
         attachment_refs: List of attachment references like:
         [
             {"type": "jira", "key": "PROJ-123"},
-            {"type": "confluence", "url": "https://...", "title": "Page Title"}
+            {"type": "confluence", "url": "https://...", "title": "Page Title"},
+            {"type": "document", "id": "uuid", "filename": "file.pdf", "blob_path": "uploads/..."}  # NEW
         ]
     
     Returns:
@@ -57,6 +96,13 @@ async def fetch_attachments_for_chat(attachment_refs: List[Dict[str, Any]]) -> L
                     attachment_sources.append(source)
                     current_app.logger.info(f"Fetched Confluence page: {ref.get('title', ref['url'])}")
             
+            # ADD this new elif block for documents
+            elif ref.get("type") == "document" and ref.get("id"):
+                source = await fetch_document_source(ref)
+                if source:
+                    attachment_sources.append(source)
+                    current_app.logger.info(f"Fetched document: {ref.get('filename', 'Unknown')}")
+            
             else:
                 current_app.logger.warning(f"Invalid attachment reference: {ref}")
                 
@@ -67,6 +113,26 @@ async def fetch_attachments_for_chat(attachment_refs: List[Dict[str, Any]]) -> L
     
     current_app.logger.info(f"Successfully fetched {len(attachment_sources)} attachment sources")
     return attachment_sources
+
+async def validate_document(doc_id: str, blob_path: str) -> Dict[str, Any]:
+    """
+    Validate that a document exists in blob storage.
+    Returns basic info for UI display without fetching full content.
+    """
+    try:
+        from attachments.sas_storage import sas_storage
+        
+        # Just check if blob exists
+        blob_url = sas_storage.get_blob_url(blob_path)
+        
+        return {
+            "valid": True,
+            "id": doc_id,
+            "blob_path": blob_path,
+            "url": blob_url
+        }
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
 
 async def fetch_jira_ticket_source(ticket_key: str) -> Optional[str]:
     """Fetch a single JIRA ticket and format as source"""

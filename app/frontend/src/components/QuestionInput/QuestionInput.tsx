@@ -10,7 +10,7 @@ import { LoginContext } from "../../loginContext";
 import { requireLogin } from "../../authConfig";
 import { CompactArtifactSelector } from "../ArtifactSelector/CompactArtitfactSelector";
 import { useBot } from "../../contexts/BotContext";
-import { SimpleAttachmentMenu, AttachmentRef } from "../Attachments/AttachmentMenu";
+import { AttachmentRef } from "../Attachments/AttachmentMenu";
 
 // Import logos
 import confluenceLogo from "../../assets/confluence-logo.png";
@@ -374,7 +374,7 @@ export const QuestionInput = ({
                   />
                 </div>
               );
-            } else {
+            } else if (attachment.type === 'confluence') {
               return (
                 <div
                   key={`confluence-${attachment.url}-${index}`}
@@ -457,6 +457,68 @@ export const QuestionInput = ({
                   />
                 </div>
               );
+            } else {
+              // Document type
+              return (
+                <div
+                  key={`doc-${attachment.id}-${index}`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    border: "1px solid var(--border, #e1e1e1)",
+                    borderRadius: 999,
+                    padding: "6px 10px",
+                    background: "var(--surface-elevated, #fff)",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                    transition: "all 0.2s ease",
+                    maxWidth: "100%",
+                    overflow: "hidden",
+                    boxSizing: "border-box"
+                  }}
+                >
+                  <span style={{ 
+                    fontWeight: 600, 
+                    color: "#666",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    opacity: 0.7
+                  }}>
+                    📄 Document
+                  </span>
+                  <span 
+                    title={`${attachment.filename || 'Document'}${attachment.size ? ` (${Math.round(attachment.size / 1024)} KB)` : ''}`}
+                    style={{ 
+                      fontSize: "0.875rem",
+                      fontWeight: 500,
+                      color: "var(--text, inherit)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      maxWidth: "200px"
+                    }}
+                  >
+                    {attachment.filename || 'Document'}
+                  </span>
+                  <Button 
+                    size="small" 
+                    appearance="subtle" 
+                    icon={<span>×</span>} 
+                    onClick={() => {
+                      const newAttachments = attachments.filter((_, i) => i !== index);
+                      setAttachments(newAttachments);
+                    }} 
+                    aria-label="Remove"
+                    disabled={attachmentDisabled}
+                    style={{ 
+                      minWidth: 20, 
+                      padding: 2,
+                      marginLeft: 4
+                    }}
+                  />
+                </div>
+              );
             }
           })}
         </div>
@@ -513,6 +575,24 @@ export const QuestionInput = ({
               }}>
                 {!showJiraForm && !showConfluenceForm ? (
                   <div style={{ display: "flex", flexDirection: "column" }}>
+                    <div 
+                      style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        gap: "12px", 
+                        padding: "12px 8px", 
+                        borderRadius: "4px", 
+                        cursor: "pointer",
+                        transition: "background 0.2s"
+                      }}
+                      onClick={() => document.getElementById('file-upload')?.click()}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-hover)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      <span style={{ fontSize: 16 }}>📄</span>
+                      <span style={{ color: "var(--text)" }}>Upload Document</span>
+                    </div>
+                    
                     <div 
                       style={{ 
                         display: "flex", 
@@ -742,6 +822,45 @@ export const QuestionInput = ({
                 )}
               </MenuPopover>
             </Menu>
+            <input
+              id="file-upload"
+              type="file"
+              style={{ display: "none" }}
+              accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.pptx"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                
+                setAttachmentsBusy(true);
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                try {
+                  const response = await fetch('/api/attachments/documents/upload', {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'include'
+                  });
+                  
+                  if (response.ok) {
+                    const data = await response.json();
+                    setAttachments([...attachments, {
+                      type: 'document',
+                      id: data.document.id,
+                      filename: data.document.filename,
+                      fileType: data.document.file_type,
+                      size: data.document.size
+                    }]);
+                  }
+                } catch (error) {
+                  console.error('Upload failed:', error);
+                } finally {
+                  setAttachmentsBusy(false);
+                }
+                
+                e.target.value = '';
+              }}
+            />
           </div>
           
           <Button
