@@ -2,23 +2,24 @@
 import aiohttp
 import base64
 import re
+import os
 from typing import Dict, List, Any, Optional
 from urllib.parse import urlparse
 from quart import current_app
 import dateutil.parser
 from datetime import datetime
 
-# Configuration - Replace with your actual values or environment variables
+# Configuration from environment variables
 JIRA_CONFIG = {
-    "base_url": "https://vocus.atlassian.net",
-    "api_token": "REDACTED_TOKEN",
-    "email": "svc.atlassian@vocus.com.au"
+    "base_url": os.getenv("JIRA_BASE_URL", "https://vocus.atlassian.net"),
+    "api_token": os.getenv("JIRA_API_TOKEN"),
+    "email": os.getenv("JIRA_EMAIL")
 }
 
 CONFLUENCE_CONFIG = {
-    "base_url": "https://vocus.atlassian.net/wiki",
-    "api_token": "REDACTED_TOKEN",
-    "email": "svc.atlassian@vocus.com.au"
+    "base_url": os.getenv("CONFLUENCE_BASE_URL", "https://vocus.atlassian.net/wiki"),
+    "api_token": os.getenv("CONFLUENCE_API_TOKEN"),
+    "email": os.getenv("CONFLUENCE_EMAIL")
 }
 
 async def fetch_attachments_for_chat(attachment_refs: List[Dict[str, Any]]) -> List[str]:
