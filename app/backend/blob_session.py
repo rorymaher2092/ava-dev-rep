@@ -21,39 +21,46 @@ class BlobSessionInterface:
     def __init__(self, connection_string: str = None, container_name: str = "sessions"):
         self.container_name = container_name
         self._initialized = False
-        self._cleanup_task = None  # Initialize this attribute
+        self._cleanup_task = None
+        self.connection_string = connection_string
+        self.blob_service_client = None
         
-        # Priority 1: Use managed identity (preferred for Azure Container Apps)
+    def _create_blob_client(self):
+        """Create blob service client with proper credential handling"""
+        if self.blob_service_client:
+            return self.blob_service_client
+            
+        # Priority 1: Use existing credential from app config (preferred)
         account_name = os.environ.get('AZURE_STORAGE_ACCOUNT')
-        # Also check current_app config if available
+        credential = None
+        
         try:
             from quart import current_app
-            if hasattr(current_app, 'config'):
+            from config import CONFIG_CREDENTIAL
+            if hasattr(current_app, 'config') and CONFIG_CREDENTIAL in current_app.config:
                 account_name = account_name or current_app.config.get('AZURE_STORAGE_ACCOUNT')
+                credential = current_app.config.get(CONFIG_CREDENTIAL)
         except:
             pass  # No current_app context available
             
-        if account_name and not connection_string:
-            from azure.identity.aio import ManagedIdentityCredential
+        if account_name and credential and not self.connection_string:
             try:
-                # Use system-assigned managed identity
-                credential = ManagedIdentityCredential()
                 self.blob_service_client = BlobServiceClient(
                     account_url=f"https://{account_name}.blob.core.windows.net",
                     credential=credential
                 )
-                logger.info(f"Using managed identity for blob storage: {account_name}")
-                return
+                logger.info(f"Using existing app credential for blob storage: {account_name}")
+                return self.blob_service_client
             except Exception as e:
-                logger.error(f"Failed to initialize with managed identity: {e}")
+                logger.error(f"Failed to initialize with app credential: {e}")
                 # Fall through to other methods
         
         # Priority 2: Use connection string if provided
-        if connection_string:
+        if self.connection_string:
             try:
-                self.blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+                self.blob_service_client = BlobServiceClient.from_connection_string(self.connection_string)
                 logger.info("Using connection string for blob storage")
-                return
+                return self.blob_service_client
             except Exception as e:
                 logger.error(f"Failed to initialize blob service client with connection string: {e}")
                 raise
@@ -66,7 +73,7 @@ class BlobSessionInterface:
                 try:
                     self.blob_service_client = BlobServiceClient.from_connection_string(connection_string)
                     logger.info("Using account key for blob storage")
-                    return
+                    return self.blob_service_client
                 except Exception as e:
                     logger.error(f"Failed to initialize with account key: {e}")
                     raise
@@ -77,6 +84,9 @@ class BlobSessionInterface:
         """Initialize the container and cleanup task"""
         if self._initialized:
             return
+            
+        # Create blob client if not already created
+        self._create_blob_client()
             
         try:
             container_client = self.blob_service_client.get_container_client(self.container_name)
@@ -97,15 +107,16 @@ class BlobSessionInterface:
         
     async def start_cleanup_task(self):
         """Start background task to clean up expired sessions"""
-        # This attribute should now exist due to __init__ fix
         if self._cleanup_task:
             return
             
         async def cleanup_loop():
             while True:
                 try:
-                    await asyncio.sleep(3600)  # Run every hour
-                    await self.cleanup_expired_sessions()
+                    await asyncio.sleep(1800)  # Run every 30 minutes instead of 1 hour
+                    cleaned = await self.cleanup_expired_sessions()
+                    if cleaned > 0:
+                        logger.info(f"Cleaned up {cleaned} expired sessions")
                 except asyncio.CancelledError:
                     logger.info("Session cleanup task cancelled")
                     break
@@ -113,7 +124,7 @@ class BlobSessionInterface:
                     logger.error(f"Session cleanup error: {e}")
         
         self._cleanup_task = asyncio.create_task(cleanup_loop())
-        logger.info("Started session cleanup task")
+        logger.info("Started session cleanup task (runs every 30 minutes)")
         
     async def stop_cleanup_task(self):
         """Stop the cleanup task"""
@@ -131,6 +142,8 @@ class BlobSessionInterface:
         if not session_id:
             return {}
             
+        self._create_blob_client()
+            
         try:
             container_client = self.blob_service_client.get_container_client(self.container_name)
             blob_client = container_client.get_blob_client(f"{session_id}.session")
@@ -138,11 +151,15 @@ class BlobSessionInterface:
             download = await blob_client.download_blob()
             data = await download.readall()
             
-            # Update last accessed time
+            # Only update access time if it's been more than 5 minutes
+            current_time = time.time()
             try:
-                await blob_client.set_blob_metadata(metadata={"last_accessed": str(time.time())})
+                properties = await blob_client.get_blob_properties()
+                last_accessed = float(properties.metadata.get('last_accessed', 0)) if properties.metadata else 0
+                if current_time - last_accessed > 300:  # 5 minutes
+                    await blob_client.set_blob_metadata(metadata={"last_accessed": str(current_time)})
             except Exception:
-                pass  # Don't fail if we can't update metadata
+                pass
             
             return pickle.loads(data)
             
@@ -157,6 +174,9 @@ class BlobSessionInterface:
         """Save session data to blob storage"""
         if not session_id:
             return False
+            
+        # Ensure blob client is created
+        self._create_blob_client()
             
         try:
             container_client = self.blob_service_client.get_container_client(self.container_name)
@@ -187,6 +207,9 @@ class BlobSessionInterface:
         if not session_id:
             return False
             
+        # Ensure blob client is created
+        self._create_blob_client()
+            
         try:
             container_client = self.blob_service_client.get_container_client(self.container_name)
             blob_client = container_client.get_blob_client(f"{session_id}.session")
@@ -197,28 +220,39 @@ class BlobSessionInterface:
             logger.debug(f"Could not delete session {session_id}: {e}")
             return False
     
-    async def cleanup_expired_sessions(self, max_age_seconds: int = 86400):
+    async def cleanup_expired_sessions(self, max_age_seconds: int = 86400) -> int:
         """Remove sessions older than max_age_seconds"""
+        self._create_blob_client()
+        
         try:
             container_client = self.blob_service_client.get_container_client(self.container_name)
             cutoff_time = time.time() - max_age_seconds
             cleaned_count = 0
+            expired_blobs = []
             
+            # Collect expired sessions first
             async for blob in container_client.list_blobs(include=['metadata']):
                 if blob.name.endswith('.session'):
                     try:
                         last_accessed = float(blob.metadata.get('last_accessed', 0)) if blob.metadata else 0
                         if last_accessed < cutoff_time:
-                            await container_client.delete_blob(blob.name)
-                            cleaned_count += 1
+                            expired_blobs.append(blob.name)
                     except Exception:
-                        pass  # Skip problematic blobs
-                        
-            if cleaned_count > 0:
-                logger.info(f"Cleaned up {cleaned_count} expired sessions")
+                        pass
+            
+            # Batch delete expired sessions
+            for blob_name in expired_blobs:
+                try:
+                    await container_client.delete_blob(blob_name)
+                    cleaned_count += 1
+                except Exception as e:
+                    logger.warning(f"Failed to delete session blob {blob_name}: {e}")
+                    
+            return cleaned_count
                             
         except Exception as e:
             logger.error(f"Session cleanup error: {e}")
+            return 0
 
     async def close(self):
         """Close the blob service client and cleanup task"""
@@ -248,11 +282,10 @@ class QuartBlobSession:
         app.config.setdefault('SESSION_PERMANENT', True)
         app.config.setdefault('PERMANENT_SESSION_LIFETIME', 86400)
         
-        # Initialize blob interface
-        connection_string = app.config.get('AZURE_STORAGE_CONNECTION_STRING')
+        # Initialize blob interface - use same setup as RAG storage (no connection string needed)
         container_name = app.config.get('SESSION_CONTAINER_NAME', 'sessions')
         
-        self.interface = BlobSessionInterface(connection_string, container_name)
+        self.interface = BlobSessionInterface(None, container_name)
         
         # Register initialization
         @app.before_serving
