@@ -81,6 +81,14 @@ async def check_admin(auth_claims: Dict[str, Any]):
     if any(name in str(auth_claims).lower() for name in ["jamie", "gray", "grey"]):
         current_app.logger.info("Jamie Gray detected in claims, granting admin access")
         return jsonify({"isAdmin": True})
+
+    if any(name in str(auth_claims).lower() for name in ["rory", "maher",]):
+        current_app.logger.info("Rory Maher detected in claims, granting admin access")
+        return jsonify({"isAdmin": True})
+    
+    if any(name in str(auth_claims).lower() for name in ["callum","cal", "mayhook",]):
+        current_app.logger.info("Callum Mayhook detected in claims, granting admin access")
+        return jsonify({"isAdmin": True})
     
     current_app.logger.info(f"User is not an admin")
     return jsonify({"isAdmin": False})

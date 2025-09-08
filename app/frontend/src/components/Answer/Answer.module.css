@@ -6,6 +6,8 @@
     box-shadow: var(--shadow-md);
     backdrop-filter: blur(10px);
     width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -59,22 +61,75 @@
 
 .answerText table {
     border-collapse: collapse;
-    width: 100%;
     margin: 1rem 0;
     border-radius: var(--radius-md);
     overflow: hidden;
     box-shadow: var(--shadow-sm);
+    width: auto;
+    min-width: 100%;
+}
+
+.answerText {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
 }
 
 .answerText td, .answerText th {
     border: 1px solid var(--border);
     padding: 0.75rem;
     background: var(--surface);
+    white-space: nowrap;
+    vertical-align: top;
+}
+
+.answerText p, .answerText div, .answerText span {
+    white-space: normal;
+    word-wrap: break-word;
 }
 
 .answerText th {
     background: var(--surface-hover);
     font-weight: 600;
+}
+
+/* Table container for better overflow handling */
+.answerText > table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+
+.answerText > table > thead,
+.answerText > table > tbody,
+.answerText > table > tfoot {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+}
+
+/* Table wrapper - no scrolling, just styling */
+.tableWrapper {
+    margin: 1rem 0;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.tableWrapper table {
+    margin: 0;
+    width: auto;
+}
+
+/* Mobile responsive tables */
+@media (max-width: 768px) {
+    .answerText table {
+        font-size: 0.8rem;
+    }
+    
+    .answerText td, .answerText th {
+        padding: 0.5rem;
+        max-width: 120px;
+    }
 }
 
 .selected {

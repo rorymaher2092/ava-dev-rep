@@ -20,7 +20,7 @@ import { BotProfile, BOTS } from "../../config/botConfig";
 import { useBot } from "../../contexts/BotContext";
 
 // ADD THESE IMPORTS FOR YOUR NEW ICONS
-import confluenceLogo from "../../assets/confluenec-logo.png";
+import confluenceLogo from "../../assets/confluence-logo.png";
 import pdfIcon from "../../assets/pdf-icon.png"; // Replace with your actual PDF icon path
 import { TextFieldBase } from "@fluentui/react";
 
@@ -169,11 +169,11 @@ export const Answer = ({
     const sanitizedAnswerHtml = DOMPurify.sanitize(parsedAnswer.answerHtml);
 
     const handleCopy = () => {
-        // Single replace to remove all HTML tags to remove the citations
-        const textToCopy = sanitizedAnswerHtml.replace(/<a [^>]*><sup>\d+<\/sup><\/a>|<[^>]+>/g, "");
-
+        // Copy the original markdown content instead of processed HTML
+        const markdownContent = answer.message.content;
+        
         navigator.clipboard
-            .writeText(textToCopy)
+            .writeText(markdownContent)
             .then(() => {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
@@ -416,13 +416,26 @@ export const Answer = ({
 
                 {/* Answer content */}
                 <div
+                    className={styles.answerText}
                     style={{
                         color: "var(--text)",
                         lineHeight: "1.6",
-                        fontSize: "15px"
+                        fontSize: "15px",
+                        padding: "0 8px"
                     }}
                 >
-                    <ReactMarkdown children={sanitizedAnswerHtml} rehypePlugins={[rehypeRaw]} remarkPlugins={[remarkGfm]} />
+                    <ReactMarkdown 
+                        children={sanitizedAnswerHtml} 
+                        rehypePlugins={[rehypeRaw]} 
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                            table: ({children}) => (
+                                <div className={styles.tableWrapper}>
+                                    <table>{children}</table>
+                                </div>
+                            )
+                        }}
+                    />
                 </div>
 
                 {/* Feedback section */}

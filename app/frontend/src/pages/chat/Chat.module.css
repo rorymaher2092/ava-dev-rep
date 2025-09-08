@@ -93,11 +93,17 @@
     max-width: 800px;
     margin: 0 auto;
     overflow-y: auto;
+    overflow-x: visible;
     padding: 0 1rem;
     display: flex;
     flex-direction: column;
     margin-bottom: 250px;
     transition: width 0.3s ease;
+}
+
+/* BA assistant wider layout */
+.chatMessageStream.baBot {
+    max-width: 1000px;
 }
 
 /* GPT response container override */
@@ -158,6 +164,11 @@
     z-index: 999;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: var(--shadow-lg);
+}
+
+/* BA assistant wider input */
+.chatInput.baBot {
+    max-width: 1000px;
 }
 
 /* Analysis panel styling */

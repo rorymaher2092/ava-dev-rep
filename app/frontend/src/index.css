@@ -64,3 +64,12 @@ a:hover {
     color: var(--primary-hover);
     text-decoration: underline;
 }
+
+/* Fix ChatInput box styling */
+._chatInput_xqqfl_289 {
+    background-color: var(--background) !important;
+    border-top: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    box-shadow: none !important;
+}

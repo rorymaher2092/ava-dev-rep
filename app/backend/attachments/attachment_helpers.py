@@ -1,0 +1,395 @@
+# simple_attachment_helper.py - Just-in-time attachment fetching
+import aiohttp
+import base64
+import re
+import os
+from typing import Dict, List, Any, Optional
+from urllib.parse import urlparse
+from quart import current_app
+import dateutil.parser
+from datetime import datetime
+
+# Configuration from environment variables
+JIRA_CONFIG = {
+    "base_url": os.getenv("JIRA_BASE_URL", "https://vocus.atlassian.net"),
+    "api_token": os.getenv("JIRA_API_TOKEN"),
+    "email": os.getenv("JIRA_EMAIL")
+}
+
+CONFLUENCE_CONFIG = {
+    "base_url": os.getenv("CONFLUENCE_BASE_URL", "https://vocus.atlassian.net/wiki"),
+    "api_token": os.getenv("CONFLUENCE_API_TOKEN"),
+    "email": os.getenv("CONFLUENCE_EMAIL")
+}
+
+async def fetch_attachments_for_chat(attachment_refs: List[Dict[str, Any]]) -> List[str]:
+    """
+    Fetch attachment content fresh for chat context.
+    
+    Args:
+        attachment_refs: List of attachment references like:
+        [
+            {"type": "jira", "key": "PROJ-123"},
+            {"type": "confluence", "url": "https://...", "title": "Page Title"}
+        ]
+    
+    Returns:
+        List of formatted attachment sources ready for prompt inclusion
+    """
+    if not attachment_refs:
+        return []
+    
+    current_app.logger.info(f"Fetching {len(attachment_refs)} attachments for chat")
+    
+    attachment_sources = []
+    
+    for ref in attachment_refs:
+        try:
+            if ref.get("type") == "jira" and ref.get("key"):
+                source = await fetch_jira_ticket_source(ref["key"])
+                if source:
+                    attachment_sources.append(source)
+                    current_app.logger.info(f"Fetched JIRA ticket: {ref['key']}")
+            
+            elif ref.get("type") == "confluence" and ref.get("url"):
+                source = await fetch_confluence_page_source(ref["url"])
+                if source:
+                    attachment_sources.append(source)
+                    current_app.logger.info(f"Fetched Confluence page: {ref.get('title', ref['url'])}")
+            
+            else:
+                current_app.logger.warning(f"Invalid attachment reference: {ref}")
+                
+        except Exception as e:
+            current_app.logger.error(f"Failed to fetch attachment {ref}: {str(e)}")
+            # Continue with other attachments even if one fails
+            continue
+    
+    current_app.logger.info(f"Successfully fetched {len(attachment_sources)} attachment sources")
+    return attachment_sources
+
+async def fetch_jira_ticket_source(ticket_key: str) -> Optional[str]:
+    """Fetch a single JIRA ticket and format as source"""
+    try:
+        ticket_data = await fetch_jira_ticket_data(ticket_key)
+        if not ticket_data:
+            return None
+        
+        ticket_age = get_time_ago(ticket_data.get("updated") or ticket_data.get("created"))
+        
+        # Format as a single source string
+        source = f"""[JIRA TICKET: {ticket_data['key']}]
+Title: {ticket_data['summary']}
+Status: {ticket_data['status']} | Priority: {ticket_data['priority']} | Type: {ticket_data['issue_type']}
+Assignee: {ticket_data['assignee']} | Reporter: {ticket_data['reporter']}
+Last Updated: {ticket_age}
+URL: {ticket_data['url']}
+
+Description:
+{format_content_for_prompt(ticket_data['description'])}"""
+        
+        return source
+        
+    except Exception as e:
+        current_app.logger.error(f"Error fetching JIRA ticket {ticket_key}: {str(e)}")
+        return None
+
+async def fetch_confluence_page_source(page_url: str) -> Optional[str]:
+    """Fetch a single Confluence page and format as source"""
+    try:
+        page_data = await fetch_confluence_page_data(page_url)
+        if not page_data:
+            return None
+        
+        page_age = get_time_ago(page_data.get("last_modified"))
+        
+        # Format as a single source string
+        source = f"""[CONFLUENCE PAGE: {page_data['title']}]
+Space: {page_data['space_name']} ({page_data['space_key']})
+Version: {page_data['version']} | Last Modified: {page_age}
+URL: {page_data['url']}
+
+Content:
+{format_content_for_prompt(page_data['content'], max_length=2500)}"""
+        
+        return source
+        
+    except Exception as e:
+        current_app.logger.error(f"Error fetching Confluence page {page_url}: {str(e)}")
+        return None
+
+# Validation functions for UI (lightweight checks)
+async def validate_jira_ticket(ticket_key: str) -> Dict[str, Any]:
+    """
+    Validate that a JIRA ticket exists and is accessible.
+    Returns basic info for UI display without fetching full content.
+    """
+    try:
+        # Just fetch basic fields for validation
+        auth_string = f"{JIRA_CONFIG['email']}:{JIRA_CONFIG['api_token']}"
+        auth_bytes = auth_string.encode('ascii')
+        auth_header = base64.b64encode(auth_bytes).decode('ascii')
+        
+        headers = {
+            'Authorization': f'Basic {auth_header}',
+            'Accept': 'application/json',
+        }
+        
+        # Only fetch key fields for validation
+        url = f"{JIRA_CONFIG['base_url']}/rest/api/3/issue/{ticket_key}?fields=key,summary,status,priority"
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    fields = data.get("fields", {})
+                    return {
+                        "valid": True,
+                        "key": data["key"],
+                        "summary": fields.get("summary", "No summary"),
+                        "status": fields.get("status", {}).get("name", "Unknown"),
+                        "priority": fields.get("priority", {}).get("name", "None") if fields.get("priority") else "None",
+                        "url": f"{JIRA_CONFIG['base_url']}/browse/{data['key']}"
+                    }
+                else:
+                    return {"valid": False, "error": f"Ticket not found or inaccessible (status: {response.status})"}
+    
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+async def validate_confluence_page(page_url: str) -> Dict[str, Any]:
+    """
+    Validate that a Confluence page exists and is accessible.
+    Returns basic info for UI display without fetching full content.
+    """
+    try:
+        page_id = extract_confluence_page_id(page_url)
+        if not page_id:
+            return {"valid": False, "error": "Could not extract page ID from URL"}
+        
+        auth_string = f"{CONFLUENCE_CONFIG['email']}:{CONFLUENCE_CONFIG['api_token']}"
+        auth_bytes = auth_string.encode('ascii')
+        auth_header = base64.b64encode(auth_bytes).decode('ascii')
+        
+        headers = {
+            'Authorization': f'Basic {auth_header}',
+            'Accept': 'application/json',
+        }
+        
+        # Only fetch basic fields for validation
+        url = f"{CONFLUENCE_CONFIG['base_url']}/rest/api/content/{page_id}?expand=space,version"
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return {
+                        "valid": True,
+                        "title": data.get("title", "Untitled"),
+                        "space_key": data.get("space", {}).get("key", "Unknown"),
+                        "space_name": data.get("space", {}).get("name", "Unknown Space"),
+                        "version": data.get("version", {}).get("number", 1),
+                        "url": page_url
+                    }
+                else:
+                    return {"valid": False, "error": f"Page not found or inaccessible (status: {response.status})"}
+    
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+# Full data fetching functions (used by fetch_*_source functions)
+async def fetch_jira_ticket_data(ticket_key: str) -> Dict[str, Any]:
+    """Fetch full JIRA ticket data"""
+    auth_string = f"{JIRA_CONFIG['email']}:{JIRA_CONFIG['api_token']}"
+    auth_bytes = auth_string.encode('ascii')
+    auth_header = base64.b64encode(auth_bytes).decode('ascii')
+    
+    headers = {
+        'Authorization': f'Basic {auth_header}',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+    }
+    
+    url = f"{JIRA_CONFIG['base_url']}/rest/api/3/issue/{ticket_key}"
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            if response.status != 200:
+                raise Exception(f"JIRA API error {response.status}")
+            
+            data = await response.json()
+            fields = data.get("fields", {})
+            
+            return {
+                "id": data["id"],
+                "key": data["key"],
+                "summary": fields.get("summary", "No summary"),
+                "description": extract_jira_description(fields.get("description")),
+                "status": fields.get("status", {}).get("name", "Unknown"),
+                "priority": fields.get("priority", {}).get("name", "None") if fields.get("priority") else "None",
+                "assignee": fields.get("assignee", {}).get("displayName", "Unassigned") if fields.get("assignee") else "Unassigned",
+                "reporter": fields.get("reporter", {}).get("displayName", "Unknown") if fields.get("reporter") else "Unknown",
+                "created": fields.get("created"),
+                "updated": fields.get("updated"),
+                "issue_type": fields.get("issuetype", {}).get("name", "Unknown") if fields.get("issuetype") else "Unknown",
+                "url": f"{JIRA_CONFIG['base_url']}/browse/{data['key']}"
+            }
+
+async def fetch_confluence_page_data(page_url: str) -> Dict[str, Any]:
+    """Fetch full Confluence page data"""
+    page_id = extract_confluence_page_id(page_url)
+    if not page_id:
+        raise Exception("Could not extract page ID from URL")
+    
+    auth_string = f"{CONFLUENCE_CONFIG['email']}:{CONFLUENCE_CONFIG['api_token']}"
+    auth_bytes = auth_string.encode('ascii')
+    auth_header = base64.b64encode(auth_bytes).decode('ascii')
+    
+    headers = {
+        'Authorization': f'Basic {auth_header}',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+    }
+    
+    url = f"{CONFLUENCE_CONFIG['base_url']}/rest/api/content/{page_id}?expand=body.storage,space,version"
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
+            if response.status != 200:
+                raise Exception(f"Confluence API error {response.status}")
+            
+            data = await response.json()
+            
+            return {
+                "id": data["id"],
+                "title": data.get("title", "Untitled"),
+                "space_key": data.get("space", {}).get("key", "Unknown"),
+                "space_name": data.get("space", {}).get("name", "Unknown Space"),
+                "content": strip_confluence_html(data.get("body", {}).get("storage", {}).get("value", "")),
+                "version": data.get("version", {}).get("number", 1),
+                "last_modified": data.get("version", {}).get("when"),
+                "url": page_url
+            }
+
+# Helper functions (same as before)
+def extract_jira_description(description: Any) -> str:
+    """Extract clean text from Jira description (handles ADF format)"""
+    if not description:
+        return "No description"
+    
+    if isinstance(description, dict) and "content" in description:
+        return extract_text_from_adf(description["content"])
+    
+    if isinstance(description, str):
+        return description.strip()
+    
+    return "No description"
+
+def extract_text_from_adf(content: List[Dict[str, Any]]) -> str:
+    """Extract text from Atlassian Document Format (ADF)"""
+    text = ""
+    
+    def traverse(nodes):
+        nonlocal text
+        for node in nodes:
+            if node.get("type") == "text":
+                text += node.get("text", "")
+            elif node.get("type") == "hardBreak":
+                text += "\n"
+            elif "content" in node:
+                traverse(node["content"])
+            
+            if node.get("type") == "paragraph":
+                text += "\n"
+    
+    traverse(content)
+    return text.strip()
+
+def extract_confluence_page_id(page_url: str) -> Optional[str]:
+    """Extract page ID from Confluence URL"""
+    patterns = [
+        r'/pages/(\d+)',
+        r'pageId[=:](\d+)',
+        r'/(\d+)/[^/]*$'
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, page_url)
+        if match:
+            return match.group(1)
+    
+    return None
+
+def strip_confluence_html(html: str) -> str:
+    """Strip HTML and clean up Confluence content"""
+    if not html:
+        return ""
+    
+    # Remove HTML tags
+    html = re.sub(r'<[^>]*>', '', html)
+    
+    # Decode HTML entities
+    html = html.replace('&nbsp;', ' ')
+    html = html.replace('&amp;', '&')
+    html = html.replace('&lt;', '<')
+    html = html.replace('&gt;', '>')
+    html = html.replace('&quot;', '"')
+    html = html.replace('&#39;', "'")
+    
+    # Clean up whitespace
+    html = re.sub(r'\s+', ' ', html)
+    html = re.sub(r'\n\s*\n', '\n', html)
+    
+    return html.strip()
+
+def format_content_for_prompt(content: str, max_length: int = 2000) -> str:
+    """Format content for optimal prompt consumption"""
+    if not content:
+        return "[No content available]"
+    
+    # Clean up the content
+    content = content.strip()
+    
+    # Truncate if too long, but try to break at sentence boundaries
+    if len(content) > max_length:
+        truncated = content[:max_length]
+        
+        # Try to find last sentence boundary
+        last_period = truncated.rfind('.')
+        last_newline = truncated.rfind('\n')
+        
+        if last_period > max_length * 0.8:  # If we can cut at a sentence that's not too short
+            content = truncated[:last_period + 1]
+        elif last_newline > max_length * 0.8:  # Otherwise try paragraph boundary
+            content = truncated[:last_newline]
+        else:
+            content = truncated
+        
+        content += "\n\n[Content truncated - see full content at source URL]"
+    
+    return content
+
+def get_time_ago(date_string: Optional[str]) -> str:
+    """Get human-readable time difference"""
+    if not date_string:
+        return "Unknown"
+    
+    try:
+        date = dateutil.parser.parse(date_string)
+        now = datetime.now(date.tzinfo)
+        diff = now - date
+        
+        days = diff.days
+        hours = diff.seconds // 3600
+        minutes = (diff.seconds % 3600) // 60
+        
+        if days > 0:
+            return f"{days} day{'s' if days > 1 else ''} ago"
+        elif hours > 0:
+            return f"{hours} hour{'s' if hours > 1 else ''} ago"
+        elif minutes > 0:
+            return f"{minutes} minute{'s' if minutes > 1 else ''} ago"
+        else:
+            return "Just now"
+    except Exception:
+        return "Unknown"

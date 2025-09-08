@@ -1,0 +1,204 @@
+/* src/components/CompactArtifactSelector/CompactArtifactSelector.module.css */
+
+.container {
+    margin-bottom: 16px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    cursor: pointer;
+}
+
+.label {
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.currentArtifact {
+    flex: 1;
+    margin-left: 12px;
+    font-size: 14px;
+    color: var(--text);
+    font-weight: 600;
+}
+
+.changeButton {
+    background: none;
+    border: none;
+    font-size: 16px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.changeButton:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+}
+
+/* Expanded Content */
+.expandedContent {
+    background: transparent; /* Remove green background */
+    border-top: 1px solid var(--border);
+    padding: 16px;
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Category Pills */
+.categoryPills {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.categoryPill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    box-shadow: var(--shadow-sm);
+}
+
+.categoryPill:hover {
+    background: var(--surface-hover);
+    border-color: var(--brand-80); /* Use brand color instead of hardcoded */
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.categoryPill.selectedCategory {
+    background: var(--brand-40); /* Use brand light color */
+    border-color: var(--brand-80); /* Use brand color */
+    color: var(--brand-100); /* Use brand dark color for text */
+    box-shadow: var(--shadow-md);
+}
+
+.pillIcon {
+    font-size: 16px;
+}
+
+.pillLabel {
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* Artifact Options */
+.artifactOptions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.artifactOption {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    box-shadow: var(--shadow-sm);
+    min-width: 80px;
+    text-align: center;
+}
+
+.artifactOption:hover {
+    background: var(--surface-hover);
+    border-color: var(--brand-80); /* Use brand color instead of hardcoded */
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.artifactOption.selectedArtifact {
+    background: var(--brand-80); /* Use brand color instead of hardcoded */
+    border-color: var(--brand-80);
+    color: var(--vocus-white);
+    box-shadow: var(--shadow-lg);
+    font-weight: 600;
+}
+
+.artifactIcon {
+    font-size: 14px;
+}
+
+.artifactLabel {
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .container {
+        margin: 0 16px 16px 16px;
+    }
+    
+    .header {
+        padding: 10px 14px;
+    }
+    
+    .label,
+    .currentArtifact {
+        font-size: 13px;
+    }
+    
+    .expandedContent {
+        padding: 14px;
+    }
+    
+    .categoryPills {
+        gap: 6px;
+        margin-bottom: 14px;
+    }
+    
+    .categoryPill,
+    .artifactOption {
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+    
+    .pillIcon,
+    .artifactIcon {
+        font-size: 14px;
+    }
+    
+    .pillLabel,
+    .artifactLabel {
+        font-size: 11px;
+    }
+}

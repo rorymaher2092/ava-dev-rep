@@ -134,6 +134,7 @@ class Approach(ABC):
     GPT_REASONING_MODELS = {
         "o1": GPTReasoningModelSupport(streaming=False),
         "o3-mini": GPTReasoningModelSupport(streaming=True),
+        "o4-mini": GPTReasoningModelSupport(streaming=True),
     }
     # Set a higher token limit for GPT reasoning models
     RESPONSE_DEFAULT_TOKEN_LIMIT = 1024
@@ -420,6 +421,17 @@ class Approach(ABC):
         n: Optional[int] = None,
         reasoning_effort: Optional[ChatCompletionReasoningEffort] = None,
     ) -> Union[Awaitable[ChatCompletion], Awaitable[AsyncStream[ChatCompletionChunk]]]:
+    
+        # IMPORTANT: For Azure OpenAI, we MUST use the deployment name
+        # Check if we have a deployment override from bot profiles
+        deployment_to_use = overrides.get("deployment_override") or chatgpt_deployment
+        model_for_params = chatgpt_model  # Keep track of the actual model for parameter selection
+        
+        # Log what we're using
+        import logging
+        logging.info(f"create_chat_completion - Model: {model_for_params}, Deployment: {deployment_to_use}")
+    
+
         if chatgpt_model in self.GPT_REASONING_MODELS:
             params: dict[str, Any] = {
                 # max_tokens is not supported
@@ -445,9 +457,11 @@ class Approach(ABC):
 
         params["tools"] = tools
 
+        model_or_deployment = deployment_to_use if deployment_to_use else model_for_params
+
         # Azure OpenAI takes the deployment name as the model name
         return self.openai_client.chat.completions.create(
-            model=chatgpt_deployment if chatgpt_deployment else chatgpt_model,
+            model=model_or_deployment,
             messages=messages,
             seed=overrides.get("seed", None),
             n=n or 1,
