@@ -247,7 +247,7 @@ const Chat = () => {
                 rafId = null;
                 return;
             }
-            
+
             // animate only when visible; background continues buffering
             if (document.visibilityState !== "visible") {
                 rafId = null;
@@ -295,7 +295,7 @@ const Chat = () => {
                 if (signal?.aborted) {
                     break;
                 }
-                
+
                 if (event.context?.data_points) {
                     event.message = event.delta;
                     askResponse = event as ChatAppResponse;
@@ -501,6 +501,7 @@ const Chat = () => {
             };
 
             console.log("📡 Making API call...");
+            console.log("📡 Making API call...");
             const response = await chatApi(request, shouldStream, authToken);
 
             if (!response.body) {
@@ -509,6 +510,10 @@ const Chat = () => {
             if (response.status > 299 || !response.ok) {
                 throw Error(`Request failed with status ${response.status}`);
             }
+
+            console.log("✅ API call successful, processing response...");
+
+            // STEP 3: Handle the response
 
             console.log("✅ API call successful, processing response...");
 
