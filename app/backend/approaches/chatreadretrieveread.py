@@ -99,7 +99,6 @@ def confluence_result_serialize_for_results(result: dict) -> dict:
     }
 
 
-
 class ChatReadRetrieveReadApproach(ChatApproach):
     """
     A multi-step approach that first uses OpenAI to turn the user's question into a search query,
@@ -131,6 +130,10 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         reasoning_effort: Optional[str] = None,
         confluence_token: str = "",
         confluence_email: str = "",
+        search_clients: dict[str, SearchClient] = None,  # Dictionary of all search clients
+        default_search_index: str = None,   
+        standard_openai_client: AsyncOpenAI,  # Add explicit standard client
+        reasoning_openai_client: AsyncOpenAI,  # Add explicit reasoning client
     ):
         self.search_client = search_client
         self.search_index_name = search_index_name
@@ -157,6 +160,24 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         self.include_token_usage = True
         self.confluence_token = confluence_token
         self.confluence_email = confluence_email
+        self.search_clients = search_clients or {search_index_name: search_client}
+        self.default_search_index = default_search_index or search_index_name
+        self.standard_openai_client = standard_openai_client
+        self.reasoning_openai_client = reasoning_openai_client
+    
+    def get_openai_client_for_model(self, model: str) -> AsyncOpenAI:
+        """
+        Returns the appropriate OpenAI client based on the model type.
+        Uses reasoning client for reasoning models, standard client for others.
+        """
+        reasoning_model_support = self.GPT_REASONING_MODELS.get(model)
+        
+        if reasoning_model_support:
+            logging.info(f"Using reasoning client for model: {model}")
+            return self.reasoning_openai_client
+        else:
+            logging.info(f"Using standard client for model: {model}")
+            return self.standard_openai_client
 
 
     async def run_until_final_call(
@@ -170,88 +191,144 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         
         original_user_query = messages[-1]["content"]
 
-        reasoning_model_support = self.GPT_REASONING_MODELS.get(self.chatgpt_model)
-        if reasoning_model_support and (not reasoning_model_support.streaming and should_stream):
-            raise Exception(
-                f"{self.chatgpt_model} does not support streaming. Please use a different model or disable streaming."
-            )
-
         # Retrieve the bot_id from overrides (default to "ava" if not provided)
         bot_id = overrides.get("bot_id", DEFAULT_BOT_ID)
-        profile = BOTS.get(bot_id, BOTS[DEFAULT_BOT_ID])  # Default to 'ava' if bot_id is not found
+        profile = BOTS.get(bot_id, BOTS[DEFAULT_BOT_ID])
 
-        # Log the bot profile for debugging
-        logging.info(f"Bot ID: {bot_id}, Bot Profile: {profile.label}")
+        # Validate artifact_type using helper method
+        artifact_type = overrides.get("artifact_type")
+        validated_artifact_type = profile.validate_artifact(artifact_type)
 
-        # Access the profile's properties and set overrides
-        overrides.setdefault("model_override", profile.model)
-        overrides.setdefault("examples", profile.examples)
-        #overrides.setdefault("prompt_template", profile.system_prompt)
-
-        # Get search strategy from bot profile
-        use_dual_search =  profile.dual_search
-        use_confluence_search = profile.use_confluence_search  # THIS WAS MISSING!
-        use_agentic_retrieval = True if overrides.get("use_agentic_retrieval") else False
+        if artifact_type and not validated_artifact_type:
+            logging.warning(f"⚠️ Artifact '{artifact_type}' is not valid for bot '{bot_id}'. Valid artifacts: {profile.valid_artifacts}")
+        elif validated_artifact_type:
+            logging.info(f"✅ Using artifact '{validated_artifact_type}' for bot '{bot_id}'")
         
+        
+        # Set model override
+        overrides["model_override"] = profile.model
+        if hasattr(profile, 'deployment') and profile.deployment:  # Add deployment override
+            overrides["deployment_override"] = profile.deployment
 
-        logging.warning(f"Use Confluence search: {use_confluence_search}")
-        logging.warning(f"Use agentic retrieval: {use_agentic_retrieval}")
+        # Get the model and deployment to use
+        model_to_use = overrides.get("model_override", self.chatgpt_model)
+        deployment_to_use = overrides.get("deployment_override", self.chatgpt_deployment)
 
-        logging.warning(f"API Token: {self.confluence_token}")
+        client_to_use = self.get_openai_client_for_model(model_to_use)
 
-        # Run the appropriate search approach (ONLY ONE!)
-        if use_dual_search:
-            # Use dual search approach
-            logging.info("Using dual search approach")
-            extra_info = await self.run_dual_search_approach(messages, overrides, auth_claims)
-
-        elif use_confluence_search:
-            # Use Confluence search (configured in bot profile)
-            logging.info("Using Confluence search approach (from bot profile)")
-            extra_info = await self.run_confluence_search_approach(
-                messages, overrides, auth_claims
+        reasoning_model_support = self.GPT_REASONING_MODELS.get(model_to_use)
+        if reasoning_model_support and (not reasoning_model_support.streaming and should_stream):
+            raise Exception(
+                f"{model_to_use} does not support streaming. Please use a different model or disable streaming."
             )
-        elif use_agentic_retrieval:
-            # Use agentic retrieval for Azure AI Search
-            logging.info("Using agentic retrieval approach")
-            extra_info = await self.run_agentic_retrieval_approach(messages, overrides, auth_claims)
+
+        logging.info(f"Bot ID: {bot_id}, Profile: {profile.label}, Model: {profile.model}")
+
+            # Handle bots with RAG disabled (like Tender Wizard)
+        if profile.disable_rag:
+            logging.info(f"RAG disabled for bot {bot_id} - using direct chat completion")
+            extra_info = ExtraInfo(
+                DataPoints(text=[]),  # No search results
+                thoughts=[
+                    ThoughtStep(
+                        f"Direct chat completion for {profile.label}",
+                        original_user_query,
+                        {
+                            "bot_id": bot_id,
+                            "model": profile.model,
+                            "rag_disabled": True,
+                            "reason": "Bot configured for direct AI interaction without retrieval"
+                        }
+                    )
+                ]
+            )
         else:
-            # Use standard Azure AI Search
-            logging.info("Using standard search approach")  
-            extra_info = await self.run_search_approach(messages, overrides, auth_claims)
+
+            # Get search strategy from bot profile
+            use_dual_search =  profile.dual_search
+            use_confluence_search = profile.use_confluence_search  # THIS WAS MISSING!
+            use_agentic_retrieval = True if overrides.get("use_agentic_retrieval") else False
+            # Set search client for RAG-enabled bots
+            self.search_client, self.search_index_name = self.get_search_client_for_bot(profile)
+            logging.info(f"Using search index: {self.search_index_name}")
+           
+            logging.info(f"Search strategy - Confluence: {use_confluence_search}, Dual: {use_dual_search}, Agentic: {use_agentic_retrieval}")
+
+            # Run the appropriate search approach
+            if use_dual_search:
+                logging.info("Using dual search approach")
+                extra_info = await self.run_dual_search_approach(messages, overrides, auth_claims)
+            elif use_confluence_search:
+                logging.info("Using Confluence search approach")
+                extra_info = await self.run_confluence_search_approach(messages, overrides, auth_claims)
+            elif use_agentic_retrieval:
+                logging.info("Using agentic retrieval approach")
+                extra_info = await self.run_agentic_retrieval_approach(messages, overrides, auth_claims)
+            else:
+                logging.info("Using standard search approach")  
+                extra_info = await self.run_search_approach(messages, overrides, auth_claims)
+        
+        prompt_template = profile.custom_prompt_template or "chat_answer_question.prompty"
+
+        # Load the appropriate prompt template
+        if profile.custom_prompt_template:
+            # Load custom prompt template for this bot
+            try:
+                answer_prompt = self.prompt_manager.load_prompt(profile.custom_prompt_template)
+                logging.info(f"Using custom prompt template: {prompt_template}")
+            except Exception as e:
+                logging.warning(f"Failed to load custom prompt {prompt_template}, falling back to default: {e}")
+                answer_prompt = self.answer_prompt
+        else:
+            # Use default prompt template
+            answer_prompt = self.answer_prompt
+
+        attachment_sources = overrides.get("attachment_sources", [])
 
         messages = self.prompt_manager.render_prompt(
-            self.answer_prompt,
+            answer_prompt,
             self.get_system_prompt_variables(overrides.get("prompt_template"))
             | {
                 "include_follow_up_questions": bool(overrides.get("suggest_followup_questions")),
+                "artifact_type": validated_artifact_type,
                 "past_messages": messages[:-1],
                 "user_query": original_user_query,
                 "text_sources": extra_info.data_points.text,
+                "attachment_sources": attachment_sources,
             },
         )
 
         # Ensure model_override is used when creating the chat completion
         model_to_use = overrides.get("model_override", self.chatgpt_model)  # Use
+        deployment_to_use = overrides.get("deployment_override", self.chatgpt_deployment)
 
-        chat_coroutine = cast(
-            Union[Awaitable[ChatCompletion], Awaitable[AsyncStream[ChatCompletionChunk]]],
-            self.create_chat_completion(
-                self.chatgpt_deployment,
-                model_to_use,
-                messages,
-                overrides,
-                self.get_response_token_limit(self.chatgpt_model, 1024),
-                should_stream,
-            ),
-        )
+        original_client = self.openai_client
+        self.openai_client = client_to_use
+
+        try:
+            chat_coroutine = cast(
+                Union[Awaitable[ChatCompletion], Awaitable[AsyncStream[ChatCompletionChunk]]],
+                self.create_chat_completion(
+                    deployment_to_use,
+                    model_to_use,
+                    messages,
+                    overrides,
+                    self.get_response_token_limit(model_to_use, 1024),
+                    should_stream,
+                ),
+            )
+
+        finally:
+            # Always restore the original client
+            self.openai_client = original_client
+
         extra_info.thoughts.append(
             self.format_thought_step_for_chatcompletion(
                 title="Prompt to generate answer",
                 messages=messages,
                 overrides=overrides,
-                model=self.chatgpt_model,
-                deployment=self.chatgpt_deployment,
+                model=model_to_use,
+                deployment=deployment_to_use,
                 usage=None,
             )
         )
@@ -259,6 +336,22 @@ class ChatReadRetrieveReadApproach(ChatApproach):
     
     
     # Add this method to your ChatReadRetrieveReadApproach class in chatreadretrieveredread.py
+
+    def get_search_client_for_bot(self, bot_profile) -> tuple[SearchClient, str]:
+        """
+        Returns the appropriate search client and index name for the given bot profile.
+        Uses pre-loaded search clients for better performance.
+        """
+        index_name = bot_profile.primary_search_index or self.default_search_index
+        
+        if index_name not in self.search_clients:
+            logging.warning(f"Search index '{index_name}' not found in pre-loaded clients. Using default.")
+            index_name = self.default_search_index
+        
+        search_client = self.search_clients[index_name]
+        logging.info(f"Bot '{bot_profile.id}' using search index: {index_name}")
+        
+        return search_client, index_name
 
     async def run_dual_search_approach(
         self, 
@@ -448,7 +541,8 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         auth_claims: dict[str, Any],
     ) -> ExtraInfo:
         """
-        Enhanced Confluence search with better results and full content
+        Enhanced Confluence search with better results and full content.
+        ALWAYS uses standard client - never reasoning client for Confluence search.
         """
         logging.warning("Starting ENHANCED Confluence search approach")
         
@@ -476,12 +570,14 @@ class ChatReadRetrieveReadApproach(ChatApproach):
             top = overrides.get("top", 20)
             logging.warning(f"🔍 Starting enhanced search for: '{original_user_query}' (top {top})")
             
-            # Pass the openai_client to the search method
+            # IMPORTANT: Always use standard client for Confluence search, never reasoning client
+            logging.info("🔧 Using STANDARD client for Confluence search (never reasoning client)")
+            
             confluence_results = await confluence_service.search_with_microsoft_graph(
                 query=original_user_query,
                 user_graph_token=confluence_graph_token,
                 top=top,
-                openai_client=self.openai_client  # Pass the client here
+                openai_client=self.standard_openai_client  # Always use standard client
             )
                 
             if not confluence_results:
@@ -545,28 +641,40 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         )
         tools: list[ChatCompletionToolParam] = self.query_rewrite_tools
 
-        # STEP 1: Generate an optimized keyword search query based on the chat history and the last question
+        model_to_use = overrides.get("model_override", self.chatgpt_model)
+        deployment_to_use = overrides.get("deployment_override", self.chatgpt_deployment)
 
-        chat_completion = cast(
-            ChatCompletion,
-            await self.create_chat_completion(
-                self.chatgpt_deployment,
-                self.chatgpt_model,
-                messages=query_messages,
-                overrides=overrides,
-                response_token_limit=self.get_response_token_limit(
-                    self.chatgpt_model, 100
-                ),  # Setting too low risks malformed JSON, setting too high may affect performance
-                temperature=0.0,  # Minimize creativity for search query generation
-                tools=tools,
-                reasoning_effort="low",  # Minimize reasoning for search query generation
-            ),
-        )
+        # CRITICAL: Temporarily swap the client for the appropriate model
+        original_client = self.openai_client
+        self.openai_client = self.get_openai_client_for_model(model_to_use)
+        
+        logging.info(f"Search approach using model: {model_to_use}, client type: {'reasoning' if self.openai_client == self.reasoning_openai_client else 'standard'}")
+
+        try:
+            # STEP 1: Generate an optimized keyword search query based on the chat history and the last question
+            # The create_chat_completion method already handles reasoning vs standard models
+            chat_completion = cast(
+                ChatCompletion,
+                await self.create_chat_completion(
+                    deployment_to_use,
+                    model_to_use,
+                    messages=query_messages,
+                    overrides=overrides,
+                    response_token_limit=self.get_response_token_limit(
+                        model_to_use, 100
+                    ),
+                    temperature=0.0,
+                    tools=tools,
+                    reasoning_effort="high",
+                ),
+            )
+        finally:
+            # Always restore the original client
+            self.openai_client = original_client
 
         query_text = self.get_search_query(chat_completion, original_user_query)
 
         # STEP 2: Retrieve relevant documents from the search index with the GPT optimized query
-
         # If retrieval mode includes vectors, compute an embedding for the query
         vectors: list[VectorQuery] = []
         if use_vector_search:
@@ -596,10 +704,10 @@ class ChatReadRetrieveReadApproach(ChatApproach):
                     title="Prompt to generate search query",
                     messages=query_messages,
                     overrides=overrides,
-                    model=self.chatgpt_model,
-                    deployment=self.chatgpt_deployment,
+                    model=model_to_use,
+                    deployment=deployment_to_use,
                     usage=chat_completion.usage,
-                    reasoning_effort="low",
+                    reasoning_effort="high",
                 ),
                 ThoughtStep(
                     "Search using generated search query",
@@ -611,7 +719,7 @@ class ChatReadRetrieveReadApproach(ChatApproach):
                         "top": top,
                         "filter": search_index_filter,
                         "use_vector_search": use_vector_search,
-                        "use_text_search": use_text_search,
+                        "use_text_search": use_text_search
                     },
                 ),
                 ThoughtStep(

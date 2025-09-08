@@ -278,6 +278,9 @@ param useLocalHtmlParser bool = false
 @description('Use AI project')
 param useAiProject bool = false
 
+param confluenceToken string = ''
+param confluenceEmail string = ''
+
 var abbrs = loadJsonContent('abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
 var tags = { 'azd-env-name': environmentName }
@@ -470,6 +473,8 @@ var appEnvVariables = {
   USE_LOCAL_HTML_PARSER: useLocalHtmlParser
   USE_MEDIA_DESCRIBER_AZURE_CU: useMediaDescriberAzureCU
   AZURE_CONTENTUNDERSTANDING_ENDPOINT: useMediaDescriberAzureCU ? contentUnderstanding.outputs.endpoint : ''
+  CONFLUENCE_TOKEN: confluenceToken
+  CONFLUENCE_EMAIL: confluenceEmail
   RUNNING_IN_PRODUCTION: 'true'
 }
 

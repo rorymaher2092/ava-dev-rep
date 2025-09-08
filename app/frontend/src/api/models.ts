@@ -16,6 +16,19 @@ export const enum VectorFields {
     TextAndImageEmbeddings = "textAndImageEmbeddings"
 }
 
+
+// Add this interface for the attachment reference type
+export interface AttachmentRef {
+  type: 'jira' | 'confluence';
+  key?: string;       // For JIRA tickets
+  url?: string;       // For Confluence pages
+  title?: string;     // Display name
+  summary?: string;   // For display purposes
+  status?: string;    // For JIRA tickets
+  priority?: string;  // For JIRA tickets
+  space_name?: string; // For Confluence pages
+}
+
 export type ChatAppRequestOverrides = {
     retrieval_mode?: RetrievalMode;
     semantic_ranker?: boolean;
@@ -44,8 +57,11 @@ export type ChatAppRequestOverrides = {
     use_agentic_retrieval: boolean;
     bot_id?: string; // Optional bot ID to override the default bot
     graph_token?: string; // Optional Graph token for Microsoft Graph API
+    attachment_refs?: AttachmentRef[];
+    artifact_type?: string;
     model?: string; // Optional model override
     examples?: Array<{ role: string; content: string }>; // Optional examples override
+    attachment_sources?: string[];
 };
 
 export type ResponseMessage = {

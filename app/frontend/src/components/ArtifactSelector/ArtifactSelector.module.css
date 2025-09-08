@@ -1,0 +1,233 @@
+/* src/components/ArtifactSelector/ArtifactSelector.module.css */
+
+.container {
+    margin-bottom: 32px;
+    text-align: center;
+}
+
+.title {
+    color: var(--text);
+    font-size: 18px;
+    font-weight: 500;
+    margin-bottom: 20px;
+}
+
+/* Category Grid (Top Tier) - Updated for Arrow Design */
+.categoryGrid {
+    display: flex;
+    gap: 0; /* Remove gaps since arrows overlap */
+    justify-content: center;
+    flex-wrap: wrap;
+    max-width: 700px;
+    margin: 0 auto 24px auto;
+}
+
+.categoryButton {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 30px; /* Increased horizontal padding for arrow shape */
+    background: var(--surface-elevated);
+    border: 2px solid var(--border);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 140px; /* Increased min-width for better arrow proportions */
+    text-align: center;
+    box-shadow: var(--shadow-sm);
+    /* Arrow shape using clip-path - all arrows have same shape */
+    clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 50%, calc(100% - 20px) 100%, 0 100%, 20px 50%);
+    margin-right: -20px; /* Overlap for seamless connection */
+}
+
+.categoryButton:last-child {
+    margin-right: 0; /* Remove overlap for last arrow */
+}
+
+.categoryButton:hover {
+    background: var(--surface-hover);
+    border-color: var(--brand-80); /* Use brand color instead of --primary */
+    transform: scale(1.05);
+    box-shadow: var(--shadow-lg);
+    z-index: 2;
+}
+
+.categoryButton.selectedCategory {
+    background: var(--brand-40); /* Use brand light color instead of --primary-light */
+    border-color: var(--brand-80); /* Use brand color instead of --primary */
+    color: var(--brand-100); /* Use brand dark color for text */
+    box-shadow: var(--shadow-md);
+    transform: scale(1.05);
+    z-index: 3;
+}
+
+.categoryIcon {
+    font-size: 24px;
+    margin-bottom: 4px;
+}
+
+.categoryLabel {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* Artifact Section (Bottom Tier) - Remove green container */
+.artifactSection {
+    background: transparent; /* Remove green background */
+    border-radius: 0; /* Remove rounded corners */
+    padding: 16px 0; /* Remove side padding, keep top/bottom */
+    border: none; /* Remove green border */
+    animation: slideDown 0.2s ease-out;
+    margin-top: 8px;
+    box-shadow: none; /* Remove shadow */
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.artifactGrid {
+    display: flex;
+    gap: 12px; /* Add gaps back for box design */
+    justify-content: center;
+    flex-wrap: wrap;
+    margin: 0 auto;
+}
+
+.artifactButton {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px; /* Smaller padding for compact rectangles */
+    background: var(--surface-elevated);
+    border: 1px solid var(--border); /* Thinner border */
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 13px; /* Smaller font */
+    font-weight: 500;
+    color: var(--text);
+    min-width: 80px; /* Smaller min-width for compact look */
+    text-align: center;
+    box-shadow: var(--shadow-sm);
+    clip-path: none;
+    margin-right: 0;
+}
+
+.artifactButton:last-child {
+    margin-right: 0; /* Not needed anymore but keep for consistency */
+}
+
+.artifactButton:hover {
+    background: var(--surface-hover);
+    border-color: var(--brand-80); /* Use brand color instead of --primary */
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+    z-index: 2;
+}
+
+.artifactButton.selectedArtifact {
+    background: var(--brand-80); /* Use brand color instead of --primary */
+    border-color: var(--brand-80);
+    color: var(--vocus-white);
+    box-shadow: var(--shadow-lg);
+    font-weight: 600;
+    transform: translateY(-1px);
+    z-index: 3;
+}
+
+.artifactIcon {
+    font-size: 14px; /* Smaller icon for compact design */
+}
+
+.artifactLabel {
+    white-space: nowrap;
+    font-size: 12px; /* Smaller label text */
+}
+
+/* Mobile responsive - Remove arrow shapes on mobile for better usability */
+@media (max-width: 768px) {
+    .categoryGrid {
+        gap: 12px; /* Restore gaps on mobile */
+        flex-direction: column; /* Stack vertically */
+        align-items: center;
+    }
+    
+    .categoryButton {
+        clip-path: none; /* Remove arrow shape on mobile */
+        border-radius: var(--radius-lg); /* Restore rounded corners */
+        margin-right: 0; /* Remove overlap */
+        padding: 14px 16px; /* Restore original padding */
+        min-width: 200px; /* Wider on mobile for better touch targets */
+        max-width: 280px;
+    }
+    
+    .categoryIcon {
+        font-size: 20px;
+    }
+    
+    .categoryLabel {
+        font-size: 12px;
+    }
+    
+    .artifactGrid {
+        gap: 8px; /* Keep gaps on mobile */
+        flex-direction: column; /* Stack vertically */
+        align-items: center;
+    }
+    
+    .artifactButton {
+        clip-path: none;
+        border-radius: var(--radius-md);
+        margin-right: 0;
+        padding: 8px 12px; /* Keep compact mobile padding */
+        font-size: 12px;
+        min-width: 70px; /* Compact mobile width */
+        max-width: 120px; /* Smaller max width */
+    }
+    
+    .title {
+        font-size: 16px;
+    }
+    
+    .artifactSection {
+        padding: 12px;
+    }
+}
+
+.inDevelopmentMessage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    color: var(--text-secondary);
+    font-size: 16px;
+    font-weight: 500;
+    font-style: italic;
+    background: var(--surface);
+    border: 1px dashed var(--border-light);
+    border-radius: var(--radius-lg);
+    margin: 0 auto;
+    max-width: 300px;
+}
+
+@media (max-width: 768px) {
+    .inDevelopmentMessage {
+        font-size: 14px;
+        padding: 20px;
+        max-width: 250px;
+    }
+}

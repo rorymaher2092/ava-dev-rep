@@ -7,7 +7,7 @@ import readNDJSONStream from "ndjson-readablestream";
 import { MicrosoftSignIn } from "../../MicrosoftSignIn"; // Add this with other imports
 
 import appLogo from "../../assets/ava.svg";
-import confluencelogo from "../../assets/confluenec-logo.png";
+import confluencelogo from "../../assets/confluence-logo.png";
 import defendersheild from "../../assets/defender-sheild.png";
 import styles from "./Chat.module.css";
 
@@ -57,12 +57,17 @@ import BotSelector from "../../components/BotSelectorButton/BotSelector"; // adj
 import { BOTS, DEFAULT_BOT_ID, BotProfile } from "../../config/botConfig";
 import { useBot } from "../../contexts/BotContext"; // ✅ ADD
 import { useBotTheme } from "../../hooks/useBotTheme";
+import { BotContentFactory } from "../../components/BotContent/BotContentFactory";
+
+// Import BaArtififactContext
+import { useArtifact } from "../../contexts/ArtifactContext";
 
 // submitContent Suggestions
 import { submitContentSuggestion } from "../../api";
 
 import { InteractionRequiredAuthError } from "@azure/msal-browser";
 import { msalInstance } from "../../authConfig";
+import { AttachmentRef } from "../../components/Attachments/AttachmentMenu";
 
 const Chat = () => {
     const [searchParams] = useSearchParams();
@@ -101,12 +106,16 @@ const Chat = () => {
     const [isStreaming, setIsStreaming] = useState<boolean>(false);
     const [error, setError] = useState<unknown>();
 
+    // Type definition for conversation tuples
+    type AnswerTuple = [user: string, response: ChatAppResponse, attachmentRefs?: AttachmentRef[]];
+
     const [activeCitation, setActiveCitation] = useState<string>();
     const [activeAnalysisPanelTab, setActiveAnalysisPanelTab] = useState<AnalysisPanelTabs | undefined>(undefined);
 
     const [selectedAnswer, setSelectedAnswer] = useState<number>(0);
-    const [answers, setAnswers] = useState<[user: string, response: ChatAppResponse][]>([]);
-    const [streamedAnswers, setStreamedAnswers] = useState<[user: string, response: ChatAppResponse][]>([]);
+    const [answers, setAnswers] = useState<AnswerTuple[]>([]);
+    const [streamedAnswers, setStreamedAnswers] = useState<AnswerTuple[]>([]);
+    const [currentAttachments, setCurrentAttachments] = useState<AttachmentRef[]>([]);
     const [speechUrls, setSpeechUrls] = useState<(string | null)[]>([]);
 
     const [showGPT4VOptions, setShowGPT4VOptions] = useState<boolean>(false);
@@ -116,13 +125,38 @@ const Chat = () => {
     const [showVectorOption, setShowVectorOption] = useState<boolean>(false);
     const [showUserUpload, setShowUserUpload] = useState<boolean>(false);
     const [showLanguagePicker, setshowLanguagePicker] = useState<boolean>(false);
-    const [showSpeechInput, setShowSpeechInput] = useState<boolean>(false);
+    const [showSpeechInput, setShowSpeechInput] = useState<boolean>(true);
     const [showSpeechOutputBrowser, setShowSpeechOutputBrowser] = useState<boolean>(false);
     const [showSpeechOutputAzure, setShowSpeechOutputAzure] = useState<boolean>(false);
     const [showChatHistoryBrowser, setShowChatHistoryBrowser] = useState<boolean>(false);
     const [showChatHistoryCosmos, setShowChatHistoryCosmos] = useState<boolean>(false);
     const [showAgenticRetrievalOption, setShowAgenticRetrievalOption] = useState<boolean>(false);
     const [useAgenticRetrieval, setUseAgenticRetrieval] = useState<boolean>(false);
+
+    // added to deal with cancelling mid request
+    const [abortController, setAbortController] = useState<AbortController | null>(null);
+
+    // --- Attachments typed union for backend ---
+    type Attachment =
+        | { kind: "jira_ticket"; key: string }
+        | { kind: "confluence_page"; url: string; title?: string }
+        | { kind: "file"; name: string; size: number; mime?: string };
+
+    // These match what QuestionInput emits (keep minimal)
+    type UITicket = { key: string };
+    type UIConfluence = { url: string; title?: string };
+
+    // Merge UI args into a single attachments[] payload
+    function toAttachments(tickets?: UITicket[], confluence?: UIConfluence[], files?: File[]): Attachment[] {
+        const out: Attachment[] = [];
+        (tickets ?? []).forEach(t => t?.key && out.push({ kind: "jira_ticket", key: t.key }));
+        (confluence ?? []).forEach(p => p?.url && out.push({ kind: "confluence_page", url: p.url, title: p.title }));
+        (files ?? []).forEach(f => out.push({ kind: "file", name: f.name, size: f.size, mime: f.type }));
+        return out;
+    }
+
+    // Add artifact context
+    const { selectedArtifactType, getSelectedArtifact } = useArtifact();
 
     const audio = useRef(new Audio()).current;
     const [isPlaying, setIsPlaying] = useState(false);
@@ -181,18 +215,14 @@ const Chat = () => {
         });
     };
 
-    const handleAsyncRequest = async (
-        question: string,
-        answers: [string, ChatAppResponse][],
-        responseBody: ReadableStream<any>
-        ) => {
+    const handleAsyncRequest = async (question: string, answers: AnswerTuple[], responseBody: ReadableStream<any>, signal?: AbortSignal) => {
         let answer = "";
         let askResponse = {} as ChatAppResponse;
         let seededRow = false;
 
         // --- typewriter knobs ---
         const STEP_CHARS = 6; // characters to reveal per animation frame (2–10 feels nice)
-        let queue = "";       // not-yet-rendered chars buffered from the network
+        let queue = ""; // not-yet-rendered chars buffered from the network
         let rafId: number | null = null;
 
         const renderLatest = () => {
@@ -200,53 +230,59 @@ const Chat = () => {
             const latest: ChatAppResponse = { ...askResponse, message: { content: answer, role } };
 
             setStreamedAnswers(prev => {
-            if (!seededRow) {
-                seededRow = true;
-                return [...answers, [question, latest]];
-            }
-            if (prev.length === 0) return [[question, latest]];
-            const next = prev.slice();
-            next[next.length - 1] = [question, latest];
-            return next;
+                if (!seededRow) {
+                    seededRow = true;
+                    return [...answers, [question, latest]];
+                }
+                if (prev.length === 0) return [[question, latest]];
+                const next = prev.slice();
+                next[next.length - 1] = [question, latest];
+                return next;
             });
         };
 
         const tick = () => {
+            // Check for cancellation first
+            if (signal?.aborted) {
+                rafId = null;
+                return;
+            }
+
             // animate only when visible; background continues buffering
             if (document.visibilityState !== "visible") {
-            rafId = null;
-            return;
+                rafId = null;
+                return;
             }
 
             if (queue.length > 0) {
-            const take = Math.min(STEP_CHARS, queue.length);
-            answer += queue.slice(0, take);
-            queue = queue.slice(take);
-            renderLatest();
+                const take = Math.min(STEP_CHARS, queue.length);
+                answer += queue.slice(0, take);
+                queue = queue.slice(take);
+                renderLatest();
             }
 
             // keep animating while there’s more to show
             if (queue.length > 0) {
-            rafId = requestAnimationFrame(tick);
+                rafId = requestAnimationFrame(tick);
             } else {
-            rafId = null;
+                rafId = null;
             }
         };
 
         const startAnimationIfNeeded = () => {
             if (rafId == null && document.visibilityState === "visible" && queue.length > 0) {
-            rafId = requestAnimationFrame(tick);
+                rafId = requestAnimationFrame(tick);
             }
         };
 
         const onVisibility = () => {
             if (document.visibilityState === "visible") {
-            // when the user comes back, animate the queued text
-            startAnimationIfNeeded();
+                // when the user comes back, animate the queued text
+                startAnimationIfNeeded();
             } else if (rafId) {
-            // stop animating in the background (network still fills `queue`)
-            cancelAnimationFrame(rafId);
-            rafId = null;
+                // stop animating in the background (network still fills `queue`)
+                cancelAnimationFrame(rafId);
+                rafId = null;
             }
         };
 
@@ -255,27 +291,38 @@ const Chat = () => {
         setIsStreaming(true);
         try {
             for await (const event of readNDJSONStream(responseBody)) {
-            if (event.context?.data_points) {
-                event.message = event.delta;
-                askResponse = event as ChatAppResponse;
-            } else if (event.delta?.content) {
-                setIsLoading(false);
-                // accumulate raw chunk from server
-                queue += event.delta.content;
-                // animate it (if visible); otherwise it sits buffered
-                startAnimationIfNeeded();
-            } else if (event.context) {
-                askResponse.context = { ...askResponse.context, ...event.context };
-            } else if (event.error) {
-                throw Error(event.error);
+                // Check for cancellation
+                if (signal?.aborted) {
+                    break;
+                }
+
+                if (event.context?.data_points) {
+                    event.message = event.delta;
+                    askResponse = event as ChatAppResponse;
+                } else if (event.delta?.content) {
+                    setIsLoading(false);
+                    // accumulate raw chunk from server
+                    queue += event.delta.content;
+                    // animate it (if visible); otherwise it sits buffered
+                    startAnimationIfNeeded();
+                } else if (event.context) {
+                    askResponse.context = { ...askResponse.context, ...event.context };
+                } else if (event.error) {
+                    throw Error(event.error);
+                }
             }
+        } catch (error: any) {
+            if (error.name === "AbortError") {
+                console.log("Stream was cancelled");
+            } else {
+                throw error;
             }
         } finally {
             // drain any remaining buffer (finish fast, no animation)
             if (queue.length) {
-            answer += queue;
-            queue = "";
-            renderLatest();
+                answer += queue;
+                queue = "";
+                renderLatest();
             }
             if (rafId) cancelAnimationFrame(rafId);
             document.removeEventListener("visibilitychange", onVisibility);
@@ -287,8 +334,7 @@ const Chat = () => {
             message: { content: answer, role: askResponse?.message?.role ?? "assistant" }
         };
         return fullResponse;
-        };  
-
+    };
 
     const client = useLogin ? useMsal().instance : undefined;
     const { loggedIn } = useContext(LoginContext);
@@ -327,37 +373,48 @@ const Chat = () => {
         setupTokenRefresh();
     }, []);
 
-    const makeApiRequest = async (question: string) => {
+    const makeApiRequest = async (question: string, attachmentRefs?: AttachmentRef[]) => {
+        // Store current attachments for loading/error states
+        setCurrentAttachments(attachmentRefs || []);
+
+        // Extra code to deal with cancelled requests
+        if (abortController) {
+            abortController.abort();
+        }
+        const controller = new AbortController();
+        setAbortController(controller);
+
         lastQuestionRef.current = question;
         console.log("Sending API request with botId:", botId);
-        setCurrentFollowupQuestions([]);
 
+        // Log attachment references if any
+        if (attachmentRefs && attachmentRefs.length > 0) {
+            console.log("Including attachment references:", attachmentRefs);
+        }
+
+        setCurrentFollowupQuestions([]);
         error && setError(undefined);
         setIsLoading(true);
         setActiveCitation(undefined);
         setActiveAnalysisPanelTab(undefined);
-
 
         try {
             // ✅ Auth validation with immediate re-auth on failure
             let authToken;
             let graphToken;
 
-            
             try {
                 authToken = await getToken();
                 graphToken = await getGraphToken();
-                
+
                 if (!authToken || !graphToken) {
                     throw new Error("No auth token available");
                 }
             } catch (authError) {
                 console.error("Auth failed:", authError);
-                
+
                 // Force immediate re-authentication for any auth error
-                const confirmLogin = window.confirm(
-                    "Your session has expired. Please sign in again to continue."
-                );
+                const confirmLogin = window.confirm("Your session has expired. Please sign in again to continue.");
 
                 if (!confirmLogin) {
                     setError(new Error("Authentication required to continue"));
@@ -369,11 +426,11 @@ const Chat = () => {
                     // Clear everything and force fresh login
                     await clearAllMsalCache();
                     await loginToMicrosoft();
-                    
+
                     // Get fresh tokens after login
                     authToken = await getToken();
                     graphToken = await getGraphToken();
-                    
+
                     if (!authToken || !graphToken) {
                         throw new Error("Failed to obtain token after re-authentication");
                     }
@@ -384,6 +441,23 @@ const Chat = () => {
                     return;
                 }
             }
+            // Get artifact information for BA bot
+            let artifactContext = {};
+            if (botId === "ba") {
+                const selectedArtifact = getSelectedArtifact();
+                artifactContext = {
+                    artifact_type: selectedArtifactType,
+                    artifact_instructions: selectedArtifact.customInstructions,
+                    artifact_prompt_hint: selectedArtifact.promptHint
+                };
+            } else {
+                artifactContext = {
+                    artifact_type: null,
+                    artifact_instructions: null,
+                    artifact_prompt_hint: null
+                };
+            }
+
             const messages: ResponseMessage[] = answers.flatMap(a => [
                 { content: a[0], role: "user" },
                 { content: a[1].message.content, role: "assistant" }
@@ -415,14 +489,18 @@ const Chat = () => {
                         gpt4v_input: gpt4vInput,
                         language: i18n.language,
                         use_agentic_retrieval: useAgenticRetrieval,
-                                                bot_id: botId,
+                        bot_id: botId,
                         graph_token: graphToken,
+                        artifact_type: selectedArtifactType,
+                        // NEW: Include attachment references for just-in-time fetching
+                        attachment_refs: attachmentRefs || [],
                         ...(seed !== null ? { seed: seed } : {})
                     }
                 },
                 session_state: answers.length ? answers[answers.length - 1][1].session_state : null
             };
 
+            console.log("📡 Making API call...");
             console.log("📡 Making API call...");
             const response = await chatApi(request, shouldStream, authToken);
 
@@ -436,9 +514,13 @@ const Chat = () => {
             console.log("✅ API call successful, processing response...");
 
             // STEP 3: Handle the response
+
+            console.log("✅ API call successful, processing response...");
+
+            // STEP 3: Handle the response
             if (shouldStream) {
-                const parsedResponse: ChatAppResponse = await handleAsyncRequest(question, answers, response.body);
-                setAnswers([...answers, [question, parsedResponse]]);
+                const parsedResponse: ChatAppResponse = await handleAsyncRequest(question, answers, response.body, abortController?.signal);
+                setAnswers([...answers, [question, parsedResponse, attachmentRefs]]);
 
                 if (useSuggestFollowupQuestions) {
                     setCurrentFollowupQuestions(parsedResponse.context?.followup_questions || []);
@@ -446,14 +528,25 @@ const Chat = () => {
 
                 if (typeof parsedResponse.session_state === "string" && parsedResponse.session_state !== "") {
                     const authToken = await getToken();
-                    historyManager.addItem(parsedResponse.session_state, [...answers, [question, parsedResponse]], authToken);
+                    // Convert to old format for history manager compatibility
+                    const historyData = [...answers, [question, parsedResponse, attachmentRefs]].map(
+                        answer => [answer[0], answer[1]] as [string, ChatAppResponse]
+                    );
+
+                    // Add bot context for history saving
+                    const historyContext = {
+                        bot_id: botId,
+                        artifact_label: botId === "ba" ? getSelectedArtifact().label : undefined
+                    };
+
+                    historyManager.addItem(parsedResponse.session_state, historyData, authToken, historyContext);
                 }
             } else {
                 const parsedResponse: ChatAppResponseOrError = await response.json();
                 if (parsedResponse.error) {
                     throw Error(parsedResponse.error);
                 }
-                setAnswers([...answers, [question, parsedResponse as ChatAppResponse]]);
+                setAnswers([...answers, [question, parsedResponse as ChatAppResponse, attachmentRefs]]);
 
                 if (useSuggestFollowupQuestions) {
                     setCurrentFollowupQuestions((parsedResponse as ChatAppResponse).context?.followup_questions || []);
@@ -461,19 +554,54 @@ const Chat = () => {
 
                 if (typeof parsedResponse.session_state === "string" && parsedResponse.session_state !== "") {
                     const authToken = await getToken();
-                    historyManager.addItem(parsedResponse.session_state, [...answers, [question, parsedResponse as ChatAppResponse]], authToken);
+                    // Convert to old format for history manager compatibility
+                    const historyData = [...answers, [question, parsedResponse as ChatAppResponse, attachmentRefs]].map(
+                        answer => [answer[0], answer[1]] as [string, ChatAppResponse]
+                    );
+
+                    // Add bot context for history saving
+                    const historyContext = {
+                        bot_id: botId,
+                        artifact_label: botId === "ba" ? getSelectedArtifact().label : undefined
+                    };
+
+                    historyManager.addItem(parsedResponse.session_state, historyData, authToken, historyContext);
                 }
             }
 
             setSpeechUrls([...speechUrls, null]);
-            console.log("✅ Request completed successfully");
-        } catch (e) {
-            console.error("❌ Request failed:", e);
-            setError(e);
+        } catch (e: any) {
+            // Check if error is due to cancellation
+            if (e.name === "AbortError") {
+                console.log("Request was cancelled");
+                // Don't set error state for cancelled requests
+            } else {
+                setError(e);
+            }
         } finally {
             setIsLoading(false);
+            setIsStreaming(false);
+            setAbortController(null);
+            setCurrentAttachments([]);
         }
     };
+
+    // Add cancel function
+    const cancelGeneration = () => {
+        if (abortController) {
+            abortController.abort();
+            setAbortController(null);
+            setIsLoading(false);
+            setIsStreaming(false);
+            setError(undefined);
+        }
+    };
+
+    const sendProgrammaticMessage = (message: string) => {
+        // Get current attachments (likely empty for programmatic messages)
+        makeApiRequest(message);
+    };
+
     const clearChat = () => {
         lastQuestionRef.current = "";
         error && setError(undefined);
@@ -485,6 +613,7 @@ const Chat = () => {
         setCurrentFollowupQuestions([]);
         setIsLoading(false);
         setIsStreaming(false);
+        setCurrentAttachments([]);
     };
 
     useEffect(() => chatMessageStreamEnd.current?.scrollIntoView({ behavior: "smooth" }), [isLoading]);
@@ -806,121 +935,12 @@ const Chat = () => {
                                 {welcomeMessage !== `Hello ${userName}!` ? welcomeMessage : ""}
                             </h2>
 
-                            {/* Quick stats or tips */}
-                            <div
-                                style={{
-                                    display: "flex",
-                                    gap: "24px",
-                                    marginBottom: "32px",
-                                    flexWrap: "wrap",
-                                    justifyContent: "center"
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        backgroundColor: "var(--surface-elevated)",
-                                        borderRadius: "16px",
-                                        padding: "20px",
-                                        textAlign: "center",
-                                        width: "180px",
-                                        height: "140px",
-                                        boxShadow: "var(--shadow-sm)",
-                                        position: "relative",
-                                        overflow: "hidden",
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        justifyContent: "center"
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            marginBottom: "12px",
-                                            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))",
-                                            display: "flex",
-                                            justifyContent: "center",
-                                            alignItems: "center"
-                                        }}
-                                    >
-                                        <img
-                                            src={defendersheild}
-                                            alt="Search"
-                                            style={{
-                                                width: "32px",
-                                                height: "32px"
-                                            }}
-                                        />
-                                    </div>
-                                    <div style={{ color: "var(--text)", fontWeight: "700", fontSize: "16px", marginBottom: "4px" }}>Secure</div>
-                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>Microsoft Enterprise Security</div>
-                                </div>
-                                <div
-                                    style={{
-                                        backgroundColor: "var(--surface-elevated)",
-                                        borderRadius: "16px",
-                                        padding: "20px",
-                                        textAlign: "center",
-                                        width: "180px",
-                                        height: "140px",
-                                        boxShadow: "var(--shadow-sm)",
-                                        position: "relative",
-                                        overflow: "hidden",
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        justifyContent: "center"
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            marginBottom: "12px",
-                                            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))",
-                                            display: "flex",
-                                            justifyContent: "center",
-                                            alignItems: "center"
-                                        }}
-                                    >
-                                        <img
-                                            src={confluencelogo}
-                                            alt="Search"
-                                            style={{
-                                                width: "32px",
-                                                height: "32px"
-                                            }}
-                                        />
-                                    </div>
-                                    <div style={{ color: "var(--text)", fontWeight: "700", fontSize: "16px", marginBottom: "4px" }}>Live Search</div>
-                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>
-                                        Realtime Access to Confluence Data
-                                    </div>
-                                </div>
-                                <div
-                                    style={{
-                                        backgroundColor: "var(--surface-elevated)",
-                                        borderRadius: "16px",
-                                        padding: "20px",
-                                        textAlign: "center",
-                                        width: "180px",
-                                        height: "140px",
-                                        boxShadow: "var(--shadow-sm)",
-                                        position: "relative",
-                                        overflow: "hidden",
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        justifyContent: "center"
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            fontSize: "32px",
-                                            marginBottom: "12px",
-                                            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
-                                        }}
-                                    >
-                                        ⚡
-                                    </div>
-                                    <div style={{ color: "var(--text)", fontWeight: "700", fontSize: "16px", marginBottom: "4px" }}>Fast Response</div>
-                                    <div style={{ color: "var(--text-secondary)", fontSize: "13px", lineHeight: "1.4" }}>Powered by GPT-4o</div>
-                                </div>
-                            </div>
+                            {BotContentFactory.render(botId, {
+                                userName,
+                                welcomeMessage,
+                                isMobile,
+                                onSendMessage: sendProgrammaticMessage
+                            })}
 
                             {/* Microsoft Sign-In */}
                             <div style={{ marginBottom: "32px", display: "flex", justifyContent: "center" }}>
@@ -936,16 +956,16 @@ const Chat = () => {
                             {/* Only show examples on non-mobile */}
                             {!isMobile && (
                                 <div style={{ marginTop: "40px", marginBottom: "120px" }}>
-                                    <ExampleList onExampleClicked={onExampleClicked} useGPT4V={useGPT4V} />
+                                    <ExampleList onExampleClicked={onExampleClicked} useGPT4V={useGPT4V} botId={botId} />
                                 </div>
                             )}
                         </div>
                     ) : (
-                        <div className={styles.chatMessageStream}>
+                        <div className={`${styles.chatMessageStream} ${botId === "ba" ? styles.baBot : ""}`}>
                             {isStreaming &&
                                 streamedAnswers.map((streamedAnswer, index) => (
                                     <div key={index}>
-                                        <UserChatMessage message={streamedAnswer[0]} />
+                                        <UserChatMessage message={streamedAnswer[0]} attachmentRefs={streamedAnswer[2]} />
                                         <div className={styles.chatMessageGpt}>
                                             <Answer
                                                 isStreaming={true}
@@ -963,10 +983,11 @@ const Chat = () => {
                                         </div>
                                     </div>
                                 ))}
+
                             {!isStreaming &&
                                 answers.map((answer, index) => (
                                     <div key={index}>
-                                        <UserChatMessage message={answer[0]} />
+                                        <UserChatMessage message={answer[0]} attachmentRefs={answer[2]} />
                                         <div className={styles.chatMessageGpt}>
                                             <Answer
                                                 isStreaming={false}
@@ -986,19 +1007,21 @@ const Chat = () => {
                                         </div>
                                     </div>
                                 ))}
+
                             {isLoading && (
                                 <>
-                                    <UserChatMessage message={lastQuestionRef.current} />
+                                    <UserChatMessage message={lastQuestionRef.current} attachmentRefs={currentAttachments} />
                                     <div className={styles.chatMessageGptMinWidth}>
                                         <AnswerLoading />
                                     </div>
                                 </>
                             )}
+
                             {error ? (
                                 <>
-                                    <UserChatMessage message={lastQuestionRef.current} />
+                                    <UserChatMessage message={lastQuestionRef.current} attachmentRefs={currentAttachments} />
                                     <div className={styles.chatMessageGptMinWidth}>
-                                        <AnswerError error={error.toString()} onRetry={() => makeApiRequest(lastQuestionRef.current)} />
+                                        <AnswerError error={error.toString()} onRetry={() => makeApiRequest(lastQuestionRef.current, currentAttachments)} />
                                     </div>
                                 </>
                             ) : null}
@@ -1007,7 +1030,7 @@ const Chat = () => {
                     )}
 
                     <div
-                        className={styles.chatInput}
+                        className={`${styles.chatInput} ${botId === "ba" ? styles.baBot : ""}`}
                         style={{
                             right: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
                             left: isHistoryPanelOpen && !isMobile ? "320px" : "0",
@@ -1021,7 +1044,11 @@ const Chat = () => {
                             clearOnSend
                             placeholder={t("defaultExamples.placeholder")}
                             disabled={isLoading}
-                            onSend={question => makeApiRequest(question)}
+                            isGenerating={isLoading || isStreaming} // Add this
+                            onCancel={cancelGeneration} // Add this
+                            onSend={(question, attachmentRefs) => {
+                                makeApiRequest(question, attachmentRefs);
+                            }}
                             showSpeechInput={showSpeechInput}
                             followupQuestions={currentFollowupQuestions}
                             onFollowupQuestionClicked={question => {

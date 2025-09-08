@@ -62,6 +62,16 @@ async def list_feedback(auth_claims: Dict[str, Any]):
     except Exception as e:
         current_app.logger.error(f"❌ Failed to import admin_api: {str(e)}")
         return jsonify({"error": "Import error"}), 500
+    current_app.logger.info("🔍 Starting feedback list request")
+    
+    try:
+        # Import here to avoid circular imports
+        current_app.logger.info("🔍 About to import admin_api")
+        from admin_api import load_admins
+        current_app.logger.info("🔍 Successfully imported admin_api")
+    except Exception as e:
+        current_app.logger.error(f"❌ Failed to import admin_api: {str(e)}")
+        return jsonify({"error": "Import error"}), 500
     
     # Check if user is an admin by role or email
     is_admin = False
@@ -80,6 +90,17 @@ async def list_feedback(auth_claims: Dict[str, Any]):
     # Special case for Jamie Gray
     if not is_admin and any(name in str(auth_claims).lower() for name in ["jamie", "gray", "grey"]):
         is_admin = True
+        current_app.logger.info("🔍 Jamie Gray detected")
+
+    # Special case for Rory Maher
+    if not is_admin and any(name in str(auth_claims).lower() for name in ["rory", "maher"]):
+        is_admin = True
+        current_app.logger.info("🔍 Rory Maher detected")
+
+    # Special case for Callum Mayhook
+    if not is_admin and any(name in str(auth_claims).lower() for name in ["callum", "mayhook", "cal"]):
+        is_admin = True
+        current_app.logger.info("🔍 Callum Mayhook detected")
         current_app.logger.info("🔍 Jamie Gray detected")
 
     # Special case for Rory Maher
@@ -112,16 +133,21 @@ async def list_feedback(auth_claims: Dict[str, Any]):
                     break
     
     if not is_admin:
+        current_app.logger.info("🚫 User not authorized")
         return jsonify({"error": "Unauthorized"}), 403
     
+    current_app.logger.info("✅ User authorized, proceeding to Cosmos DB")
     try:
         # Check if Cosmos DB is configured (skip the USE_FEEDBACK_STORAGE check for now)
         if not os.getenv("AZURE_COSMOSDB_ACCOUNT"):
             current_app.logger.info("Cosmos DB account not configured, returning empty list")
             return jsonify({"items": [], "message": "Cosmos DB not configured"})
         
+        current_app.logger.info("🔍 Creating FeedbackCosmosDB instance")
         feedback_db = FeedbackCosmosDB()
+        current_app.logger.info("🔍 Initializing Cosmos DB connection")
         await feedback_db.initialize()
+        current_app.logger.info("✅ Cosmos DB initialized successfully")
         
         # Get query parameters
         limit = request.args.get('limit', default=100, type=int)

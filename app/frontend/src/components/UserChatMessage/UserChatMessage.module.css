@@ -1,16 +1,161 @@
-.userMessage {
-    background: var(--user-message-bg);
-    color: var(--user-message-text);
-    border-radius: var(--radius-xl);
-    padding: 16px 20px;
-    max-width: 70%;
-    box-shadow: var(--shadow-md);
-    position: relative;
-    backdrop-filter: blur(10px);
-    border: 1px solid var(--border-light);
+/* UserChatMessage.module.css */
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 
-.userMessage span,
-.userMessage div {
-    color: var(--user-message-text) !important;
+.userMessage {
+  background: var(--user-message-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl);
+  padding: 12px 16px;
+  color: var(--user-message-text);
+  font-size: 14px;
+  line-height: 1.4;
+  max-width: 80%;
+  margin-left: auto;
+  word-wrap: break-word;
+}
+
+.attachmentsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-left: auto;
+  max-width: 80%;
+}
+
+.attachmentsHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.attachmentsLabel {
+  font-size: 12px;
+  color: var(--text-secondary);
+  opacity: 0.8;
+  font-weight: 500;
+}
+
+.attachmentsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.attachmentChip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 13px;
+  width: 300px;
+  min-width: 300px;
+  max-width: 300px;
+}
+
+.attachmentChip:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.attachmentIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.attachmentContent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.attachmentKey {
+  font-weight: 600;
+  color: #0066cc;
+  font-size: 11px;
+  opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachmentPrefix {
+  font-weight: 600;
+  color: #0052cc;
+  opacity: 0.7;
+  margin-right: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachmentTitle {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachmentTitle:hover {
+  text-decoration: underline;
+  color: var(--primary);
+}
+
+/* Dark mode specific overrides */
+[data-theme="dark"] .attachmentChip {
+  background: var(--surface);
+  border-color: var(--border-light);
+}
+
+[data-theme="dark"] .attachmentChip:hover {
+  background: var(--surface-hover);
+  border-color: var(--primary);
+}
+
+[data-theme="dark"] .attachmentKey {
+  color: #4da6ff; /* lighter blue for dark mode */
+}
+
+[data-theme="dark"] .attachmentPrefix {
+  color: #66b3ff; /* lighter blue for dark mode */
+}
+
+[data-theme="dark"] .attachmentTitle {
+  color: var(--text);
+}
+
+[data-theme="dark"] .attachmentTitle:hover {
+  color: var(--primary);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .userMessage,
+  .attachmentsContainer {
+    max-width: 95%;
+  }
+  
+  .attachmentChip {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
 }

@@ -25,17 +25,17 @@ export const BOTS: Record<string, BotProfile> = {
     },
     ba: {
         id: "ba",
-        label: "Coming Soon!",
+        label: "Accelerate Assistant",
         themeClass: "theme-green",
         logo: avaGreen,
-        allowed_emails: ["Jamie.Gray@vocus.com.au", "Rory.Maher@vocus.com.au", "Callum.Mayhook@vocus.com.au"]
+        allowed_emails: ["Jamie.Gray@vocus.com.au", "Rory.Maher@vocus.com.au", "Callum.Mayhook@vocus.com.au", "Mitchell.Holt", "Rob.Ison", "Will.Hamilton"]
     },
     tender: {
         id: "tender",
         label: "Coming Soon!",
         themeClass: "theme-orange",
         logo: avaOrange,
-        allowed_emails: ["Jamie.Gray@vocus.com.au", "Rory.Maher@vocus.com.au"]
+        allowed_emails: ["Rory.Maher@vocus.com.au"]
     }
 };
 

@@ -37,8 +37,17 @@ async def post_chat_history(auth_claims: dict[str, Any]):
         request_json = await request.get_json()
         session_id = request_json.get("id")
         message_pairs = request_json.get("answers")
+        bot_id = request_json.get("bot_id")
+        artifact_label = request_json.get("artifact_label")
+        
         first_question = message_pairs[0][0]
-        title = first_question + "..." if len(first_question) > 50 else first_question
+        
+        # Use artifact label for BA bot, otherwise use first question
+        if bot_id == "ba" and artifact_label:
+            title = artifact_label
+        else:
+            title = first_question + "..." if len(first_question) > 50 else first_question
+        
         timestamp = int(time.time() * 1000)
 
         # Insert the session item:
