@@ -42,7 +42,7 @@ export const ARTIFACT_CATEGORIES: Record<string, ArtifactCategory> = {
         label: "Design",
         icon: "🎨",
         description: "Feature design and process planning",
-        artifacts: ["story_map", "acceptance_criteria"]
+        artifacts: ["story_map", "acceptance_criteria", "business_process"]
     },
     refine_plan: {
         id: "refine_plan",
@@ -120,6 +120,15 @@ export const BA_ARTIFACT_TYPES: Record<string, ArtifactType> = {
         category: "design",
         promptHint: "Collaborate with AI to create Acceptance Criteria with the following details:\n- Feature or story description\n- Testable conditions\n- Success scenarios\n- Edge cases and constraints\n- Definition of done",
         customInstructions: "Help create clear, testable acceptance criteria that define when a feature or story is considered complete and ready for delivery."
+    },
+    business_process: {
+        id: "business_process",
+        label: "Business Process",
+        description: "Structured process documentation and workflow analysis",
+        icon: "🔄",
+        category: "design",
+        promptHint: "Collaborate with AI to create Business Process documentation with the following details:\n- Process overview and purpose\n- Stakeholders and roles\n- Detailed process steps\n- Decision points and workflows\n- Exception handling",
+        customInstructions: "Help create comprehensive business process documentation by analyzing unstructured information and converting it into clear, actionable process maps and workflows."
     }
 };
 

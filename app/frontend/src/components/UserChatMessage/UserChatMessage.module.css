@@ -120,6 +120,13 @@
   color: var(--primary);
 }
 
+.attachmentSize {
+  font-size: 11px;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  font-weight: 400;
+}
+
 /* Dark mode specific overrides */
 [data-theme="dark"] .attachmentChip {
   background: var(--surface);

@@ -556,8 +556,9 @@ export const QuestionInput = ({
         />
         <div className={styles.questionInputButtonsContainer}>
           {/* Attachment button above send button - only for BA Assistant */}
-          {showAttachments && <div style={{ marginBottom: "8px" }}>
-            <Menu 
+          {showAttachments && (
+            <div style={{ marginBottom: "8px" }}>
+              <Menu 
               positioning="above-start"
               onOpenChange={(e, data) => {
                 if (!data.open) {
@@ -875,7 +876,8 @@ export const QuestionInput = ({
                 e.target.value = '';
               }}
             />
-          </div>
+            </div>
+          )}
           
           <Button
             size="large"

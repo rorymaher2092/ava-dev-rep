@@ -37,7 +37,8 @@ export const BOTS: Record<string, BotProfile> = {
             "Mitchell.Holt@vocus.com.au",
             "Rob.Ison@vocus.com.au",
             "Will.Hamilton@vocus.com.au"
-        ]
+        ],
+        supportsAttachments: true
     },
     tender: {
         id: "tender",

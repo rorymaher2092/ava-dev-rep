@@ -2,57 +2,111 @@ import styles from "./UserChatMessage.module.css";
 import { AttachmentRef } from "../Attachments/AttachmentMenu";
 import confluenceLogo from "../../assets/confluence-logo.png";
 import jiraLogo from "../../assets/jira-logo.png";
+import {
+    Document24Regular,
+    DocumentPdf24Regular,
+    DocumentTable24Regular,
+    DocumentText24Regular
+} from "@fluentui/react-icons";
 
 interface Props {
     message: string;
     attachmentRefs?: AttachmentRef[];
 }
 
+// Helper to get document icon
+const getFileIcon = (fileType?: string) => {
+    if (!fileType) return <Document24Regular style={{ fontSize: 16, color: '#666' }} />;
+    if (fileType === ".pdf") return <DocumentPdf24Regular style={{ fontSize: 16, color: '#d32f2f' }} />;
+    if ([".xlsx", ".xls", ".csv"].includes(fileType)) return <DocumentTable24Regular style={{ fontSize: 16, color: '#2e7d32' }} />;
+    if ([".txt", ".docx"].includes(fileType)) return <DocumentText24Regular style={{ fontSize: 16, color: '#1976d2' }} />;
+    return <Document24Regular style={{ fontSize: 16, color: '#666' }} />;
+};
+
+// Format file size
+const formatFileSize = (bytes?: number) => {
+    if (!bytes) return "";
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1048576) return Math.round(bytes / 1024) + " KB";
+    return Math.round(bytes / 1048576) + " MB";
+};
+
 const AttachmentChip = ({ attachment }: { attachment: AttachmentRef }) => {
-    const isJira = attachment.type === 'jira';
+    if (attachment.type === 'document') {
+        return (
+            <div className={styles.attachmentChip}>
+                <div className={styles.attachmentIcon}>
+                    {getFileIcon(attachment.fileType)}
+                </div>
+                <div className={styles.attachmentContent}>
+                    <span className={styles.attachmentTitle} title={attachment.filename}>
+                        {attachment.filename || "Document"}
+                    </span>
+                    {attachment.size && (
+                        <span className={styles.attachmentSize}>
+                            {formatFileSize(attachment.size)}
+                        </span>
+                    )}
+                </div>
+            </div>
+        );
+    }
     
+    if (attachment.type === 'jira') {
+        return (
+            <div className={styles.attachmentChip}>
+                <div className={styles.attachmentIcon}>
+                    <img 
+                        src={jiraLogo} 
+                        alt="Jira" 
+                        width="16" 
+                        height="16" 
+                    />
+                </div>
+                <div className={styles.attachmentContent}>
+                    <span className={styles.attachmentKey}>[{attachment.key}]</span>
+                    {attachment.url ? (
+                        <a 
+                            href={attachment.url} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            className={styles.attachmentTitle}
+                            title={attachment.summary}
+                        >
+                            {attachment.summary || attachment.key}
+                        </a>
+                    ) : (
+                        <span className={styles.attachmentTitle} title={attachment.summary}>
+                            {attachment.summary || attachment.key}
+                        </span>
+                    )}
+                </div>
+            </div>
+        );
+    }
+    
+    // Confluence type
     return (
         <div className={styles.attachmentChip}>
             <div className={styles.attachmentIcon}>
                 <img 
-                    src={isJira ? jiraLogo : confluenceLogo} 
-                    alt={isJira ? "Jira" : "Confluence"} 
+                    src={confluenceLogo} 
+                    alt="Confluence" 
                     width="16" 
                     height="16" 
                 />
             </div>
             <div className={styles.attachmentContent}>
-                {isJira ? (
-                    <>
-                        <span className={styles.attachmentKey}>[{attachment.key}]</span>
-                        {attachment.url ? (
-                            <a 
-                                href={attachment.url} 
-                                target="_blank" 
-                                rel="noreferrer" 
-                                className={styles.attachmentTitle}
-                                title={attachment.summary}
-                            >
-                                {attachment.summary || attachment.key}
-                            </a>
-                        ) : (
-                            <span className={styles.attachmentTitle} title={attachment.summary}>
-                                {attachment.summary || attachment.key}
-                            </span>
-                        )}
-                    </>
-                ) : (
-                    <a 
-                        href={attachment.url} 
-                        target="_blank" 
-                        rel="noreferrer" 
-                        className={styles.attachmentTitle}
-                        title={attachment.title}
-                    >
-                        <span className={styles.attachmentPrefix}>Confluence:</span>
-                        {attachment.title || "Page"}
-                    </a>
-                )}
+                <a 
+                    href={attachment.url} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className={styles.attachmentTitle}
+                    title={attachment.title}
+                >
+                    <span className={styles.attachmentPrefix}>Confluence:</span>
+                    {attachment.title || "Page"}
+                </a>
             </div>
         </div>
     );
