@@ -28,6 +28,9 @@ import {
     DocumentTable24Regular,
     DocumentText24Regular
 } from "@fluentui/react-icons";
+import { useBot } from "../../contexts/BotContext";
+
+/* ─────────────────── Types ─────────────────── */
 
 export interface AttachmentRef {
     type: "jira" | "confluence" | "document";
@@ -156,6 +159,7 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
     hideAttachmentCount = false,
     hideChips = false
 }) => {
+    const { botId } = useBot();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [uploadProgress, setUploadProgress] = useState(0);
