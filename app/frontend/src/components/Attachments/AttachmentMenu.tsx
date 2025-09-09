@@ -11,6 +11,7 @@ import {
   Bug24Regular,
   Dismiss16Regular,
 } from "@fluentui/react-icons";
+import { useBot } from "../../contexts/BotContext";
 
 /* ─────────────────── Types ─────────────────── */
 
@@ -36,13 +37,16 @@ interface SimpleAttachmentMenuProps {
 
 /* ────────────── Validation API calls ────────────── */
 
-async function validateJiraTicket(ticketKey: string): Promise<{valid: boolean; data?: any; error?: string}> {
+async function validateJiraTicket(ticketKey: string, botId: string): Promise<{valid: boolean; data?: any; error?: string}> {
   try {
     const response = await fetch('/api/attachments/validate/jira', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ ticketKey: ticketKey.trim().toUpperCase() })
+      body: JSON.stringify({ 
+        ticketKey: ticketKey.trim().toUpperCase(),
+        botId: botId 
+      })
     });
     
     const result = await response.json();
@@ -52,13 +56,16 @@ async function validateJiraTicket(ticketKey: string): Promise<{valid: boolean; d
   }
 }
 
-async function validateConfluencePage(pageUrl: string): Promise<{valid: boolean; data?: any; error?: string}> {
+async function validateConfluencePage(pageUrl: string, botId: string): Promise<{valid: boolean; data?: any; error?: string}> {
   try {
     const response = await fetch('/api/attachments/validate/confluence', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ pageUrl: pageUrl.trim() })
+      body: JSON.stringify({ 
+        pageUrl: pageUrl.trim(),
+        botId: botId 
+      })
     });
     
     const result = await response.json();
@@ -153,6 +160,7 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
   hideAttachmentCount = false,
   hideChips = false
 }) => {
+  const { botId } = useBot();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -192,7 +200,7 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
         return;
       }
       
-      const result = await validateJiraTicket(key);
+      const result = await validateJiraTicket(key, botId);
       if (!result.valid) {
         setError(result.error || 'Failed to validate ticket');
         return;
@@ -238,7 +246,7 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
         return;
       }
       
-      const result = await validateConfluencePage(url);
+      const result = await validateConfluencePage(url, botId);
       if (!result.valid) {
         setError(result.error || 'Failed to validate page');
         return;

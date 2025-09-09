@@ -11,6 +11,7 @@ import { requireLogin } from "../../authConfig";
 import { CompactArtifactSelector } from "../ArtifactSelector/CompactArtitfactSelector";
 import { useBot } from "../../contexts/BotContext";
 import { SimpleAttachmentMenu, AttachmentRef } from "../Attachments/AttachmentMenu";
+import { BOTS } from "../../config/botConfig";
 
 // Import logos
 import confluenceLogo from "../../assets/confluence-logo.png";
@@ -59,6 +60,10 @@ export const QuestionInput = ({
   const { botId } = useBot();
   const { t } = useTranslation();
 
+  // Only show attachments for bots that support them
+  const currentBot = BOTS[botId];
+  const showAttachments = currentBot?.supportsAttachments ?? false;
+
   useEffect(() => {
     if (initQuestion) setQuestion(initQuestion);
   }, [initQuestion]);
@@ -74,7 +79,10 @@ export const QuestionInput = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ ticketKey: ticketKey.trim().toUpperCase() })
+        body: JSON.stringify({ 
+          ticketKey: ticketKey.trim().toUpperCase(),
+          botId: botId 
+        })
       });
       
       const result = await response.json();
@@ -90,7 +98,10 @@ export const QuestionInput = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ jiraUrl: jiraUrl.trim() })
+        body: JSON.stringify({ 
+          jiraUrl: jiraUrl.trim(),
+          botId: botId 
+        })
       });
       
       const result = await response.json();
@@ -106,7 +117,10 @@ export const QuestionInput = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ pageUrl: pageUrl.trim() })
+        body: JSON.stringify({ 
+          pageUrl: pageUrl.trim(),
+          botId: botId 
+        })
       });
       
       const result = await response.json();
@@ -277,8 +291,8 @@ export const QuestionInput = ({
         </Stack>
       )}
 
-      {/* Show attachment chips above input ONLY when attachments exist */}
-      {attachments.length > 0 && (
+      {/* Show attachment chips above input ONLY when attachments exist AND bot supports attachments */}
+      {showAttachments && attachments.length > 0 && (
         <div style={{ 
           display: "flex", 
           flexWrap: "wrap", 
@@ -479,8 +493,8 @@ export const QuestionInput = ({
           aria-label={effectivePlaceholder || "Ask a question"}
         />
         <div className={styles.questionInputButtonsContainer}>
-          {/* Attachment button above send button */}
-          <div style={{ marginBottom: "8px" }}>
+          {/* Attachment button above send button - only for BA Assistant */}
+          {showAttachments && <div style={{ marginBottom: "8px" }}>
             <Menu 
               positioning="above-start"
               onOpenChange={(e, data) => {
@@ -742,7 +756,7 @@ export const QuestionInput = ({
                 )}
               </MenuPopover>
             </Menu>
-          </div>
+          </div>}
           
           <Button
             size="large"

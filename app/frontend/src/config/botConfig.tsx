@@ -13,6 +13,7 @@ export interface BotProfile {
     themeClass: string; // CSS class that sets --brand tokens
     logo: string; // path to the logo image
     allowed_emails: string[]; // empty ⇒ open to everyone
+    supportsAttachments?: boolean; // whether this bot supports attachments
 }
 
 export const BOTS: Record<string, BotProfile> = {
@@ -21,21 +22,24 @@ export const BOTS: Record<string, BotProfile> = {
         label: "Ava – Search",
         themeClass: "theme-blue", // you already style blue as default
         logo: avaBlue,
-        allowed_emails: []
+        allowed_emails: [],
+        supportsAttachments: false
     },
     ba: {
         id: "ba",
         label: "Accelerate Assistant",
         themeClass: "theme-green",
         logo: avaGreen,
-        allowed_emails: ["Jamie.Gray@vocus.com.au", "Rory.Maher@vocus.com.au", "Callum.Mayhook@vocus.com.au", "Mitchell.Holt", "Rob.Ison", "Will.Hamilton"]
+        allowed_emails: ["Jamie.Gray@vocus.com.au", "Rory.Maher@vocus.com.au", "Callum.Mayhook@vocus.com.au", "Mitchell.Holt", "Rob.Ison", "Will.Hamilton"],
+        supportsAttachments: true
     },
     tender: {
         id: "tender",
         label: "Coming Soon!",
         themeClass: "theme-orange",
         logo: avaOrange,
-        allowed_emails: ["Rory.Maher@vocus.com.au"]
+        allowed_emails: ["Rory.Maher@vocus.com.au"],
+        supportsAttachments: false
     }
 };
 
