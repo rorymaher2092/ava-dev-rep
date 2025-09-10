@@ -5,7 +5,7 @@ import uuid
 import hashlib
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from quart import Blueprint, request, jsonify, current_app, session
+from quart import Blueprint, request, jsonify, current_app
 from azure.storage.blob.aio import BlobServiceClient, ContainerClient
 from azure.core.exceptions import ResourceNotFoundError
 import tempfile
@@ -13,40 +13,30 @@ import PyPDF2
 import pandas as pd
 from pathlib import Path
 
-# Import SAS storage and session helpers
-from .sas_storage import sas_storage
-# Placeholder functions for missing session helpers
+# Import UUID-based storage
+from .direct_attachment_storage import attachment_storage
+# UUID-based attachment system - no sessions needed
+from .direct_attachment_storage import attachment_storage
+
 def get_or_create_session_id():
-    session_id = session.get('session_id')
-    if not session_id:
-        session_id = str(uuid.uuid4())
-        session['session_id'] = session_id
-    return session_id
+    # No longer needed - return a simple UUID for compatibility
+    return str(uuid.uuid4())
 
 def add_attachment_to_session(attachment_type, attachment_info):
-    attachments = session.get('attachments', {})
-    type_key = f"{attachment_type}s"
-    if type_key not in attachments:
-        attachments[type_key] = []
-    attachments[type_key].append(attachment_info)
-    session['attachments'] = attachments
+    # No longer needed - return True for compatibility
     return True
 
 def remove_attachment_from_session(attachment_type, attachment_id):
-    attachments = session.get('attachments', {})
-    type_key = f"{attachment_type}s"
-    if type_key in attachments:
-        attachments[type_key] = [a for a in attachments[type_key] if a.get('id') != attachment_id]
-        session['attachments'] = attachments
+    # No longer needed - return True for compatibility
     return True
 
 def get_attachment_counts():
-    attachments = session.get('attachments', {})
-    total = sum(len(v) for v in attachments.values())
-    return {'total': total}
+    # No longer needed - return zero for compatibility
+    return {'total': 0}
 
 def get_unified_session_attachments():
-    return session.get('attachments', {})
+    # No longer needed - return empty for compatibility
+    return {}
 
 document_bp = Blueprint("documents", __name__, url_prefix="/api/attachments/documents")
 
@@ -215,11 +205,11 @@ async def extract_text_from_file_data(file_data: bytes, file_type: str, filename
         current_app.logger.error(f"Traceback: {traceback.format_exc()}")
         return f"[Error processing document: {str(e)}]"
 
+# Key changes to document_attachment_api.py
 @document_bp.route("/upload", methods=["POST"])
 async def upload_document():
-    """Upload document using SAS-based ephemeral storage"""
+    """Upload document to blob storage and return file ID"""
     try:
-        session_id = get_or_create_session_id()
         files = await request.files
         
         if 'file' not in files:
@@ -241,54 +231,24 @@ async def upload_document():
         if len(file_data) > MAX_FILE_SIZE:
             return jsonify({"error": "File too large (max 25MB)"}), 400
         
-        # Upload using SAS storage
-        upload_result = await sas_storage.upload_attachment(
-            session_id=session_id,
+        # Store the actual file in blob storage
+        file_id = await attachment_storage.store_file(
             file_data=file_data,
             filename=filename,
-            file_type=file_ext,
-            metadata={"content_extracted": "false"}
+            file_type=file_ext
         )
         
-        current_app.logger.info(f"Uploaded file to blob path: {upload_result['blob_path']}")
-        
-        # Create document info for session - ENSURE blob_path is stored correctly
-        doc_info = {
-            "id": upload_result["attachment_id"],
-            "filename": filename,
-            "blob_path": upload_result["blob_path"],  # This is the critical field
-            "blob_url": upload_result["blob_url"],
-            "file_type": file_ext,
-            "size": len(file_data),
-            "uploaded_at": upload_result["uploaded_at"],
-            "added_at": datetime.utcnow().timestamp(),
-        }
-        
-        # Add to session storage
-        success = add_attachment_to_session("document", doc_info)
-        
-        if not success:
-            # Clean up SAS blob if session storage failed
-            await sas_storage.delete_attachment(upload_result["blob_path"])
-            return jsonify({"error": f"Document {filename} already attached"}), 409
-        
-        current_app.logger.info(f"Successfully uploaded document: {filename} to session {session_id} at path {upload_result['blob_path']}")
-        
-        # Get updated counts
-        counts = get_attachment_counts()
+        current_app.logger.info(f"Successfully uploaded document: {filename} with ID: {file_id}")
         
         return jsonify({
             "document": {
-                "id": upload_result["attachment_id"],
+                "id": file_id,
                 "filename": filename,
                 "file_type": file_ext,
                 "size": len(file_data),
-                "uploaded_at": upload_result["uploaded_at"],
-                "blob_url": upload_result["blob_url"],
-                "blob_path": upload_result["blob_path"]  # Include in response for debugging
+                "uploaded_at": datetime.utcnow().isoformat()
             },
-            "session_id": session_id,
-            "total_attachments": counts["total"]
+            "attachment_id": file_id
         }), 200
         
     except Exception as e:
@@ -299,88 +259,21 @@ async def upload_document():
 
 @document_bp.route("/<doc_id>", methods=["DELETE"])
 async def remove_document(doc_id: str):
-    """Remove a document attachment using SAS storage"""
+    """Remove a document attachment using UUID storage"""
     try:
-        current_app.logger.info(f"=== REMOVE DOCUMENT START: {doc_id} ===")
+        current_app.logger.info(f"Removing document: {doc_id}")
         
-        # Step 1: Get session ID
-        try:
-            session_id = get_or_create_session_id()
-            current_app.logger.info(f"Session ID: {session_id}")
-        except Exception as e:
-            current_app.logger.error(f"Failed to get session ID: {e}")
-            return jsonify({"error": "Session error"}), 500
+        # Delete from UUID storage
+        success = await attachment_storage.delete_attachment(doc_id)
         
-        # Step 2: Get current attachments
-        try:
-            attachments = get_unified_session_attachments()
-            documents = attachments.get("documents", [])
-            current_app.logger.info(f"Found {len(documents)} documents in session")
-        except Exception as e:
-            current_app.logger.error(f"Failed to get session attachments: {e}")
-            return jsonify({"error": "Failed to access session data"}), 500
-        
-        # Step 3: Find the document to remove
-        doc_to_remove = None
-        try:
-            for doc in documents:
-                current_app.logger.info(f"Checking document: {doc.get('id')} vs {doc_id}")
-                if doc.get('id') == doc_id:
-                    doc_to_remove = doc
-                    break
-        except Exception as e:
-            current_app.logger.error(f"Error searching for document: {e}")
-            return jsonify({"error": "Error searching documents"}), 500
-                
-        if not doc_to_remove:
-            current_app.logger.error(f"Document {doc_id} not found in session")
+        if success:
+            current_app.logger.info(f"Successfully removed document: {doc_id}")
+            return jsonify({"success": True}), 200
+        else:
+            current_app.logger.error(f"Document {doc_id} not found")
             return jsonify({"error": "Document not found"}), 404
         
-        current_app.logger.info(f"Found document to remove: {doc_to_remove.get('filename')}")
-        
-        # Step 4: Remove from session storage first
-        try:
-            success = remove_attachment_from_session("document", doc_id)
-            current_app.logger.info(f"Session removal success: {success}")
-            
-            if not success:
-                current_app.logger.error("Failed to remove from session storage")
-                return jsonify({"error": "Failed to remove document from session"}), 500
-        except Exception as e:
-            current_app.logger.error(f"Error removing from session: {e}")
-            return jsonify({"error": f"Session removal failed: {str(e)}"}), 500
-            
-        # Step 5: Delete from SAS storage if blob_path exists
-        blob_path = doc_to_remove.get('blob_path')
-        if blob_path:
-            try:
-                current_app.logger.info(f"Attempting to delete blob: {blob_path}")
-                await sas_storage.delete_attachment(blob_path)
-                current_app.logger.info(f"Successfully deleted blob: {blob_path}")
-            except Exception as blob_error:
-                current_app.logger.warning(f"Failed to delete blob {blob_path}: {blob_error}")
-                # Don't fail the whole operation if blob deletion fails
-        else:
-            current_app.logger.warning("No blob_path found for document")
-        
-        # Step 6: Get updated counts
-        try:
-            counts = get_attachment_counts()
-            current_app.logger.info(f"Updated attachment counts: {counts}")
-        except Exception as e:
-            current_app.logger.error(f"Error getting attachment counts: {e}")
-            counts = {"total": 0}  # Fallback
-        
-        current_app.logger.info(f"=== REMOVE DOCUMENT SUCCESS: {doc_id} ===")
-        
-        return jsonify({
-            "success": True,
-            "session_id": session_id,
-            "total_attachments": counts["total"]
-        }), 200
-        
     except Exception as e:
-        current_app.logger.error(f"=== REMOVE DOCUMENT FAILED: {doc_id} ===")
         current_app.logger.error(f"Document removal error: {e}")
         import traceback
         current_app.logger.error(f"Traceback: {traceback.format_exc()}")
@@ -388,158 +281,19 @@ async def remove_document(doc_id: str):
 
 @document_bp.route("/", methods=["GET"])
 async def list_documents():
-    """List all document attachments in session"""
+    """List all document attachments - UUID system doesn't maintain lists"""
     try:
-        session_id = get_or_create_session_id()
-        attachments = get_unified_session_attachments()
-        documents = attachments.get("documents", [])
-        
-        # Return simplified list for UI
-        doc_list = [{
-            "id": doc['id'],
-            "filename": doc['filename'],
-            "file_type": doc['file_type'],
-            "size": doc['size'],
-            "uploaded_at": doc['uploaded_at']
-        } for doc in documents]
-        
-        current_app.logger.info(f"Listed {len(doc_list)} documents for session {session_id}")
-        
+        # UUID system doesn't maintain document lists
+        # Documents are consumed when used in chat
         return jsonify({
-            "documents": doc_list,
-            "count": len(doc_list),
-            "session_id": session_id
+            "documents": [],
+            "count": 0,
+            "message": "UUID-based system - documents are consumed when used"
         }), 200
         
     except Exception as e:
         current_app.logger.error(f"Document list error: {e}")
         return jsonify({"error": str(e)}), 500
 
-# Helper function to get document content for chat context
-async def get_document_content_for_chat(doc_info: Dict[str, Any]) -> str:
-    """Retrieve and extract document content using SAS storage"""
-    try:
-        blob_path = doc_info.get('blob_path')
-        if not blob_path:
-            current_app.logger.error(f"No blob_path in doc_info: {doc_info}")
-            return f"[Error: No blob path found for document {doc_info.get('filename', 'unknown')}]"
-        
-        current_app.logger.info(f"Attempting to get content from blob path: {blob_path}")
-        
-        # Get file data from SAS storage
-        file_data = await sas_storage.get_attachment_content(blob_path)
-        
-        current_app.logger.info(f"Retrieved {len(file_data)} bytes from blob storage")
-        
-        # Extract text content
-        extracted_text = await extract_text_from_file_data(
-            file_data, 
-            doc_info.get('file_type', '.txt'), 
-            doc_info.get('filename', 'document')
-        )
-        
-        return extracted_text
-        
-    except Exception as e:
-        current_app.logger.error(f"Error getting document content for {doc_info.get('filename', 'unknown')}: {e}")
-        import traceback
-        current_app.logger.error(f"Traceback: {traceback.format_exc()}")
-        return f"[Error accessing document {doc_info.get('filename', 'unknown')}: {str(e)}]"
-
-def prepare_chat_with_attachments(should_consume: bool = False) -> Dict[str, Any]:
-    """Prepare attachment data for chat context - lightweight version"""
-    try:
-        attachments = get_unified_session_attachments()
-        
-        jira_tickets = attachments.get("jira_tickets", [])
-        confluence_pages = attachments.get("confluence_pages", [])
-        documents = attachments.get("documents", [])
-        
-        current_app.logger.info(f"Preparing attachments: {len(jira_tickets)} Jira, {len(confluence_pages)} Confluence, {len(documents)} Documents")
-        
-        # Log document details for debugging
-        for doc in documents:
-            current_app.logger.info(f"Document in session: {doc.get('filename')} with blob_path: {doc.get('blob_path')}")
-        
-        # Build attachment sources for LLM context
-        attachment_sources = []
-        
-        # Add Jira tickets
-        for ticket in jira_tickets:
-            source = f"""=== JIRA TICKET: {ticket.get('key', 'Unknown')} ===
-Summary: {ticket.get('summary', 'No summary')}
-Status: {ticket.get('status', 'Unknown')}
-Priority: {ticket.get('priority', 'Unknown')}
-Assignee: {ticket.get('assignee', 'Unassigned')}
-Reporter: {ticket.get('reporter', 'Unknown')}
-Type: {ticket.get('issue_type', 'Unknown')}
-Created: {ticket.get('created', 'Unknown')}
-Updated: {ticket.get('updated', 'Unknown')}
-Description: {ticket.get('description', 'No description')}
-URL: {ticket.get('url', '')}
-"""
-            attachment_sources.append(source)
-        
-        # Add Confluence pages
-        for page in confluence_pages:
-            source = f"""=== CONFLUENCE PAGE: {page.get('title', 'Unknown')} ===
-Space: {page.get('space_name', page.get('space_key', 'Unknown'))}
-Version: {page.get('version', 'Unknown')}
-Last Modified: {page.get('last_modified', 'Unknown')}
-URL: {page.get('url', '')}
-Content:
-{page.get('content', 'No content available')}
-"""
-            attachment_sources.append(source)
-        
-        # Return document info for async loading
-        return {
-            "has_attachments": len(jira_tickets) + len(confluence_pages) + len(documents) > 0,
-            "attachment_count": len(jira_tickets) + len(confluence_pages) + len(documents),
-            "attachment_sources": attachment_sources,  # Jira and Confluence only
-            "document_sources_pending": documents,  # Documents to be loaded async
-            "attachment_types": {
-                "jira": len(jira_tickets),
-                "confluence": len(confluence_pages),
-                "documents": len(documents)
-            }
-        }
-        
-    except Exception as e:
-        current_app.logger.error(f"Error in prepare_chat_with_attachments: {e}")
-        return {
-            "has_attachments": False,
-            "attachment_count": 0,
-            "attachment_sources": [],
-            "document_sources_pending": [],
-            "attachment_types": {"jira": 0, "confluence": 0, "documents": 0}
-        }
-
-async def load_and_finalize_attachments(attachment_prep: Dict[str, Any]) -> Dict[str, Any]:
-    """Load document content and finalize all attachments"""
-    attachment_sources = attachment_prep["attachment_sources"].copy()
-    
-    # Load document content
-    for doc in attachment_prep["document_sources_pending"]:
-        try:
-            current_app.logger.info(f"Loading content for document: {doc.get('filename')} from path: {doc.get('blob_path')}")
-            content = await get_document_content_for_chat(doc)
-            source = f"""=== DOCUMENT: {doc.get('filename', 'Unknown')} ===
-File Type: {doc.get('file_type', 'Unknown')}
-Size: {doc.get('size', 0)} bytes
-Uploaded: {doc.get('uploaded_at', 'Unknown')}
-Content:
-{content}
-"""
-            attachment_sources.append(source)
-            current_app.logger.info(f"Successfully loaded content for document: {doc.get('filename')}")
-        except Exception as e:
-            current_app.logger.error(f"Failed to load document {doc.get('filename')}: {e}")
-            attachment_sources.append(f"=== DOCUMENT: {doc.get('filename')} ===\nContent: [Error loading: {str(e)}]")
-    
-    return {
-        "has_attachments": attachment_prep["has_attachments"],
-        "attachment_count": attachment_prep["attachment_count"],
-        "attachment_sources": attachment_sources,
-        "attachment_types": attachment_prep["attachment_types"]
-    }
+# Note: This file now uses UUID-based storage instead of session-based storage
+# Documents are uploaded, stored with UUID, and consumed when used in chat

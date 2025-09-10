@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from quart import current_app
 import dateutil.parser
 from datetime import datetime
+from attachments.direct_attachment_storage import attachment_storage
 
 # Configuration from environment variables
 JIRA_CONFIG = {
@@ -459,3 +460,34 @@ def get_time_ago(date_string: Optional[str]) -> str:
             return "Just now"
     except Exception:
         return "Unknown"
+    
+async def fetch_document_by_id(file_id: str) -> Optional[str]:
+    """Fetch document from blob storage and extract text"""
+    try:
+        # Get file from blob storage
+        file_info = await attachment_storage.get_file(file_id)
+        if not file_info:
+            current_app.logger.error(f"File {file_id} not found in blob storage")
+            return None
+        
+        # Extract text from file data
+        from attachments.document_attachment_api import extract_text_from_file_data
+        
+        extracted_text = await extract_text_from_file_data(
+            file_data=file_info["file_data"],
+            file_type=file_info["file_type"],
+            filename=file_info["original_filename"]
+        )
+        
+        # Format as document source
+        source = f"""=== DOCUMENT: {file_info["original_filename"]} ===
+File Type: {file_info["file_type"]}
+Size: {file_info["size"]} bytes
+Content:
+{extracted_text}
+"""
+        return source
+        
+    except Exception as e:
+        current_app.logger.error(f"Error fetching document {file_id}: {e}")
+        return f"[Error loading document: {str(e)}]"

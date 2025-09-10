@@ -359,31 +359,53 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
             const formData = new FormData();
             formData.append("file", file);
 
-            const response = await fetch("/api/attachments/documents/upload", {
+            // First upload the file to blob storage
+            const uploadResponse = await fetch("/upload", {
                 method: "POST",
                 body: formData,
                 credentials: "include"
             });
 
-            clearInterval(progressInterval);
-            setUploadProgress(100);
-
-            if (!response.ok) {
-                const errorData = await response.json();
+            if (!uploadResponse.ok) {
+                const errorData = await uploadResponse.json();
                 throw new Error(errorData.error || "Upload failed");
             }
 
-            const data = await response.json();
+            const uploadData = await uploadResponse.json();
+            
+            // Then store metadata as attachment with UUID
+            const storeResponse = await fetch("/api/attachments/store", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    type: "document",
+                    id: `doc-${Date.now()}`,
+                    blob_path: file.name, // Use filename - backend will validate
+                    filename: file.name,
+                    fileType: `.${file.name.split('.').pop()?.toLowerCase() || ''}`,
+                    size: file.size,
+                    uploaded_at: new Date().toISOString()
+                })
+            });
+
+            clearInterval(progressInterval);
+            setUploadProgress(100);
+
+            if (!storeResponse.ok) {
+                const errorData = await storeResponse.json();
+                throw new Error(errorData.error || "Store failed");
+            }
 
             // Replace loading attachment with completed one
             const completedAttachment: AttachmentRef = {
                 type: "document",
-                id: data.document.id,
-                filename: data.document.filename,
-                fileType: data.document.file_type,
-                size: data.document.size,
-                blob_path: data.document.blob_path,
-                uploaded_at: data.document.uploaded_at
+                id: uploadData.attachment_id,// Use UUID from store response
+                filename: file.name,
+                fileType: `.${file.name.split('.').pop()?.toLowerCase() || ''}`,
+                size: file.size,
+                blob_path: file.name,
+                uploaded_at: new Date().toISOString()
             };
 
             const finalAttachments = attachmentsWithLoading

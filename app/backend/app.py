@@ -52,7 +52,7 @@ from quart import (
     session,
 )
 from quart_cors import cors
-from quart_session import Session
+
 
 from bot_profiles import BotProfile, BOTS, DEFAULT_BOT_ID
 from approaches.approach import Approach
@@ -64,12 +64,15 @@ from approaches.retrievethenreadvision import RetrieveThenReadVisionApproach
 from approaches.confluence_search import ConfluenceSearchService 
 from attachments.attachment_api import attachment_bp
 # In your main route file, make sure you have:
-from attachments.attachment_helpers import fetch_attachments_for_chat
+from attachments.attachment_helpers import fetch_attachments_for_chat, fetch_jira_ticket_source, fetch_confluence_page_source, fetch_document_source, fetch_document_by_id
+from attachments.direct_attachment_storage import attachment_storage
 from chat_history.cosmosdb import chat_history_cosmosdb_bp
-from blob_session import QuartBlobSession
+
 from attachments.document_attachment_api import document_bp
 from attachments.session_cleanup import session_cleanup_bp
+from attachments.direct_attachment_api import direct_attachment_bp
 from chat_history.feedback_api import feedback_bp
+from healthz import healthz_bp
 
 from config import (
     CONFIG_AGENT_CLIENT,
@@ -248,8 +251,7 @@ async def chat(auth_claims: dict[str, Any]):
         return jsonify({"error": "request must be json"}), 415
     request_json = await request.get_json()
 
-    session_id = session.get('attachment_session_id')
-    current_app.logger.info(f"CHAT START - Session ID: {session_id}")
+    current_app.logger.info(f"CHAT START")
 
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
@@ -259,46 +261,37 @@ async def chat(auth_claims: dict[str, Any]):
 
     current_app.logger.info(f"Should consume attachments: {should_consume}")
 
-    # HYBRID: Handle both session storage (documents) and overrides (JIRA/Confluence)
+    # DUAL ATTACHMENT SYSTEM: Handle both UUID-based documents and direct JIRA/Confluence refs
     attachment_sources = []
     
     if should_consume:
-        current_app.logger.info("Processing attachments with hybrid approach...")
+        current_app.logger.info("Processing attachments...")
         
-        # Import the optimized functions for session-based attachments
-        from attachments.document_attachment_api import prepare_chat_with_attachments, load_and_finalize_attachments
+        # Handle document attachments by file ID
+        attachment_ids = overrides.get("attachment_ids", [])
+        if attachment_ids:
+            current_app.logger.info(f"Loading {len(attachment_ids)} documents by ID")
+            
+            for file_id in attachment_ids:
+                try:
+                    # Fetch and process each document
+                    document_source = await fetch_document_by_id(file_id)
+                    if document_source:
+                        attachment_sources.append(document_source)
+                        current_app.logger.info(f"Successfully loaded document {file_id}")
+                except Exception as e:
+                    current_app.logger.error(f"Failed to load document {file_id}: {e}")
         
-        # Step 1: Get session-based attachments (documents)
-        attachment_prep = prepare_chat_with_attachments(should_consume=False)
-        session_attachment_data = await load_and_finalize_attachments(attachment_prep)
-        session_sources = session_attachment_data.get("attachment_sources", [])
-        
-        current_app.logger.info(f"Loaded {len(session_sources)} session-based sources")
-        
-        # Step 2: Get override-based attachments (JIRA/Confluence)
+        # SYSTEM 2: Direct JIRA/Confluence references
         attachment_refs = overrides.get("attachment_refs", [])
-        override_sources = []
-        
         if attachment_refs:
-            current_app.logger.info(f"Fetching {len(attachment_refs)} override-based references")
+            current_app.logger.info(f"Processing {len(attachment_refs)} JIRA/Confluence references")
             try:
-                override_sources = await fetch_attachments_for_chat(attachment_refs)
-                current_app.logger.info(f"Successfully fetched {len(override_sources)} override sources")
+                jira_confluence_sources = await fetch_attachments_for_chat(attachment_refs)
+                attachment_sources.extend(jira_confluence_sources)
+                current_app.logger.info(f"Successfully loaded {len(jira_confluence_sources)} JIRA/Confluence sources")
             except Exception as e:
-                current_app.logger.error(f"Failed to fetch override attachments: {str(e)}")
-        
-        # Step 3: Combine both sources
-        attachment_sources = session_sources + override_sources
-        
-        current_app.logger.info(f"Combined total: {len(attachment_sources)} attachment sources")
-        
-        # Step 4: Clear session attachments after loading content
-        if session_attachment_data.get("has_attachments"):
-            current_app.logger.info("Clearing session attachments after loading")
-            session.pop('jira_tickets', None)
-            session.pop('confluence_pages', None)
-            session.pop('document_attachments', None)
-            session.modified = True
+                current_app.logger.error(f"Failed to fetch JIRA/Confluence attachments: {str(e)}")
         
     else:
         current_app.logger.info("No consume_attachments flag")
@@ -349,8 +342,7 @@ async def chat_stream(auth_claims: dict[str, Any]):
         return jsonify({"error": "request must be json"}), 415
     request_json = await request.get_json()
 
-    session_id = session.get('attachment_session_id')
-    current_app.logger.info(f"CHAT STREAM START - Session ID: {session_id}")
+    current_app.logger.info(f"CHAT STREAM START")
 
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
@@ -360,46 +352,37 @@ async def chat_stream(auth_claims: dict[str, Any]):
 
     current_app.logger.info(f"Should consume attachments: {should_consume}")
 
-    # HYBRID: Handle both session storage (documents) and overrides (JIRA/Confluence)
+    # DUAL ATTACHMENT SYSTEM: Handle both UUID-based documents and direct JIRA/Confluence refs
     attachment_sources = []
     
     if should_consume:
-        current_app.logger.info("Processing attachments with hybrid approach...")
+        current_app.logger.info("Processing attachments...")
         
-        # Import the optimized functions for session-based attachments
-        from attachments.document_attachment_api import prepare_chat_with_attachments, load_and_finalize_attachments
+        # Handle document attachments by file ID
+        attachment_ids = overrides.get("attachment_ids", [])
+        if attachment_ids:
+            current_app.logger.info(f"Loading {len(attachment_ids)} documents by ID")
+            
+            for file_id in attachment_ids:
+                try:
+                    # Fetch and process each document
+                    document_source = await fetch_document_by_id(file_id)
+                    if document_source:
+                        attachment_sources.append(document_source)
+                        current_app.logger.info(f"Successfully loaded document {file_id}")
+                except Exception as e:
+                    current_app.logger.error(f"Failed to load document {file_id}: {e}")
         
-        # Step 1: Get session-based attachments (documents)
-        attachment_prep = prepare_chat_with_attachments(should_consume=False)
-        session_attachment_data = await load_and_finalize_attachments(attachment_prep)
-        session_sources = session_attachment_data.get("attachment_sources", [])
-        
-        current_app.logger.info(f"Loaded {len(session_sources)} session-based sources")
-        
-        # Step 2: Get override-based attachments (JIRA/Confluence)
+        # SYSTEM 2: Direct JIRA/Confluence references
         attachment_refs = overrides.get("attachment_refs", [])
-        override_sources = []
-        
         if attachment_refs:
-            current_app.logger.info(f"Fetching {len(attachment_refs)} override-based references")
+            current_app.logger.info(f"Processing {len(attachment_refs)} JIRA/Confluence references")
             try:
-                override_sources = await fetch_attachments_for_chat(attachment_refs)
-                current_app.logger.info(f"Successfully fetched {len(override_sources)} override sources")
+                jira_confluence_sources = await fetch_attachments_for_chat(attachment_refs)
+                attachment_sources.extend(jira_confluence_sources)
+                current_app.logger.info(f"Successfully loaded {len(jira_confluence_sources)} JIRA/Confluence sources")
             except Exception as e:
-                current_app.logger.error(f"Failed to fetch override attachments: {str(e)}")
-        
-        # Step 3: Combine both sources
-        attachment_sources = session_sources + override_sources
-        
-        current_app.logger.info(f"Combined total: {len(attachment_sources)} attachment sources")
-        
-        # Step 4: Clear session attachments after loading content
-        if session_attachment_data.get("has_attachments"):
-            current_app.logger.info("Clearing session attachments after loading")
-            session.pop('jira_tickets', None)
-            session.pop('confluence_pages', None)
-            session.pop('document_attachments', None)
-            session.modified = True
+                current_app.logger.error(f"Failed to fetch JIRA/Confluence attachments: {str(e)}")
         
     else:
         current_app.logger.info("No consume_attachments flag")
@@ -1254,19 +1237,13 @@ async def close_clients():
 def create_app():
     app = Quart(__name__)
     
-    # ADD: Basic app configuration for sessions
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'vocus-ava-attachments-2025')
+    # Set secret key for Quart sessions (even though we use UUID-based attachments)
+    app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
     
-    # ADD: Configure Blob Storage sessions
-    app.config['SESSION_COOKIE_NAME'] = 'vocus_session'
-    app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SECURE'] = True  # Set False for local dev
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-    app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
-    app.config['SESSION_CONTAINER_NAME'] = 'ephemeral-attachments'
+    # No session configuration needed for attachments
     
-    # ADD: Initialize Blob session storage
-    QuartBlobSession(app)
+    # Health check blueprint (FIRST - no sessions)
+    app.register_blueprint(healthz_bp)
     
     # Existing blueprints
     app.register_blueprint(bp)
@@ -1277,6 +1254,7 @@ def create_app():
     # ADD: New blueprints for document support
     app.register_blueprint(document_bp)
     app.register_blueprint(session_cleanup_bp)
+    app.register_blueprint(direct_attachment_bp)
 
 
     if os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):
