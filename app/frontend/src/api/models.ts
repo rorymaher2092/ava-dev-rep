@@ -57,6 +57,7 @@ export type ChatAppRequestOverrides = {
     bot_id?: string; // Optional bot ID to override the default bot
     graph_token?: string; // Optional Graph token for Microsoft Graph API
     attachment_refs?: AttachmentRef[];
+    consume_attachments?: boolean; // Flag to trigger attachment processing
     artifact_type?: string;
     model?: string; // Optional model override
     examples?: Array<{ role: string; content: string }>; // Optional examples override

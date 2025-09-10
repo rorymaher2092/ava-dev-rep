@@ -492,8 +492,10 @@ const Chat = () => {
                         bot_id: botId,
                         graph_token: graphToken,
                         artifact_type: selectedArtifactType,
-                        // NEW: Include attachment references for just-in-time fetching
+                        // Include attachment references for just-in-time fetching
                         attachment_refs: attachmentRefs || [],
+                        // CRITICAL: Tell backend to consume attachments if any exist
+                        consume_attachments: (attachmentRefs && attachmentRefs.length > 0) || false,
                         ...(seed !== null ? { seed: seed } : {})
                     }
                 },
