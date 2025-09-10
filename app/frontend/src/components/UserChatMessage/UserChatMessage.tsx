@@ -14,13 +14,14 @@ interface Props {
     attachmentRefs?: AttachmentRef[];
 }
 
-// Helper to get document icon
+// Helper to get document icon with bot theme colors
 const getFileIcon = (fileType?: string) => {
-    if (!fileType) return <Document24Regular style={{ fontSize: 16, color: '#666' }} />;
-    if (fileType === ".pdf") return <DocumentPdf24Regular style={{ fontSize: 16, color: '#d32f2f' }} />;
-    if ([".xlsx", ".xls", ".csv"].includes(fileType)) return <DocumentTable24Regular style={{ fontSize: 16, color: '#2e7d32' }} />;
-    if ([".txt", ".docx"].includes(fileType)) return <DocumentText24Regular style={{ fontSize: 16, color: '#1976d2' }} />;
-    return <Document24Regular style={{ fontSize: 16, color: '#666' }} />;
+    const iconStyle = { fontSize: 16, color: 'var(--primary)' };
+    if (!fileType) return <Document24Regular style={iconStyle} />;
+    if (fileType === ".pdf") return <DocumentPdf24Regular style={iconStyle} />;
+    if ([".xlsx", ".xls", ".csv"].includes(fileType)) return <DocumentTable24Regular style={iconStyle} />;
+    if ([".txt", ".docx"].includes(fileType)) return <DocumentText24Regular style={iconStyle} />;
+    return <Document24Regular style={iconStyle} />;
 };
 
 // Format file size
@@ -32,9 +33,11 @@ const formatFileSize = (bytes?: number) => {
 };
 
 const AttachmentChip = ({ attachment }: { attachment: AttachmentRef }) => {
+    const chipClass = attachment.isLoading ? `${styles.attachmentChip} ${styles.loading}` : styles.attachmentChip;
+    
     if (attachment.type === 'document') {
         return (
-            <div className={styles.attachmentChip}>
+            <div className={chipClass}>
                 <div className={styles.attachmentIcon}>
                     {getFileIcon(attachment.fileType)}
                 </div>
@@ -48,19 +51,26 @@ const AttachmentChip = ({ attachment }: { attachment: AttachmentRef }) => {
                         </span>
                     )}
                 </div>
+                {attachment.isLoading && (
+                    <div 
+                        className={styles.loadingBar}
+                        style={{ width: `${attachment.loadingProgress || 0}%` }}
+                    />
+                )}
             </div>
         );
     }
     
     if (attachment.type === 'jira') {
         return (
-            <div className={styles.attachmentChip}>
+            <div className={chipClass}>
                 <div className={styles.attachmentIcon}>
                     <img 
                         src={jiraLogo} 
                         alt="Jira" 
                         width="16" 
-                        height="16" 
+                        height="16"
+                        style={{ filter: 'hue-rotate(0deg) saturate(0.8)' }}
                     />
                 </div>
                 <div className={styles.attachmentContent}>
@@ -81,19 +91,26 @@ const AttachmentChip = ({ attachment }: { attachment: AttachmentRef }) => {
                         </span>
                     )}
                 </div>
+                {attachment.isLoading && (
+                    <div 
+                        className={styles.loadingBar}
+                        style={{ width: `${attachment.loadingProgress || 0}%` }}
+                    />
+                )}
             </div>
         );
     }
     
     // Confluence type
     return (
-        <div className={styles.attachmentChip}>
+        <div className={chipClass}>
             <div className={styles.attachmentIcon}>
                 <img 
                     src={confluenceLogo} 
                     alt="Confluence" 
                     width="16" 
-                    height="16" 
+                    height="16"
+                    style={{ filter: 'hue-rotate(0deg) saturate(0.8)' }}
                 />
             </div>
             <div className={styles.attachmentContent}>
@@ -108,6 +125,12 @@ const AttachmentChip = ({ attachment }: { attachment: AttachmentRef }) => {
                     {attachment.title || "Page"}
                 </a>
             </div>
+            {attachment.isLoading && (
+                <div 
+                    className={styles.loadingBar}
+                    style={{ width: `${attachment.loadingProgress || 0}%` }}
+                />
+            )}
         </div>
     );
 };

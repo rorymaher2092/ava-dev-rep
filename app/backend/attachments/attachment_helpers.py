@@ -12,14 +12,14 @@ from datetime import datetime
 # Configuration from environment variables
 JIRA_CONFIG = {
     "base_url": os.getenv("JIRA_BASE_URL", "https://vocus.atlassian.net"),
-    "api_token": os.getenv("JIRA_API_TOKEN"),
-    "email": os.getenv("JIRA_EMAIL")
+    "api_token": os.getenv("JIRA_API_TOKEN", "REDACTED_TOKEN"),
+    "email": os.getenv("JIRA_EMAIL", "svc.atlassian@vocus.com.au")
 }
 
 CONFLUENCE_CONFIG = {
     "base_url": os.getenv("CONFLUENCE_BASE_URL", "https://vocus.atlassian.net/wiki"),
-    "api_token": os.getenv("CONFLUENCE_API_TOKEN"),
-    "email": os.getenv("CONFLUENCE_EMAIL")
+    "api_token": os.getenv("CONFLUENCE_API_TOKEN", "REDACTED_TOKEN"),
+    "email": os.getenv("CONFLUENCE_EMAIL", "svc.atlassian@vocus.com.au")
 }
 
 # ADD this new function to handle document sources

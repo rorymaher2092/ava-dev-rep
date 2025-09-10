@@ -46,6 +46,7 @@ export const QuestionInput = ({
   const [isComposing, setIsComposing] = useState(false);
   const [attachmentsBusy, setAttachmentsBusy] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentRef[]>([]);
+  const [uploadingFile, setUploadingFile] = useState<{name: string, error?: string} | null>(null);
   
   // Menu state management
   const [showJiraForm, setShowJiraForm] = useState(false);
@@ -291,8 +292,8 @@ export const QuestionInput = ({
         </Stack>
       )}
 
-      {/* Show attachment chips above input ONLY when attachments exist AND bot supports attachments */}
-      {showAttachments && attachments.length > 0 && (
+      {/* Show attachment chips above input ONLY when attachments exist OR uploading AND bot supports attachments */}
+      {showAttachments && (attachments.length > 0 || uploadingFile) && (
         <div style={{ 
           display: "flex", 
           flexWrap: "wrap", 
@@ -304,6 +305,63 @@ export const QuestionInput = ({
           overflow: "hidden",
           boxSizing: "border-box"
         }}>
+          {/* Loading chip for uploading file */}
+          {uploadingFile && (
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                border: "1px solid var(--border, #e1e1e1)",
+                borderRadius: 999,
+                padding: "6px 10px",
+                background: uploadingFile.error ? "#ffe9e9" : "var(--surface-elevated, #fff)",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                transition: "all 0.2s ease",
+                maxWidth: "100%",
+                overflow: "hidden",
+                boxSizing: "border-box"
+              }}
+            >
+              <span style={{ 
+                fontWeight: 600, 
+                color: uploadingFile.error ? "#dc2626" : "var(--primary, #1ac01a)",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                opacity: 0.7
+              }}>
+                {uploadingFile.error ? "⚠️" : <Spinner size="tiny" />} 
+                {uploadingFile.error ? "Failed" : "Uploading"}
+              </span>
+              <span 
+                title={uploadingFile.name}
+                style={{ 
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
+                  color: "var(--text, inherit)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: "200px"
+                }}
+              >
+                {uploadingFile.name}
+              </span>
+              <Button 
+                size="small" 
+                appearance="subtle" 
+                icon={<span>×</span>} 
+                onClick={() => setUploadingFile(null)} 
+                aria-label="Remove"
+                style={{ 
+                  minWidth: 20, 
+                  padding: 2,
+                  marginLeft: 4
+                }}
+              />
+            </div>
+          )}
           {attachments.map((attachment, index) => {
             if (attachment.type === 'jira') {
               return (
@@ -493,7 +551,7 @@ export const QuestionInput = ({
                 >
                   <span style={{ 
                     fontWeight: 600, 
-                    color: "#666",
+                    color: "var(--primary, #1ac01a)",
                     display: "flex",
                     alignItems: "center",
                     gap: 4,
@@ -846,7 +904,10 @@ export const QuestionInput = ({
                 const file = e.target.files?.[0];
                 if (!file) return;
                 
+                // Show loading chip immediately
+                setUploadingFile({ name: file.name });
                 setAttachmentsBusy(true);
+                
                 const formData = new FormData();
                 formData.append('file', file);
                 
@@ -866,9 +927,13 @@ export const QuestionInput = ({
                       fileType: data.document.file_type,
                       size: data.document.size
                     }]);
+                    setUploadingFile(null); // Remove loading chip on success
+                  } else {
+                    setUploadingFile({ name: file.name, error: 'Upload failed' });
                   }
                 } catch (error) {
                   console.error('Upload failed:', error);
+                  setUploadingFile({ name: file.name, error: 'Upload failed' });
                 } finally {
                   setAttachmentsBusy(false);
                 }

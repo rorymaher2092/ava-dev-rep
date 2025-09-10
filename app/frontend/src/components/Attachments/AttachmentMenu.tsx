@@ -34,6 +34,10 @@ import { useBot } from "../../contexts/BotContext";
 
 export interface AttachmentRef {
     type: "jira" | "confluence" | "document";
+    // Loading state
+    isLoading?: boolean;
+    loadingProgress?: number;
+    tempId?: string; // temporary ID for loading attachments
     // Jira fields
     key?: string;
     // Confluence fields
@@ -85,7 +89,9 @@ const Chip = ({
     title,
     onRemove,
     disabled = false,
-    icon
+    icon,
+    isLoading = false,
+    loadingProgress = 0
 }: {
     prefix?: React.ReactNode;
     href?: string;
@@ -93,6 +99,8 @@ const Chip = ({
     onRemove?: () => void;
     disabled?: boolean;
     icon?: React.ReactNode;
+    isLoading?: boolean;
+    loadingProgress?: number;
 }) => (
     <div
         style={{
@@ -102,10 +110,12 @@ const Chip = ({
             border: "1px solid var(--border, #e1e1e1)",
             borderRadius: 999,
             padding: "6px 10px",
-            background: "var(--surface-elevated, #fff)",
+            background: isLoading ? "var(--surface, #f8f9fa)" : "var(--surface-elevated, #fff)",
             boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-            opacity: disabled ? 0.6 : 1,
-            transition: "all 0.2s ease"
+            opacity: disabled || isLoading ? 0.6 : 1,
+            transition: "all 0.2s ease",
+            position: "relative",
+            overflow: "hidden"
         }}
     >
         {icon && <span style={{ display: "flex", alignItems: "center" }}>{icon}</span>}
@@ -137,6 +147,19 @@ const Chip = ({
                 {title}
             </span>
         )}
+        {isLoading && (
+            <div
+                style={{
+                    position: "absolute",
+                    bottom: 0,
+                    left: 0,
+                    height: 2,
+                    width: `${loadingProgress}%`,
+                    background: "var(--primary)",
+                    transition: "width 0.3s ease"
+                }}
+            />
+        )}
         {onRemove && (
             <Button
                 size="small"
@@ -144,7 +167,7 @@ const Chip = ({
                 icon={<Dismiss16Regular />}
                 onClick={onRemove}
                 aria-label="Remove"
-                disabled={disabled}
+                disabled={disabled || isLoading}
                 style={{ minWidth: 20, padding: 2, marginLeft: 4 }}
             />
         )}
@@ -300,13 +323,37 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
             return;
         }
 
+        // Create loading attachment immediately
+        const tempId = `temp-${Date.now()}`;
+        const loadingAttachment: AttachmentRef = {
+            type: "document",
+            tempId,
+            filename: file.name,
+            fileType: `.${file.name.split('.').pop()?.toLowerCase() || ''}`,
+            size: file.size,
+            isLoading: true,
+            loadingProgress: 0
+        };
+
+        // Add loading attachment to list
+        const attachmentsWithLoading = [...attachments, loadingAttachment];
+        onAttachmentsChange(attachmentsWithLoading);
+
         setIsUploading(true);
         setUploadProgress(0);
 
         try {
-            // Simulate progress
+            // Update progress periodically
             const progressInterval = setInterval(() => {
-                setUploadProgress(prev => Math.min(prev + 10, 90));
+                setUploadProgress(prev => {
+                    const newProgress = Math.min(prev + 10, 90);
+                    // Update the loading attachment's progress
+                    const updatedAttachments = attachmentsWithLoading.map(att => 
+                        att.tempId === tempId ? { ...att, loadingProgress: newProgress } : att
+                    );
+                    onAttachmentsChange(updatedAttachments);
+                    return newProgress;
+                });
             }, 200);
 
             const formData = new FormData();
@@ -328,7 +375,8 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
 
             const data = await response.json();
 
-            const newAttachment: AttachmentRef = {
+            // Replace loading attachment with completed one
+            const completedAttachment: AttachmentRef = {
                 type: "document",
                 id: data.document.id,
                 filename: data.document.filename,
@@ -338,7 +386,10 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
                 uploaded_at: data.document.uploaded_at
             };
 
-            onAttachmentsChange([...attachments, newAttachment]);
+            const finalAttachments = attachmentsWithLoading
+                .filter(att => att.tempId !== tempId)
+                .concat(completedAttachment);
+            onAttachmentsChange(finalAttachments);
 
             // Reset file input
             if (fileInputRef.current) {
@@ -347,6 +398,9 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
 
             setError(null);
         } catch (error: any) {
+            // Remove failed loading attachment
+            const failedAttachments = attachmentsWithLoading.filter(att => att.tempId !== tempId);
+            onAttachmentsChange(failedAttachments);
             setError(error.message || "Failed to upload document");
         } finally {
             setIsUploading(false);
@@ -444,11 +498,26 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
                             // Document type
                             return (
                                 <Chip
-                                    key={`doc-${attachment.id}-${index}`}
-                                    icon={getFileIcon(attachment.fileType)}
+                                    key={`doc-${attachment.id || attachment.tempId}-${index}`}
+                                    prefix={
+                                        <span
+                                            style={{
+                                                fontWeight: 600,
+                                                color: "var(--primary, #1ac01a)",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: 4
+                                            }}
+                                        >
+                                            {getFileIcon(attachment.fileType)}
+                                            Document
+                                        </span>
+                                    }
                                     title={`${attachment.filename || "Document"}${attachment.size ? ` (${formatFileSize(attachment.size)})` : ""}`}
                                     onRemove={() => removeAttachment(index)}
                                     disabled={busy || isUploading}
+                                    isLoading={attachment.isLoading}
+                                    loadingProgress={attachment.loadingProgress || 0}
                                 />
                             );
                         }
@@ -466,7 +535,7 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
                             aria-label="Attach"
                             disabled={disabled || busy || isUploading}
                             style={{
-                                backgroundColor: "#e91e63",
+                                backgroundColor: "var(--primary)",
                                 color: "white",
                                 border: "none"
                             }}

@@ -60,6 +60,33 @@
   width: 300px;
   min-width: 300px;
   max-width: 300px;
+  position: relative;
+  overflow: hidden;
+}
+
+.attachmentChip.loading {
+  background: var(--surface);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.attachmentChip.loading .attachmentIcon {
+  opacity: 0.5;
+}
+
+.attachmentChip.loading .attachmentTitle,
+.attachmentChip.loading .attachmentKey,
+.attachmentChip.loading .attachmentPrefix {
+  opacity: 0.6;
+}
+
+.loadingBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--primary);
+  transition: width 0.3s ease;
 }
 
 .attachmentChip:hover {
@@ -87,7 +114,7 @@
 
 .attachmentKey {
   font-weight: 600;
-  color: #0066cc;
+  color: var(--primary);
   font-size: 11px;
   opacity: 0.9;
   white-space: nowrap;
@@ -97,7 +124,7 @@
 
 .attachmentPrefix {
   font-weight: 600;
-  color: #0052cc;
+  color: var(--primary);
   opacity: 0.7;
   margin-right: 4px;
   white-space: nowrap;
@@ -139,11 +166,11 @@
 }
 
 [data-theme="dark"] .attachmentKey {
-  color: #4da6ff; /* lighter blue for dark mode */
+  color: var(--primary);
 }
 
 [data-theme="dark"] .attachmentPrefix {
-  color: #66b3ff; /* lighter blue for dark mode */
+  color: var(--primary);
 }
 
 [data-theme="dark"] .attachmentTitle {
