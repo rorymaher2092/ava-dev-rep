@@ -215,13 +215,17 @@ export async function submitFeedbackApi(
     responseId: string,
     feedback: FeedbackType,
     comments: string = "",
-    idToken: string | undefined
+    idToken: string | undefined,
+    botId?: string,
+    artifact?: string,
+    question?: string,
+    answer?: string
 ): Promise<SimpleAPIResponse> {
     const headers = await getHeaders(idToken);
     const response = await fetch(`${BACKEND_URI}/feedback`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ responseId, feedback, comments })
+        body: JSON.stringify({ responseId, feedback, comments, botId, artifact, question, answer })
     });
 
     if (!response.ok) {

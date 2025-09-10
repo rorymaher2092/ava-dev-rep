@@ -597,7 +597,7 @@ export const QuestionInput = ({
       )}
 
       {/* Input + controls */}
-      <Stack horizontal className={styles.questionInputContainer}>
+      <div className={styles.questionInputContainer}>
         <TextField
           className={styles.questionInputTextArea}
           disabled={disableRequiredAccessControl}
@@ -954,7 +954,7 @@ export const QuestionInput = ({
           />
         </div>
         {showSpeechInput && <SpeechInput updateQuestion={setQuestion} />}
-      </Stack>
+      </div>
     </div>
   );
 };

@@ -9,7 +9,6 @@ from quart import current_app
 import dateutil.parser
 from datetime import datetime
 from attachments.direct_attachment_storage import attachment_storage
-
 # Configuration from environment variables
 JIRA_CONFIG = {
     "base_url": os.getenv("JIRA_BASE_URL", "https://vocus.atlassian.net"),

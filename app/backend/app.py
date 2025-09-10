@@ -1,3 +1,4 @@
+import asyncio
 import dataclasses
 import io
 import json
@@ -66,10 +67,10 @@ from attachments.attachment_api import attachment_bp
 # In your main route file, make sure you have:
 from attachments.attachment_helpers import fetch_attachments_for_chat, fetch_jira_ticket_source, fetch_confluence_page_source, fetch_document_source, fetch_document_by_id
 from attachments.direct_attachment_storage import attachment_storage
+from attachments.cleanup_service import cleanup_service
 from chat_history.cosmosdb import chat_history_cosmosdb_bp
 
 from attachments.document_attachment_api import document_bp
-from attachments.session_cleanup import session_cleanup_bp
 from attachments.direct_attachment_api import direct_attachment_bp
 from chat_history.feedback_api import feedback_bp
 from healthz import healthz_bp
@@ -606,6 +607,10 @@ async def submit_feedback(auth_claims: dict[str, Any]):
     response_id = request_json.get("responseId")
     feedback_type = request_json.get("feedback")
     comments = request_json.get("comments", "")
+    bot_id = request_json.get("botId", "ava")  # Default to ava if not provided
+    artifact = request_json.get("artifact")  # Can be null for non-artifact bots
+    question = request_json.get("question")  # Question for Ava-Search context
+    answer = request_json.get("answer")  # Answer for Ava-Search context
     
     if not response_id or not feedback_type:
         return jsonify({"error": "responseId and feedback are required"}), 400
@@ -618,6 +623,10 @@ async def submit_feedback(auth_claims: dict[str, Any]):
         "responseId": response_id,
         "feedback": feedback_type,
         "comments": comments,
+        "botId": bot_id,
+        "artifact": artifact,
+        "question": question,
+        "answer": answer,
         "timestamp": time.time(),
         "userId": auth_claims.get("oid", ""),
         "username": auth_claims.get("username", ""),
@@ -700,6 +709,24 @@ async def submit_suggestion(auth_claims: dict[str, Any]):
     except Exception as e:
         current_app.logger.error(f"Error storing suggestion in blob storage: {str(e)}")
         return jsonify({"message": "Suggestion logged but not stored", "error": str(e)}), 500
+
+
+@bp.route("/cleanup-attachments", methods=["POST"])
+@authenticated
+async def manual_cleanup_attachments(auth_claims: dict[str, Any]):
+    """Manual endpoint to trigger attachment cleanup"""
+    try:
+        current_app.logger.info("Manual attachment cleanup triggered")
+        deleted_count = await cleanup_service.cleanup_old_attachments()
+        
+        return jsonify({
+            "message": "Cleanup completed successfully",
+            "deleted_count": deleted_count
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Manual cleanup error: {e}")
+        return jsonify({"error": f"Cleanup failed: {str(e)}"}), 500
 
 @bp.before_app_serving
 async def setup_clients():
@@ -1253,7 +1280,6 @@ def create_app():
     
     # ADD: New blueprints for document support
     app.register_blueprint(document_bp)
-    app.register_blueprint(session_cleanup_bp)
     app.register_blueprint(direct_attachment_bp)
 
 
@@ -1283,4 +1309,29 @@ def create_app():
             app.logger.info("CORS enabled for %s", allowed_origins)
             cors(app, allow_origin=allowed_origins, allow_methods=["GET", "POST"])
 
+    # Start background cleanup task
+    @app.before_serving
+    async def start_cleanup_task():
+        """Start the background cleanup task"""
+        async def cleanup_task():
+            """Background task to clean up old attachments every hour"""
+            while True:
+                try:
+                    app.logger.info("Running attachment cleanup...")
+                    deleted_count = await cleanup_service.cleanup_old_attachments()
+                    if deleted_count > 0:
+                        app.logger.info(f"Cleanup completed: deleted {deleted_count} old attachments")
+                    else:
+                        app.logger.debug("Cleanup completed: no old attachments found")
+                except Exception as e:
+                    app.logger.error(f"Cleanup task error: {e}")
+                
+                # Wait 1 hour before next cleanup
+                await asyncio.sleep(3600)  # 3600 seconds = 1 hour
+        
+        # Start the cleanup task in the background
+        import asyncio
+        asyncio.create_task(cleanup_task())
+        app.logger.info("Background attachment cleanup task started (runs every hour)")
+    
     return app

@@ -18,6 +18,7 @@ import { submitContentSuggestion } from "../../api";
 // Ensure you are importing the correct bot logo from your BotConfig
 import { BotProfile, BOTS } from "../../config/botConfig";
 import { useBot } from "../../contexts/BotContext";
+import { useArtifact } from "../../contexts/ArtifactContext";
 
 // ADD THESE IMPORTS FOR YOUR NEW ICONS
 import confluenceLogo from "../../assets/confluence-logo.png";
@@ -64,6 +65,14 @@ export const Answer = ({
     //select correct bot image
     const { botId } = useBot(); // Access botId from the BotContext
     const botProfile: BotProfile = BOTS[botId] ?? BOTS["ava"]; // Default to Ava if botProfile is undefined
+    
+    // Get current artifact for Accelerate Assistant
+    const { selectedArtifactType } = useArtifact();
+    const currentArtifact = botId === 'ba' ? selectedArtifactType : undefined;
+    
+    // Get question and answer for Ava-Search context
+    const currentQuestion = botId === 'ava' ? userQuestion : undefined;
+    const currentAnswer = botId === 'ava' ? answer.message.content : undefined;
 
     // Feedback state
     const [feedbackGiven, setFeedbackGiven] = useState(false);
@@ -194,7 +203,16 @@ export const Answer = ({
                     })
                     .catch(() => null);
 
-                await submitFeedbackApi(`answer-${index}`, type, "", token?.accessToken);
+                await submitFeedbackApi(
+                    `answer-${index}`, 
+                    type, 
+                    "", 
+                    token?.accessToken,
+                    botId,
+                    currentArtifact,
+                    currentQuestion,
+                    currentAnswer
+                );
                 setFeedbackGiven(true);
             } catch (error) {
                 console.error("Error submitting feedback:", error);
@@ -216,7 +234,16 @@ export const Answer = ({
                 })
                 .catch(() => null);
 
-            await submitFeedbackApi(`answer-${index}`, feedbackType, feedbackComments, token?.accessToken);
+            await submitFeedbackApi(
+                `answer-${index}`, 
+                feedbackType, 
+                feedbackComments, 
+                token?.accessToken,
+                botId,
+                currentArtifact,
+                currentQuestion,
+                currentAnswer
+            );
             setFeedbackGiven(true);
             setShowFeedbackDialog(false);
         } catch (error) {

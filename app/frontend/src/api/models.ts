@@ -135,6 +135,10 @@ export type FeedbackRequest = {
     responseId: string;
     feedback: FeedbackType;
     comments?: string;
+    botId?: string;
+    artifact?: string;
+    question?: string;
+    answer?: string;
 };
 
 export interface SpeechConfig {
