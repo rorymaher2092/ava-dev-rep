@@ -248,41 +248,65 @@ async def chat(auth_claims: dict[str, Any]):
         return jsonify({"error": "request must be json"}), 415
     request_json = await request.get_json()
 
+    session_id = session.get('attachment_session_id')
+    current_app.logger.info(f"CHAT START - Session ID: {session_id}")
+
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
 
-    # Extract overrides BEFORE using it
     overrides = context.get("overrides", {})
-    
-    # NEW: Get attachment references from request
-    attachment_refs = overrides.get("attachment_refs", [])
-    
-    current_app.logger.info(f"🔍 Chat request received")
-    current_app.logger.info(f"🔍 Attachment refs: {len(attachment_refs)} references")
-    
-    # NEW: Fetch attachment content just-in-time if refs provided
+    should_consume = overrides.get("consume_attachments", False)
+
+    current_app.logger.info(f"Should consume attachments: {should_consume}")
+
+    # HYBRID: Handle both session storage (documents) and overrides (JIRA/Confluence)
     attachment_sources = []
-    if attachment_refs:
-        current_app.logger.info(f"🔍 Fetching content for {len(attachment_refs)} attachment references")
-        try:
-            attachment_sources = await fetch_attachments_for_chat(attachment_refs)
-            current_app.logger.info(f"🔍 Successfully fetched {len(attachment_sources)} attachment sources")
-            
-            # Debug log each source briefly
-            for i, source in enumerate(attachment_sources):
-                current_app.logger.info(f"🔍 Source {i+1}: {source[:200]}...")
-                
-        except Exception as e:
-            current_app.logger.error(f"❌ Failed to fetch attachments: {str(e)}")
-            # Continue without attachments rather than failing the whole request
-            attachment_sources = []
+    
+    if should_consume:
+        current_app.logger.info("Processing attachments with hybrid approach...")
+        
+        # Import the optimized functions for session-based attachments
+        from attachments.document_attachment_api import prepare_chat_with_attachments, load_and_finalize_attachments
+        
+        # Step 1: Get session-based attachments (documents)
+        attachment_prep = prepare_chat_with_attachments(should_consume=False)
+        session_attachment_data = await load_and_finalize_attachments(attachment_prep)
+        session_sources = session_attachment_data.get("attachment_sources", [])
+        
+        current_app.logger.info(f"Loaded {len(session_sources)} session-based sources")
+        
+        # Step 2: Get override-based attachments (JIRA/Confluence)
+        attachment_refs = overrides.get("attachment_refs", [])
+        override_sources = []
+        
+        if attachment_refs:
+            current_app.logger.info(f"Fetching {len(attachment_refs)} override-based references")
+            try:
+                override_sources = await fetch_attachments_for_chat(attachment_refs)
+                current_app.logger.info(f"Successfully fetched {len(override_sources)} override sources")
+            except Exception as e:
+                current_app.logger.error(f"Failed to fetch override attachments: {str(e)}")
+        
+        # Step 3: Combine both sources
+        attachment_sources = session_sources + override_sources
+        
+        current_app.logger.info(f"Combined total: {len(attachment_sources)} attachment sources")
+        
+        # Step 4: Clear session attachments after loading content
+        if session_attachment_data.get("has_attachments"):
+            current_app.logger.info("Clearing session attachments after loading")
+            session.pop('jira_tickets', None)
+            session.pop('confluence_pages', None)
+            session.pop('document_attachments', None)
+            session.modified = True
+        
+    else:
+        current_app.logger.info("No consume_attachments flag")
     
     # Add attachment data to context
     context["overrides"]["attachment_sources"] = attachment_sources
     context["overrides"]["has_attachments"] = len(attachment_sources) > 0
     context["overrides"]["attachment_count"] = len(attachment_sources)
-    
-    current_app.logger.info(f"🔍 Final context: {len(attachment_sources)} attachment sources added")
 
     # Extract the bot_id from the overrides in context
     bot_id = overrides.get("bot_id", DEFAULT_BOT_ID)
@@ -324,29 +348,61 @@ async def chat_stream(auth_claims: dict[str, Any]):
     if not request.is_json:
         return jsonify({"error": "request must be json"}), 415
     request_json = await request.get_json()
-    
+
+    session_id = session.get('attachment_session_id')
+    current_app.logger.info(f"CHAT STREAM START - Session ID: {session_id}")
+
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
 
-    # Extract overrides BEFORE using it
     overrides = context.get("overrides", {})
-    
-    # NEW: Get attachment references from request
-    attachment_refs = overrides.get("attachment_refs", [])
-    
-    current_app.logger.info(f"🔍 STREAM: Chat request received")
-    current_app.logger.info(f"🔍 STREAM: Attachment refs: {len(attachment_refs)} references")
+    should_consume = overrides.get("consume_attachments", False)
 
-    # NEW: Fetch attachment content just-in-time if refs provided
+    current_app.logger.info(f"Should consume attachments: {should_consume}")
+
+    # HYBRID: Handle both session storage (documents) and overrides (JIRA/Confluence)
     attachment_sources = []
-    if attachment_refs:
-        current_app.logger.info(f"🔍 STREAM: Fetching content for {len(attachment_refs)} attachment references")
-        try:
-            attachment_sources = await fetch_attachments_for_chat(attachment_refs)
-            current_app.logger.info(f"🔍 STREAM: Successfully fetched {len(attachment_sources)} attachment sources")
-        except Exception as e:
-            current_app.logger.error(f"❌ STREAM: Failed to fetch attachments: {str(e)}")
-            attachment_sources = []
+    
+    if should_consume:
+        current_app.logger.info("Processing attachments with hybrid approach...")
+        
+        # Import the optimized functions for session-based attachments
+        from attachments.document_attachment_api import prepare_chat_with_attachments, load_and_finalize_attachments
+        
+        # Step 1: Get session-based attachments (documents)
+        attachment_prep = prepare_chat_with_attachments(should_consume=False)
+        session_attachment_data = await load_and_finalize_attachments(attachment_prep)
+        session_sources = session_attachment_data.get("attachment_sources", [])
+        
+        current_app.logger.info(f"Loaded {len(session_sources)} session-based sources")
+        
+        # Step 2: Get override-based attachments (JIRA/Confluence)
+        attachment_refs = overrides.get("attachment_refs", [])
+        override_sources = []
+        
+        if attachment_refs:
+            current_app.logger.info(f"Fetching {len(attachment_refs)} override-based references")
+            try:
+                override_sources = await fetch_attachments_for_chat(attachment_refs)
+                current_app.logger.info(f"Successfully fetched {len(override_sources)} override sources")
+            except Exception as e:
+                current_app.logger.error(f"Failed to fetch override attachments: {str(e)}")
+        
+        # Step 3: Combine both sources
+        attachment_sources = session_sources + override_sources
+        
+        current_app.logger.info(f"Combined total: {len(attachment_sources)} attachment sources")
+        
+        # Step 4: Clear session attachments after loading content
+        if session_attachment_data.get("has_attachments"):
+            current_app.logger.info("Clearing session attachments after loading")
+            session.pop('jira_tickets', None)
+            session.pop('confluence_pages', None)
+            session.pop('document_attachments', None)
+            session.modified = True
+        
+    else:
+        current_app.logger.info("No consume_attachments flag")
     
     # Add attachment data to context
     context["overrides"]["attachment_sources"] = attachment_sources
