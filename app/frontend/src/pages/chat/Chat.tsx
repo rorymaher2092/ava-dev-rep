@@ -134,12 +134,11 @@ const Chat = () => {
     const [showChatHistoryCosmos, setShowChatHistoryCosmos] = useState<boolean>(false);
     const [showAgenticRetrievalOption, setShowAgenticRetrievalOption] = useState<boolean>(false);
     const [useAgenticRetrieval, setUseAgenticRetrieval] = useState<boolean>(false);
-    
+
     // Canvas panel state
     const [isCanvasPanelOpen, setIsCanvasPanelOpen] = useState<boolean>(false);
     const [canvasContent, setCanvasContent] = useState<string>("");
-    const [canvasTitle, setCanvasTitle] = useState<string>("Story Map");
-    const [lastCanvasTitle, setLastCanvasTitle] = useState<string>("");
+    const [canvasTitle, setCanvasTitle] = useState<string>("Canvas");
 
     // added to deal with cancelling mid request
     const [abortController, setAbortController] = useState<AbortController | null>(null);
@@ -503,7 +502,7 @@ const Chat = () => {
                         // Include attachment IDs for UUID-based fetching
                         attachment_ids: attachmentRefs ? attachmentRefs.map(ref => ref.id).filter((id): id is string => Boolean(id)) : [],
                         // Also include legacy attachment_refs for backward compatibility
-                        attachment_refs: attachmentRefs ? attachmentRefs.filter(ref => ref.type !== 'document') : [],
+                        attachment_refs: attachmentRefs ? attachmentRefs.filter(ref => ref.type !== "document") : [],
                         // CRITICAL: Tell backend to consume attachments if any exist
                         consume_attachments: (attachmentRefs && attachmentRefs.length > 0) || false,
                         ...(seed !== null ? { seed: seed } : {})
@@ -632,23 +631,15 @@ const Chat = () => {
     useEffect(() => chatMessageStreamEnd.current?.scrollIntoView({ behavior: "auto" }), [streamedAnswers]);
     useEffect(() => {
         getConfig();
-        
+
         // Set up canvas callback
         setCanvasOpenCallback((htmlContent: string) => {
             // Extract title from HTML comment or use default
             const titleMatch = htmlContent.match(/<!--\s*title:\s*([^-]+)\s*-->/);
-            const extractedTitle = titleMatch ? titleMatch[1].trim() : "Story Map";
-            
+            const extractedTitle = titleMatch ? titleMatch[1].trim() : "Canvas";
+
             setCanvasContent(htmlContent);
-            
-            if (extractedTitle === lastCanvasTitle) {
-                // Same table type, don't change title (CanvasPanel will increment version)
-            } else {
-                // Different table type, reset to base title
-                setCanvasTitle(extractedTitle);
-                setLastCanvasTitle(extractedTitle);
-            }
-            
+            setCanvasTitle(extractedTitle);
             setIsCanvasPanelOpen(true);
         });
 
@@ -923,7 +914,7 @@ const Chat = () => {
             <div
                 className={styles.chatRoot}
                 style={{
-                    marginRight: (activeAnalysisPanelTab && !isMobile) ? "40%" : "0",
+                    marginRight: activeAnalysisPanelTab && !isMobile ? "40%" : isCanvasPanelOpen && !isMobile ? "50%" : "0",
                     marginLeft: isHistoryPanelOpen && !isMobile ? "320px" : "0"
                 }}
             >
@@ -1063,7 +1054,7 @@ const Chat = () => {
                     <div
                         className={`${styles.chatInput} ${botId === "ba" ? styles.baBot : ""}`}
                         style={{
-                            right: (activeAnalysisPanelTab && !isMobile) ? "40%" : "0",
+                            right: activeAnalysisPanelTab && !isMobile ? "40%" : isCanvasPanelOpen && !isMobile ? "50%" : "0",
                             left: isHistoryPanelOpen && !isMobile ? "320px" : "0",
                             width: "auto",
                             backgroundColor: "var(--background)",
@@ -1179,14 +1170,9 @@ const Chat = () => {
                     />
                     {useLogin && <TokenClaimsDisplay />}
                 </Panel>
-                
+
                 {/* Canvas Panel */}
-                <CanvasPanel 
-                    htmlContent={canvasContent}
-                    isOpen={isCanvasPanelOpen}
-                    onClose={() => setIsCanvasPanelOpen(false)}
-                    title={canvasTitle}
-                />
+                <CanvasPanel htmlContent={canvasContent} isOpen={isCanvasPanelOpen} onClose={() => setIsCanvasPanelOpen(false)} title={canvasTitle} />
             </div>
         </div>
     );

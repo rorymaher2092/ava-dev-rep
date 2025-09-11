@@ -11,7 +11,7 @@ interface CanvasPanelProps {
 
 export const CanvasPanel = ({ htmlContent, isOpen, onClose, title = "Story Map" }: CanvasPanelProps) => {
     const [isExpanded, setIsExpanded] = useState(false);
-    const [version, setVersion] = useState(1);
+    const [versions, setVersions] = useState<Record<string, number>>({});
     const [lastContent, setLastContent] = useState("");
     const [lastTitle, setLastTitle] = useState("");
     const [width, setWidth] = useState(50); // percentage
@@ -34,22 +34,26 @@ export const CanvasPanel = ({ htmlContent, isOpen, onClose, title = "Story Map" 
         XLSX.writeFile(wb, "story-map.xlsx");
     };
 
-    // Check if content or title changed to manage version
-    if (htmlContent !== lastContent && lastContent !== "") {
-        if (title === lastTitle) {
-            // Same table type, increment version
-            setVersion(prev => prev + 1);
-        } else {
-            // Different table type, reset to version 1
-            setVersion(1);
+    // Handle version updates with useEffect
+    useEffect(() => {
+        if (htmlContent !== lastContent) {
+            if (lastContent !== "" && title === lastTitle) {
+                // Same table type with new content - increment version
+                setVersions(prev => ({
+                    ...prev,
+                    [title]: (prev[title] || 0) + 1
+                }));
+            }
+            setLastContent(htmlContent);
         }
-    }
-    if (htmlContent !== lastContent) {
-        setLastContent(htmlContent);
-    }
-    if (title !== lastTitle) {
-        setLastTitle(title);
-    }
+        if (title !== lastTitle) {
+            setLastTitle(title);
+        }
+    }, [htmlContent, title, lastContent, lastTitle]);
+    
+    // Calculate display title
+    const currentVersion = versions[title] || 0;
+    const displayTitle = currentVersion > 0 ? `${title} v${currentVersion + 1}` : title;
 
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
@@ -93,7 +97,7 @@ export const CanvasPanel = ({ htmlContent, isOpen, onClose, title = "Story Map" 
             />
             <div className={styles.header}>
                 <div className={styles.headerLeft}>
-                    <h2>📋 {title}{version > 1 ? ` v${version}` : ""}</h2>
+                    <h2>📋 {displayTitle}</h2>
                     <span>Interactive Visualization</span>
                 </div>
                 <div className={styles.headerRight}>

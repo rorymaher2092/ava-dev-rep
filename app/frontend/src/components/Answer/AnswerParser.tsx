@@ -6,11 +6,41 @@ type HtmlParsedAnswer = {
     citations: string[];
     citationDetails: Map<string, { url: string; title: string; isConfluence: boolean }>;
     mermaidCode?: string;
+    storyMapHtml?: string;
+    storyMapTitle?: string;
 };
 
 // Add this function to detect if answer contains knowledge gap
 function hasKnowledgeGap(content: string): boolean {
     return content.includes("[KNOWLEDGE_GAP]");
+}
+
+// Function to detect and extract Story Map HTML
+function extractStoryMapHtml(content: string): { cleanedContent: string; storyMapHtml?: string; storyMapTitle?: string } {
+    const startMarker = "STORY_MAP_HTML_START";
+    const endMarker = "STORY_MAP_HTML_END";
+
+    const startIndex = content.indexOf(startMarker);
+    const endIndex = content.indexOf(endMarker);
+
+    if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
+        return { cleanedContent: content };
+    }
+
+    // Extract the HTML code
+    const htmlStart = startIndex + startMarker.length;
+    const storyMapHtml = content.substring(htmlStart, endIndex).trim();
+
+    // Extract title from HTML comment
+    const titleMatch = storyMapHtml.match(/<!--\s*title:\s*([^-]+)\s*-->/);
+    const storyMapTitle = titleMatch ? titleMatch[1].trim() : undefined;
+
+    // Remove the HTML section from the content
+    const beforeHtml = content.substring(0, startIndex);
+    const afterHtml = content.substring(endIndex + endMarker.length);
+    const cleanedContent = (beforeHtml + afterHtml).trim();
+
+    return { cleanedContent, storyMapHtml: validateStoryMapHtml(storyMapHtml), storyMapTitle };
 }
 
 // Function to detect and extract Mermaid code
@@ -35,6 +65,24 @@ function extractMermaidCode(content: string): { cleanedContent: string; mermaidC
     const cleanedContent = (beforeMermaid + afterMermaid).trim();
     
     return { cleanedContent, mermaidCode: validateAndCleanMermaidCode(mermaidCode) };
+}
+
+// Validate Story Map HTML
+function validateStoryMapHtml(html: string): string | undefined {
+    if (!html) return undefined;
+
+    // Clean the HTML
+    let cleanedHtml = html.trim();
+
+    // Basic validation - check for table elements
+    const hasTable = cleanedHtml.includes("<table") || cleanedHtml.includes("|");
+
+    if (!hasTable) {
+        console.warn("Generated content doesn't appear to be valid story map HTML");
+        return undefined;
+    }
+
+    return cleanedHtml;
 }
 
 // Validate and clean Mermaid code
@@ -260,8 +308,11 @@ export function parseAnswerToHtml(
     // Check for knowledge gap before processing
     const hasGap = hasKnowledgeGap(answer.message.content);
 
+    // Extract Story Map HTML and clean content
+    const { cleanedContent: contentAfterStoryMap, storyMapHtml, storyMapTitle } = extractStoryMapHtml(answer.message.content);
+
     // Extract Mermaid code and clean content
-    const { cleanedContent: contentAfterMermaid, mermaidCode } = extractMermaidCode(answer.message.content);
+    const { cleanedContent: contentAfterMermaid, mermaidCode } = extractMermaidCode(contentAfterStoryMap);
     
     // Remove the knowledge gap tag from the displayed content
     let cleanedContent = contentAfterMermaid.replace(/\[KNOWLEDGE_GAP\]/g, "");
@@ -396,6 +447,8 @@ export function parseAnswerToHtml(
         citations,
         citationDetails,
         hasKnowledgeGap: hasGap,
-        mermaidCode
+        mermaidCode,
+        storyMapHtml,
+        storyMapTitle
     };
 }
