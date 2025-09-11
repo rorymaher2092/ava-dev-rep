@@ -18,6 +18,38 @@ system:
 {% if artifact_type %}
 # 🎯 {{ artifact_type | title | replace("_", " ") }} Creation
 
+## 🎨 INTERACTIVE CANVAS CAPABILITY
+**You can generate interactive HTML visualizations for ANY structured data that would benefit from better presentation.**
+
+**When to use HTML Canvas:**
+- Tables with 3+ columns or complex content
+- Matrices, comparisons, or structured data
+- Any content that would be hard to read in plain text
+- Story maps, stakeholder analyses, requirement tables, process flows
+
+**How to generate:**
+1. Create semantic HTML table with proper structure
+2. Use CSS classes: `row-label`, `process-stage`, `persona-system`, `requirements`, `content`
+3. Wrap detailed content in `<div class="content">` for expandability
+4. Use `<ul><li>` for lists within cells
+5. Always wrap with STORY_MAP_HTML_START and STORY_MAP_HTML_END markers
+
+**Example structure:**
+```html
+STORY_MAP_HTML_START
+<table>
+<thead>
+<tr><th class="row-label">Category</th><th>Column 1</th><th>Column 2</th></tr>
+</thead>
+<tbody>
+<tr><td class="row-label">Row Label</td><td><div class="content">Content here</div></td><td><div class="content requirements"><ul><li>Item 1</li><li>Item 2</li></ul></div></td></tr>
+</tbody>
+</table>
+STORY_MAP_HTML_END
+```
+
+**Be creative!** Generate HTML canvas for any structured output that would be clearer in a visual format.
+
 {% if artifact_type == "dvf_prioritisation" %}
 **SUCCESS: Matched dvf_prioritisation**
 {% include "BA_Folder/DVF_Prioritisation_Prompt.md" %}
@@ -177,6 +209,19 @@ system:
       |------|---------------------------|----------------------|-------------------------|----------|
       |      |                           |                      |                         |          |
       ```
+      
+      For detailed requirements, also generate HTML canvas:
+      STORY_MAP_HTML_START
+      <table>
+      <thead>
+      <tr><th class="row-label">Req#</th><th>Type</th><th>Category</th><th>Description</th><th>Priority</th><th>Acceptance Criteria</th></tr>
+      </thead>
+      <tbody>
+      <tr><td class="row-label">REQ-001</td><td>Functional</td><td>User Interface</td><td><div class="content">Detailed requirement description</div></td><td>Must</td><td><div class="content">AC details</div></td></tr>
+      </tbody>
+      </table>
+      STORY_MAP_HTML_END
+      
       (If provided, list "Link to JIRA Features / AC" as bullets below the table.)
 
    **S4. Stakeholder Analysis & Engagement Approach**
@@ -190,6 +235,19 @@ system:
       |------------------|----------------------------------|---------|
       |                  |                                  |         |
       ```
+      
+      For complex stakeholder matrices, also generate HTML canvas:
+      STORY_MAP_HTML_START
+      <table>
+      <thead>
+      <tr><th class="row-label">Stakeholder Name</th><th>Role & Business Area</th><th>Impact Level</th><th>Engagement Approach</th><th>Remarks</th></tr>
+      </thead>
+      <tbody>
+      <tr><td class="row-label">Stakeholder 1</td><td><div class="content">Role details</div></td><td>High/Med/Low</td><td><div class="content">Engagement strategy</div></td><td><div class="content">Additional notes</div></td></tr>
+      </tbody>
+      </table>
+      STORY_MAP_HTML_END
+      
       **Engagement Approach** – bullets
 
 
@@ -1323,12 +1381,13 @@ Acceptance Criteria Record 1: Create Customer Account in SMB portal
    2. Produce a 'Simple' OR 'Complex' Story Map in the **exact Vocus template structure**
    3. Maintain **zero hallucination**: if you don't know, don't guess - insert **[Placeholder: Info not provided]** and ask targeted follow-ups to elicit the information required.
    4. Use the provided **business context** where relevant to inform your insightful, adaptive questions
+   5. **Generate interactive HTML visualizations** for any complex tables, matrices, or data that would benefit from better presentation
 
 ## CORE PRINCIPLES
    - **Template-Driven:** Use exact formatting from provided templates
    - **Process-Centric:** Map the complete user journey from start to finish
    - **User-Supplied Content Only:** Never invent stakeholder names, systems, or business rules
-   - **Tables in Markdown:** If an output table fails to render in Markdown, apologise to the user and attempt to regenerate the table in Markdown. 
+   - **Visual-First:** Always generate HTML canvas versions for tables and complex data using STORY_MAP_HTML_START/END markers 
 
 ## COMMUNICATION STYLE
    - Use business-friendly language (avoid technical jargon)
@@ -1356,6 +1415,24 @@ Acceptance Criteria Record 1: Create Customer Account in SMB portal
 
    **2a: Generate Process stage/step table**
    Generate a table with the columns populated for Process Stage, Process Step, and Persona/System (as in the *Simple story map template*). Include a column for each process stage. Use the template below. For the other rows (Current State, Future State, Requirements, Acceptance Criteria) please leave the cells blank
+   
+   ALWAYS generate an HTML canvas version for better visualization:
+   STORY_MAP_HTML_START
+   <!-- title: [Feature Name] Story Map -->
+   <table>
+   <thead>
+   <tr><th class="row-label">Feature Name</th><th>Process Stage 1</th><th>Process Stage 2</th>...</tr>
+   </thead>
+   <tbody>
+   <tr><td class="row-label">Process Step</td><td>Step 1</td><td>Step 2</td>...</tr>
+   <tr><td class="row-label">Persona/System</td><td>WHO/WHAT</td><td>WHO/WHAT</td>...</tr>
+   <tr><td class="row-label">Current State</td><td></td><td></td>...</tr>
+   <tr><td class="row-label">Future State</td><td></td><td></td>...</tr>
+   <tr><td class="row-label">Requirements</td><td></td><td></td>...</tr>
+   <tr><td class="row-label">Acceptance Criteria</td><td></td><td></td>...</tr>
+   </tbody>
+   </table>
+   STORY_MAP_HTML_END
 
       SIMPLE STORY MAP FORMAT
          | Feature Name | Process Stage 1 |                 | Process Stage 2 |                 | Process Stage 3 |
@@ -1372,6 +1449,24 @@ Acceptance Criteria Record 1: Create Customer Account in SMB portal
    **2b: Complete the *Simple* Story Map**
    Next, populate the rest of the table with requirements and suggested Acceptance Criteria Records.
    Use the context provided by the user, and the **Business Context sources** to inform your answer.
+   
+   ALWAYS generate the complete HTML version with all populated data:
+   STORY_MAP_HTML_START
+   <!-- title: [Feature Name] Story Map -->
+   <table>
+   <thead>
+   <tr><th class="row-label">Feature Name</th><th>Process Stage 1</th><th>Process Stage 2</th>...</tr>
+   </thead>
+   <tbody>
+   <tr><td class="row-label">Process Step</td><td>Step 1</td><td>Step 2</td>...</tr>
+   <tr><td class="row-label">Persona/System</td><td>WHO/WHAT</td><td>WHO/WHAT</td>...</tr>
+   <tr><td class="row-label">Current State</td><td><div class="content">EXISTING BEHAVIOR</div></td><td><div class="content">EXISTING BEHAVIOR</div></td>...</tr>
+   <tr><td class="row-label">Future State</td><td><div class="content">DESIRED BEHAVIOR</div></td><td><div class="content">DESIRED BEHAVIOR</div></td>...</tr>
+   <tr><td class="row-label">Requirements</td><td><div class="content requirements"><ul><li>REQ 1</li><li>REQ 2</li></ul></div></td><td><div class="content requirements"><ul><li>REQ 1</li><li>REQ 2</li></ul></div></td>...</tr>
+   <tr><td class="row-label">Acceptance Criteria</td><td><div class="content">AC RECORD 1<br>AC RECORD 2</div></td><td><div class="content">AC RECORD 3</div></td>...</tr>
+   </tbody>
+   </table>
+   STORY_MAP_HTML_END
 
    Then ask the user
    "I've prepared a draft of the rest of the Story Map for your review. Does this Story Map accurately define your feature? Is there anything you would like to change?
@@ -1396,6 +1491,24 @@ Acceptance Criteria Record 1: Create Customer Account in SMB portal
    **3a.ii: SELL - Generate Story Map** 
    Next, populate the rest of the 'SELL' table with requirements and suggested Acceptance Criteria Records.
    Use the context provided by the user, and the **Business Context sources** to inform your answer.
+   
+   ALWAYS generate HTML version for better visualization:
+   STORY_MAP_HTML_START
+   <!-- title: [Feature Name] SELL Story Map -->
+   <table>
+   <thead>
+   <tr><th class="row-label">Process Stage</th><th>Product Modelling & Catalog Config</th><th>Lead Management</th><th>Account Management</th>...</tr>
+   </thead>
+   <tbody>
+   <tr><td class="row-label">Persona</td><td>Product Manager</td><td>Sales AM</td><td>Sales AM</td>...</tr>
+   <tr><td class="row-label">System</td><td>Salesforce, Telflow</td><td>Salesforce</td><td>Salesforce</td>...</tr>
+   <tr><td class="row-label">Activity</td><td><div class="content">Define product model and pricing; Configure product attributes, rules, pricing</div></td><td><div class="content">Capture Lead, Assign Lead, Qualify Lead</div></td>...</tr>
+   <tr><td class="row-label">Use Case</td><td>Create/Update Product config</td><td>Manage Leads</td>...</tr>
+   <tr><td class="row-label">Requirements</td><td><div class="content requirements"><ul><li>REQ 1</li><li>REQ 2</li></ul></div></td>...</tr>
+   <tr><td class="row-label">Acceptance Criteria</td><td><div class="content">AC RECORDS</div></td>...</tr>
+   </tbody>
+   </table>
+   STORY_MAP_HTML_END
 
    Then ask the user:
    "I've prepared a draft of the rest of the SELL Story Map for your review. Does this Story Map accurately define your feature? Is there anything you would like to change?"
@@ -1421,6 +1534,24 @@ Acceptance Criteria Record 1: Create Customer Account in SMB portal
    **3a.ii: CONNECT - Generate Story Map** 
    Next, populate the rest of the 'CONNECT' table with requirements and suggested Acceptance Criteria Records.
    Use the context provided by the user, and the **Business Context sources** to inform your answer.
+   
+   ALWAYS generate HTML version for better visualization:
+   STORY_MAP_HTML_START
+   <!-- title: [Feature Name] CONNECT Story Map -->
+   <table>
+   <thead>
+   <tr><th class="row-label">Process Stage</th><th>Order Validation</th><th>Order Decomposition</th><th>Order Delivery - Coordination</th>...</tr>
+   </thead>
+   <tbody>
+   <tr><td class="row-label">Persona</td><td>CDC Order Validator</td><td>CDC</td>...</tr>
+   <tr><td class="row-label">System</td><td>Service Now</td><td>Service Now</td>...</tr>
+   <tr><td class="row-label">Activity</td><td><div class="content">Validate order details accurate for delivery</div></td>...</tr>
+   <tr><td class="row-label">Use Case</td><td>Validate Orders</td>...</tr>
+   <tr><td class="row-label">Requirements</td><td><div class="content requirements"><ul><li>REQ 1</li><li>REQ 2</li></ul></div></td>...</tr>
+   <tr><td class="row-label">Acceptance Criteria</td><td><div class="content">AC RECORDS</div></td>...</tr>
+   </tbody>
+   </table>
+   STORY_MAP_HTML_END
 
    Then ask the user:
    "I've prepared a draft of the rest of the 'CONNECT' Story Map for your review. Does this Story Map accurately define your feature? Is there anything you would like to change?"
@@ -1446,6 +1577,24 @@ Acceptance Criteria Record 1: Create Customer Account in SMB portal
    **3a.ii: USE - Generate Story Map** 
    Next, populate the rest of the 'USE' table with requirements and suggested Acceptance Criteria Records.
    Use the context provided by the user, and the **Business Context sources** to inform your answer.
+   
+   ALWAYS generate HTML version for better visualization:
+   STORY_MAP_HTML_START
+   <!-- title: [Feature Name] USE Story Map -->
+   <table>
+   <thead>
+   <tr><th class="row-label">Process Stage</th><th>Billing Account Mgmt</th><th>Billing Configuration</th><th>Usage Tracking/Rating</th>...</tr>
+   </thead>
+   <tbody>
+   <tr><td class="row-label">Persona</td><td>Billing Specialist/Analyst</td><td>Billing Specialist/Analyst</td>...</tr>
+   <tr><td class="row-label">System</td><td>Salesforce, SMILE</td><td>SMILE</td>...</tr>
+   <tr><td class="row-label">Activity</td><td><div class="content">Create and update billing account details</div></td>...</tr>
+   <tr><td class="row-label">Use Case</td><td>Manage Billing Accounts</td>...</tr>
+   <tr><td class="row-label">Requirements</td><td><div class="content requirements"><ul><li>REQ 1</li><li>REQ 2</li></ul></div></td>...</tr>
+   <tr><td class="row-label">Acceptance Criteria</td><td><div class="content">AC RECORDS</div></td>...</tr>
+   </tbody>
+   </table>
+   STORY_MAP_HTML_END
 
    Then ask the user:
    "I've prepared a draft of the rest of the USE Story Map for your review. Does this Story Map accurately define your feature? Is there anything you would like to change?"
@@ -1472,6 +1621,24 @@ Acceptance Criteria Record 1: Create Customer Account in SMB portal
    **3a.ii: FIX - Generate Story Map** 
    Next, populate the rest of the 'FIX' table with requirements and suggested Acceptance Criteria Records.
    Use the context provided by the user, and the **Business Context sources** to inform your answer.
+   
+   ALWAYS generate HTML version for better visualization:
+   STORY_MAP_HTML_START
+   <!-- title: [Feature Name] FIX Story Map -->
+   <table>
+   <thead>
+   <tr><th class="row-label">Process Stage</th><th>Customer Enquiry Management</th><th>Incident Management</th><th>Service Request Management</th>...</tr>
+   </thead>
+   <tbody>
+   <tr><td class="row-label">Persona</td><td>Customer Engagement Manager</td><td>Customer Engagement Manager</td>...</tr>
+   <tr><td class="row-label">System</td><td>Salesforce</td><td>Salesforce</td>...</tr>
+   <tr><td class="row-label">Activity</td><td><div class="content">Log, receive and respond to customer enquiries</div></td>...</tr>
+   <tr><td class="row-label">Use Case</td><td>Manage customer enquiries</td>...</tr>
+   <tr><td class="row-label">Requirements</td><td><div class="content requirements"><ul><li>REQ 1</li><li>REQ 2</li></ul></div></td>...</tr>
+   <tr><td class="row-label">Acceptance Criteria</td><td><div class="content">AC RECORDS</div></td>...</tr>
+   </tbody>
+   </table>
+   STORY_MAP_HTML_END
 
    Then ask the user:
    "I've prepared a draft of the rest of the FIX Story Map for your review. Does this Story Map accurately define your feature? Is there anything you would like to change?"

@@ -15,6 +15,7 @@ import { SpeechOutputBrowser } from "./SpeechOutputBrowser";
 import { SpeechOutputAzure } from "./SpeechOutputAzure";
 import { submitContentSuggestion } from "../../api";
 import { openMermaidDiagram } from "../../utils/mermaidRenderer";
+import { openStoryMapCanvas } from "../../utils/storyMapRenderer";
 
 // Ensure you are importing the correct bot logo from your BotConfig
 import { BotProfile, BOTS } from "../../config/botConfig";
@@ -184,6 +185,13 @@ export const Answer = ({
             openMermaidDiagram(parsedAnswer.mermaidCode);
         }
     }, [parsedAnswer.mermaidCode, isStreaming]);
+
+    // Auto-open story map when HTML is detected
+    useMemo(() => {
+        if (parsedAnswer.storyMapHtml && !isStreaming) {
+            openStoryMapCanvas(parsedAnswer.storyMapHtml);
+        }
+    }, [parsedAnswer.storyMapHtml, isStreaming]);
 
     const handleCopy = () => {
         // Copy the original markdown content instead of processed HTML
@@ -506,6 +514,42 @@ export const Answer = ({
                                 title="View Process Diagram"
                             >
                                 🎨 Click to Open Process Map
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Story Map Canvas Button */}
+                    {parsedAnswer.storyMapHtml && (
+                        <div style={{ marginTop: "8px", textAlign: "left" }}>
+                            <button
+                                onClick={() => openStoryMapCanvas(parsedAnswer.storyMapHtml!)}
+                                style={{
+                                    backgroundColor: "transparent",
+                                    color: "var(--text)",
+                                    border: "1px solid var(--border)",
+                                    borderRadius: "6px",
+                                    padding: "8px 12px",
+                                    cursor: "pointer",
+                                    fontSize: "13px",
+                                    fontWeight: "500",
+                                    transition: "all 0.2s ease",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "6px"
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.backgroundColor = "#007bff";
+                                    e.currentTarget.style.color = "white";
+                                    e.currentTarget.style.borderColor = "#007bff";
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.backgroundColor = "transparent";
+                                    e.currentTarget.style.color = "var(--text)";
+                                    e.currentTarget.style.borderColor = "var(--border)";
+                                }}
+                                title="View Story Map"
+                            >
+                                📋 Click to Open Story Map
                             </button>
                         </div>
                     )}

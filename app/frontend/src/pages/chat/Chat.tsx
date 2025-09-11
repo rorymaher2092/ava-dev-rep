@@ -31,6 +31,8 @@ import { AnalysisPanel, AnalysisPanelTabs } from "../../components/AnalysisPanel
 import { HistoryPanel } from "../../components/HistoryPanel";
 import { HistoryProviderOptions, useHistoryManager } from "../../components/HistoryProviders";
 import { HistoryButton } from "../../components/HistoryButton";
+import { CanvasPanel } from "../../components/CanvasPanel";
+import { setCanvasOpenCallback } from "../../utils/storyMapRenderer";
 // import { SettingsButton } from "../../components/SettingsButton";
 import { ClearChatButton } from "../../components/ClearChatButton";
 import { UploadFile } from "../../components/UploadFile";
@@ -132,6 +134,12 @@ const Chat = () => {
     const [showChatHistoryCosmos, setShowChatHistoryCosmos] = useState<boolean>(false);
     const [showAgenticRetrievalOption, setShowAgenticRetrievalOption] = useState<boolean>(false);
     const [useAgenticRetrieval, setUseAgenticRetrieval] = useState<boolean>(false);
+    
+    // Canvas panel state
+    const [isCanvasPanelOpen, setIsCanvasPanelOpen] = useState<boolean>(false);
+    const [canvasContent, setCanvasContent] = useState<string>("");
+    const [canvasTitle, setCanvasTitle] = useState<string>("Story Map");
+    const [lastCanvasTitle, setLastCanvasTitle] = useState<string>("");
 
     // added to deal with cancelling mid request
     const [abortController, setAbortController] = useState<AbortController | null>(null);
@@ -624,6 +632,25 @@ const Chat = () => {
     useEffect(() => chatMessageStreamEnd.current?.scrollIntoView({ behavior: "auto" }), [streamedAnswers]);
     useEffect(() => {
         getConfig();
+        
+        // Set up canvas callback
+        setCanvasOpenCallback((htmlContent: string) => {
+            // Extract title from HTML comment or use default
+            const titleMatch = htmlContent.match(/<!--\s*title:\s*([^-]+)\s*-->/);
+            const extractedTitle = titleMatch ? titleMatch[1].trim() : "Story Map";
+            
+            setCanvasContent(htmlContent);
+            
+            if (extractedTitle === lastCanvasTitle) {
+                // Same table type, don't change title (CanvasPanel will increment version)
+            } else {
+                // Different table type, reset to base title
+                setCanvasTitle(extractedTitle);
+                setLastCanvasTitle(extractedTitle);
+            }
+            
+            setIsCanvasPanelOpen(true);
+        });
 
         // Check URL parameters for actions
         if (searchParams.get("clear") === "true") {
@@ -896,7 +923,7 @@ const Chat = () => {
             <div
                 className={styles.chatRoot}
                 style={{
-                    marginRight: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
+                    marginRight: (activeAnalysisPanelTab && !isMobile) ? "40%" : "0",
                     marginLeft: isHistoryPanelOpen && !isMobile ? "320px" : "0"
                 }}
             >
@@ -1036,7 +1063,7 @@ const Chat = () => {
                     <div
                         className={`${styles.chatInput} ${botId === "ba" ? styles.baBot : ""}`}
                         style={{
-                            right: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
+                            right: (activeAnalysisPanelTab && !isMobile) ? "40%" : "0",
                             left: isHistoryPanelOpen && !isMobile ? "320px" : "0",
                             width: "auto",
                             backgroundColor: "var(--background)",
@@ -1152,6 +1179,14 @@ const Chat = () => {
                     />
                     {useLogin && <TokenClaimsDisplay />}
                 </Panel>
+                
+                {/* Canvas Panel */}
+                <CanvasPanel 
+                    htmlContent={canvasContent}
+                    isOpen={isCanvasPanelOpen}
+                    onClose={() => setIsCanvasPanelOpen(false)}
+                    title={canvasTitle}
+                />
             </div>
         </div>
     );
