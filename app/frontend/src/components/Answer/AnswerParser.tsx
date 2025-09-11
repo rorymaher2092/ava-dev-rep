@@ -6,6 +6,8 @@ type HtmlParsedAnswer = {
     citations: string[];
     citationDetails: Map<string, { url: string; title: string; isConfluence: boolean }>;
     mermaidCode?: string;
+    bpmnXml?: string;
+    storyMapHtml?: string;
 };
 
 // Add this function to detect if answer contains knowledge gap
@@ -13,51 +15,154 @@ function hasKnowledgeGap(content: string): boolean {
     return content.includes("[KNOWLEDGE_GAP]");
 }
 
-// Function to detect and extract Mermaid code
-function extractMermaidCode(content: string): { cleanedContent: string; mermaidCode?: string } {
-    const startMarker = "MERMAID_PROCESS_CODE_START";
-    const endMarker = "MERMAID_PROCESS_CODE_END";
-    
+// Function to detect and extract Story Map HTML
+function extractStoryMapHtml(content: string): { cleanedContent: string; storyMapHtml?: string } {
+    const startMarker = "STORY_MAP_HTML_START";
+    const endMarker = "STORY_MAP_HTML_END";
+
     const startIndex = content.indexOf(startMarker);
     const endIndex = content.indexOf(endMarker);
-    
+
     if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
         return { cleanedContent: content };
     }
-    
+
+    // Extract the HTML code
+    const htmlStart = startIndex + startMarker.length;
+    const storyMapHtml = content.substring(htmlStart, endIndex).trim();
+
+    // Remove the HTML section from the content
+    const beforeHtml = content.substring(0, startIndex);
+    const afterHtml = content.substring(endIndex + endMarker.length);
+    const cleanedContent = (beforeHtml + afterHtml).trim();
+
+    return { cleanedContent, storyMapHtml: validateStoryMapHtml(storyMapHtml) };
+}
+
+// Function to detect and extract BPMN XML
+function extractBpmnXml(content: string): { cleanedContent: string; bpmnXml?: string } {
+    const startMarker = "BPMN_PROCESS_XML_START";
+    const endMarker = "BPMN_PROCESS_XML_END";
+
+    const startIndex = content.indexOf(startMarker);
+    const endIndex = content.indexOf(endMarker);
+
+    if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
+        return { cleanedContent: content };
+    }
+
+    // Extract the BPMN XML
+    const xmlStart = startIndex + startMarker.length;
+    const bpmnXml = content.substring(xmlStart, endIndex).trim();
+
+    // Remove the BPMN XML section from the content
+    const beforeXml = content.substring(0, startIndex);
+    const afterXml = content.substring(endIndex + endMarker.length);
+    const cleanedContent = (beforeXml + afterXml).trim();
+
+    return { cleanedContent, bpmnXml: validateBpmnXml(bpmnXml) };
+}
+
+// Function to detect and extract Mermaid code (kept for backward compatibility)
+function extractMermaidCode(content: string): { cleanedContent: string; mermaidCode?: string } {
+    const startMarker = "MERMAID_PROCESS_CODE_START";
+    const endMarker = "MERMAID_PROCESS_CODE_END";
+
+    const startIndex = content.indexOf(startMarker);
+    const endIndex = content.indexOf(endMarker);
+
+    if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
+        return { cleanedContent: content };
+    }
+
     // Extract the Mermaid code
     const mermaidStart = startIndex + startMarker.length;
     const mermaidCode = content.substring(mermaidStart, endIndex).trim();
-    
+
     // Remove the Mermaid code section from the content
     const beforeMermaid = content.substring(0, startIndex);
     const afterMermaid = content.substring(endIndex + endMarker.length);
     const cleanedContent = (beforeMermaid + afterMermaid).trim();
-    
+
     return { cleanedContent, mermaidCode: validateAndCleanMermaidCode(mermaidCode) };
+}
+
+// Validate BPMN XML
+function validateBpmnXml(xml: string): string | undefined {
+    if (!xml) return undefined;
+
+    // Clean the XML
+    let cleanedXml = xml.trim();
+
+    // Basic validation - check for BPMN elements
+    const bpmnKeywords = ["<definitions", "<process", "<startEvent", "<endEvent", "<task", "<sequenceFlow", 'xmlns="http://www.omg.org/spec/BPMN'];
+    const isValid = bpmnKeywords.some(keyword => cleanedXml.includes(keyword));
+
+    if (!isValid) {
+        console.warn("Generated content doesn't appear to be valid BPMN XML");
+        return undefined;
+    }
+
+    // Additional validation: check XML structure
+    try {
+        // Basic XML validation (browser environment)
+        if (typeof DOMParser !== "undefined") {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(cleanedXml, "text/xml");
+            const parseError = xmlDoc.getElementsByTagName("parsererror");
+
+            if (parseError.length > 0) {
+                console.error("BPMN XML parsing error:", parseError[0].textContent);
+                return undefined;
+            }
+        }
+    } catch (e) {
+        console.error("Error validating BPMN XML:", e);
+        return undefined;
+    }
+
+    return cleanedXml;
 }
 
 // Validate and clean Mermaid code
 function validateAndCleanMermaidCode(code: string): string | undefined {
     if (!code) return undefined;
-    
+
     // Clean the code
     let cleanedCode = code
-        .replace(/```mermaid/g, '')
-        .replace(/```/g, '')
-        .replace(/;/g, '')
+        .replace(/```mermaid/g, "")
+        .replace(/```/g, "")
+        .replace(/;/g, "")
         .trim();
-    
+
     // Basic validation
-    const mermaidKeywords = ['graph', 'flowchart', 'sequenceDiagram', 'classDiagram', '-->', '---'];
+    const mermaidKeywords = ["graph", "flowchart", "sequenceDiagram", "classDiagram", "-->", "---"];
     const isValid = mermaidKeywords.some(keyword => cleanedCode.includes(keyword));
-    
+
     if (!isValid) {
-        console.warn('Generated code doesn\'t appear to be valid Mermaid syntax');
+        console.warn("Generated code doesn't appear to be valid Mermaid syntax");
         return undefined;
     }
-    
+
     return cleanedCode;
+}
+
+// Validate Story Map HTML
+function validateStoryMapHtml(html: string): string | undefined {
+    if (!html) return undefined;
+
+    // Clean the HTML
+    let cleanedHtml = html.trim();
+
+    // Basic validation - check for table elements
+    const hasTable = cleanedHtml.includes("<table") || cleanedHtml.includes("|");
+
+    if (!hasTable) {
+        console.warn("Generated content doesn't appear to be valid story map HTML");
+        return undefined;
+    }
+
+    return cleanedHtml;
 }
 
 // Helper function to validate URL format
@@ -260,14 +365,22 @@ export function parseAnswerToHtml(
     // Check for knowledge gap before processing
     const hasGap = hasKnowledgeGap(answer.message.content);
 
-    // Extract Mermaid code and clean content
-    const { cleanedContent: contentAfterMermaid, mermaidCode } = extractMermaidCode(answer.message.content);
-    
+    // Extract Story Map HTML and clean content
+    const { cleanedContent: contentAfterStoryMap, storyMapHtml } = extractStoryMapHtml(answer.message.content);
+
+    // Extract BPMN XML and clean content
+    const { cleanedContent: contentAfterBpmn, bpmnXml } = extractBpmnXml(contentAfterStoryMap);
+
+    // Extract Mermaid code and clean content (kept for backward compatibility)
+    const { cleanedContent: contentAfterMermaid, mermaidCode } = extractMermaidCode(contentAfterBpmn);
+
     // Remove the knowledge gap tag from the displayed content
     let cleanedContent = contentAfterMermaid.replace(/\[KNOWLEDGE_GAP\]/g, "");
 
     console.log("Raw answer content:", cleanedContent);
     console.log("Has knowledge gap:", hasGap);
+    console.log("Has BPMN XML:", !!bpmnXml);
+    console.log("Has Mermaid code:", !!mermaidCode);
 
     // Continue with existing parsing logic using cleanedContent instead of answer.message.content
     let parsedAnswer = preprocessCitations(cleanedContent.trim());
@@ -396,6 +509,8 @@ export function parseAnswerToHtml(
         citations,
         citationDetails,
         hasKnowledgeGap: hasGap,
-        mermaidCode
+        mermaidCode,
+        bpmnXml,
+        storyMapHtml
     };
 }

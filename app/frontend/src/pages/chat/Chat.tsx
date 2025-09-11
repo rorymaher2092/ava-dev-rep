@@ -923,7 +923,7 @@ const Chat = () => {
             <div
                 className={styles.chatRoot}
                 style={{
-                    marginRight: (activeAnalysisPanelTab && !isMobile) ? "40%" : "0",
+                    marginRight: (activeAnalysisPanelTab && !isMobile) ? "40%" : (isCanvasPanelOpen && !isMobile) ? "50%" : "0",
                     marginLeft: isHistoryPanelOpen && !isMobile ? "320px" : "0"
                 }}
             >
@@ -1063,7 +1063,7 @@ const Chat = () => {
                     <div
                         className={`${styles.chatInput} ${botId === "ba" ? styles.baBot : ""}`}
                         style={{
-                            right: (activeAnalysisPanelTab && !isMobile) ? "40%" : "0",
+                            right: (activeAnalysisPanelTab && !isMobile) ? "40%" : (isCanvasPanelOpen && !isMobile) ? "50%" : "0",
                             left: isHistoryPanelOpen && !isMobile ? "320px" : "0",
                             width: "auto",
                             backgroundColor: "var(--background)",

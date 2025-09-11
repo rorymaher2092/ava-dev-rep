@@ -15,6 +15,7 @@ import { SpeechOutputBrowser } from "./SpeechOutputBrowser";
 import { SpeechOutputAzure } from "./SpeechOutputAzure";
 import { submitContentSuggestion } from "../../api";
 import { openMermaidDiagram } from "../../utils/mermaidRenderer";
+import { openBpmnDiagram } from "../../utils/bpmnRenderer";
 import { openStoryMapCanvas } from "../../utils/storyMapRenderer";
 
 // Ensure you are importing the correct bot logo from your BotConfig
@@ -179,12 +180,15 @@ export const Answer = ({
     const parsedAnswer = useMemo(() => parseAnswerToHtml(answer, isStreaming, handleCitationClick), [answer, isStreaming]);
     const sanitizedAnswerHtml = DOMPurify.sanitize(parsedAnswer.answerHtml);
 
-    // Auto-open diagram when Mermaid code is detected
+    // Auto-open BPMN diagram when detected (prioritize over Mermaid)
     useMemo(() => {
-        if (parsedAnswer.mermaidCode && !isStreaming) {
+        if (parsedAnswer.bpmnXml && !isStreaming) {
+            openBpmnDiagram(parsedAnswer.bpmnXml);
+        } else if (parsedAnswer.mermaidCode && !isStreaming) {
+            // Fallback to Mermaid for backward compatibility
             openMermaidDiagram(parsedAnswer.mermaidCode);
         }
-    }, [parsedAnswer.mermaidCode, isStreaming]);
+    }, [parsedAnswer.bpmnXml, parsedAnswer.mermaidCode, isStreaming]);
 
     // Auto-open story map when HTML is detected
     useMemo(() => {
@@ -482,8 +486,44 @@ export const Answer = ({
                         }}
                     />
                     
-                    {/* Process Map Button */}
-                    {parsedAnswer.mermaidCode && (
+                    {/* BPMN Process Map Button - Priority over Mermaid */}
+                    {parsedAnswer.bpmnXml && (
+                        <div style={{ marginTop: "8px", textAlign: "left" }}>
+                            <button
+                                onClick={() => openBpmnDiagram(parsedAnswer.bpmnXml!)}
+                                style={{
+                                    backgroundColor: "transparent",
+                                    color: "var(--text)",
+                                    border: "1px solid var(--border)",
+                                    borderRadius: "6px",
+                                    padding: "8px 12px",
+                                    cursor: "pointer",
+                                    fontSize: "13px",
+                                    fontWeight: "500",
+                                    transition: "all 0.2s ease",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "6px"
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.backgroundColor = "#667eea";
+                                    e.currentTarget.style.color = "white";
+                                    e.currentTarget.style.borderColor = "#667eea";
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.backgroundColor = "transparent";
+                                    e.currentTarget.style.color = "var(--text)";
+                                    e.currentTarget.style.borderColor = "var(--border)";
+                                }}
+                                title="View BPMN Process Diagram"
+                            >
+                                📊 Click to Open BPMN Process Map
+                            </button>
+                        </div>
+                    )}
+                    
+                    {/* Mermaid Process Map Button - Fallback for backward compatibility */}
+                    {!parsedAnswer.bpmnXml && parsedAnswer.mermaidCode && (
                         <div style={{ marginTop: "8px", textAlign: "left" }}>
                             <button
                                 onClick={() => openMermaidDiagram(parsedAnswer.mermaidCode!)}
