@@ -14,6 +14,7 @@ import avaLogo from "../../assets/ava.svg"; // Ava logo import
 import { SpeechOutputBrowser } from "./SpeechOutputBrowser";
 import { SpeechOutputAzure } from "./SpeechOutputAzure";
 import { submitContentSuggestion } from "../../api";
+import { openMermaidDiagram } from "../../utils/mermaidRenderer";
 
 // Ensure you are importing the correct bot logo from your BotConfig
 import { BotProfile, BOTS } from "../../config/botConfig";
@@ -176,6 +177,13 @@ export const Answer = ({
 
     const parsedAnswer = useMemo(() => parseAnswerToHtml(answer, isStreaming, handleCitationClick), [answer, isStreaming]);
     const sanitizedAnswerHtml = DOMPurify.sanitize(parsedAnswer.answerHtml);
+
+    // Auto-open diagram when Mermaid code is detected
+    useMemo(() => {
+        if (parsedAnswer.mermaidCode && !isStreaming) {
+            openMermaidDiagram(parsedAnswer.mermaidCode);
+        }
+    }, [parsedAnswer.mermaidCode, isStreaming]);
 
     const handleCopy = () => {
         // Copy the original markdown content instead of processed HTML
@@ -434,6 +442,8 @@ export const Answer = ({
                             📄
                         </button>
 
+
+
                         {showSpeechOutputAzure && (
                             <SpeechOutputAzure answer={sanitizedAnswerHtml} index={index} speechConfig={speechConfig} isStreaming={isStreaming} />
                         )}
@@ -463,6 +473,41 @@ export const Answer = ({
                             )
                         }}
                     />
+                    
+                    {/* Process Map Button */}
+                    {parsedAnswer.mermaidCode && (
+                        <div style={{ marginTop: "16px", textAlign: "center" }}>
+                            <button
+                                onClick={() => openMermaidDiagram(parsedAnswer.mermaidCode!)}
+                                style={{
+                                    backgroundColor: "var(--primary)",
+                                    color: "white",
+                                    border: "none",
+                                    borderRadius: "8px",
+                                    padding: "12px 20px",
+                                    cursor: "pointer",
+                                    fontSize: "14px",
+                                    fontWeight: "500",
+                                    transition: "all 0.2s ease",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "8px",
+                                    margin: "0 auto"
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.transform = "translateY(-1px)";
+                                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.transform = "translateY(0)";
+                                    e.currentTarget.style.boxShadow = "none";
+                                }}
+                                title="View Process Diagram"
+                            >
+                                🎨 Process Map
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Feedback section */}
