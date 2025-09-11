@@ -476,35 +476,36 @@ export const Answer = ({
                     
                     {/* Process Map Button */}
                     {parsedAnswer.mermaidCode && (
-                        <div style={{ marginTop: "16px", textAlign: "center" }}>
+                        <div style={{ marginTop: "8px", textAlign: "left" }}>
                             <button
                                 onClick={() => openMermaidDiagram(parsedAnswer.mermaidCode!)}
                                 style={{
-                                    backgroundColor: "var(--primary)",
-                                    color: "white",
-                                    border: "none",
-                                    borderRadius: "8px",
-                                    padding: "12px 20px",
+                                    backgroundColor: "transparent",
+                                    color: "var(--text)",
+                                    border: "1px solid var(--border)",
+                                    borderRadius: "6px",
+                                    padding: "8px 12px",
                                     cursor: "pointer",
-                                    fontSize: "14px",
+                                    fontSize: "13px",
                                     fontWeight: "500",
                                     transition: "all 0.2s ease",
-                                    display: "flex",
+                                    display: "inline-flex",
                                     alignItems: "center",
-                                    gap: "8px",
-                                    margin: "0 auto"
+                                    gap: "6px"
                                 }}
                                 onMouseEnter={e => {
-                                    e.currentTarget.style.transform = "translateY(-1px)";
-                                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+                                    e.currentTarget.style.backgroundColor = "#28a745";
+                                    e.currentTarget.style.color = "white";
+                                    e.currentTarget.style.borderColor = "#28a745";
                                 }}
                                 onMouseLeave={e => {
-                                    e.currentTarget.style.transform = "translateY(0)";
-                                    e.currentTarget.style.boxShadow = "none";
+                                    e.currentTarget.style.backgroundColor = "transparent";
+                                    e.currentTarget.style.color = "var(--text)";
+                                    e.currentTarget.style.borderColor = "var(--border)";
                                 }}
                                 title="View Process Diagram"
                             >
-                                🎨 Process Map
+                                🎨 Click to Open Process Map
                             </button>
                         </div>
                     )}
