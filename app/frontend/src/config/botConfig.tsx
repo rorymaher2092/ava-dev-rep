@@ -36,7 +36,15 @@ export const BOTS: Record<string, BotProfile> = {
             "Callum.Mayhook@vocus.com.au",
             "Mitchell.Holt@vocus.com.au",
             "Rob.Ison@vocus.com.au",
-            "Will.Hamilton@vocus.com.au"
+            "Will.Hamilton@vocus.com.au",
+            "monique.degiovanni@vocus.com.au",
+            "avi.purushothaman@vocus.com.au",
+            "emily.mccarthy@vocus.com.au",
+            "nikhil.satpute@vocus.com.au",
+            "charanya.suresh@vocus.com.au",
+            "gracy.vargees@vocus.com.au",
+            "michelle.elias@vocus.com.au",
+            "sanjeev.puri@vocus.com.au"
         ],
         supportsAttachments: true
     },
