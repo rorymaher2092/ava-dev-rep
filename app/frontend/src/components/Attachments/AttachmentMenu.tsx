@@ -28,6 +28,7 @@ import {
     DocumentTable24Regular,
     DocumentText24Regular
 } from "@fluentui/react-icons";
+import uploadIcon from "../../assets/upload-icon.png";
 import { useBot } from "../../contexts/BotContext";
 
 /* ─────────────────── Types ─────────────────── */
@@ -193,7 +194,6 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
     const [jiraKey, setJiraKey] = useState("");
     const [confOpen, setConfOpen] = useState(false);
     const [confUrl, setConfUrl] = useState("");
-    const [confTitle, setConfTitle] = useState("");
 
     // File input ref
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -219,11 +219,16 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
     // Validate and add JIRA ticket
     const addJiraTicket = async () => {
         await withBusy(async () => {
-            const key = jiraKey.trim().toUpperCase();
-            if (!key) return;
+            const input = jiraKey.trim();
+            if (!input) return;
 
-            if (attachments.some(a => a.type === "jira" && a.key === key)) {
-                setError(`Ticket ${key} is already attached`);
+            // Extract ticket key for duplicate check
+            const extractedKey = input.includes("/browse/") 
+                ? input.split("/browse/")[1]?.split("?")[0]?.split("#")[0]?.toUpperCase()
+                : input.toUpperCase();
+
+            if (attachments.some(a => a.type === "jira" && a.key === extractedKey)) {
+                setError(`Ticket ${extractedKey} is already attached`);
                 return;
             }
 
@@ -231,7 +236,7 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
-                body: JSON.stringify({ ticketKey: key })
+                body: JSON.stringify({ ticketKey: input })
             });
 
             if (!response.ok) {
@@ -298,13 +303,12 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
             const newAttachment: AttachmentRef = {
                 type: "confluence",
                 url: result.url,
-                title: confTitle.trim() || result.title,
+                title: result.title,
                 space_name: result.space_name
             };
 
             onAttachmentsChange([...attachments, newAttachment]);
             setConfUrl("");
-            setConfTitle("");
             setConfOpen(false);
             setError(null);
         });
@@ -578,7 +582,7 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
                         }}
                     >
                         <MenuList>
-                            <MenuItem icon={<Document24Regular />} onClick={() => fileInputRef.current?.click()} disabled={busy || isUploading}>
+                            <MenuItem icon={<img src={uploadIcon} alt="Upload" style={{ width: '24px', height: '24px' }} />} onClick={() => fileInputRef.current?.click()} disabled={busy || isUploading}>
                                 Upload Document
                             </MenuItem>
                             <MenuItem icon={<PlugConnected24Regular />} onClick={() => setConfOpen(true)} disabled={busy || isUploading}>
@@ -623,9 +627,9 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
                     <DialogBody>
                         <DialogTitle>Add Jira ticket</DialogTitle>
                         <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
-                            <label style={{ fontSize: 12, opacity: 0.8 }}>Issue key (e.g., PROJ-123)</label>
+                            <label style={{ fontSize: 12, opacity: 0.8 }}>Issue key or URL (e.g., PROJ-123 or https://vocus.atlassian.net/browse/PROJ-123)</label>
                             <Input
-                                placeholder="PROJ-123"
+                                placeholder="PROJ-123 or https://vocus.atlassian.net/browse/PROJ-123"
                                 value={jiraKey}
                                 onChange={(_, v) => setJiraKey(v.value)}
                                 onKeyDown={e => e.key === "Enter" && !busy && addJiraTicket()}
@@ -655,13 +659,6 @@ export const SimpleAttachmentMenu: React.FC<SimpleAttachmentMenuProps> = ({
                                 placeholder="https://vocus.atlassian.net/wiki/pages/123456/Some+Page"
                                 value={confUrl}
                                 onChange={(_, v) => setConfUrl(v.value)}
-                                disabled={busy}
-                            />
-                            <label style={{ fontSize: 12, opacity: 0.8 }}>Title (optional - will use page title if empty)</label>
-                            <Input
-                                placeholder="Custom display title"
-                                value={confTitle}
-                                onChange={(_, v) => setConfTitle(v.value)}
                                 onKeyDown={e => e.key === "Enter" && !busy && addConfluencePage()}
                                 disabled={busy}
                             />

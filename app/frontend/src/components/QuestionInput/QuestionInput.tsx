@@ -16,6 +16,7 @@ import { BOTS } from "../../config/botConfig";
 // Import logos
 import confluenceLogo from "../../assets/confluence-logo.png";
 import jiraLogo from "../../assets/jira-logo.png";
+import uploadIcon from "../../assets/upload-icon.png";
 
 interface Props {
   onSend: (question: string, attachmentRefs?: AttachmentRef[]) => void;
@@ -54,7 +55,6 @@ export const QuestionInput = ({
   const [jiraKey, setJiraKey] = useState("");
   const [jiraUrl, setJiraUrl] = useState("");
   const [confUrl, setConfUrl] = useState("");
-  const [confTitle, setConfTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const { loggedIn } = useContext(LoginContext);
@@ -233,13 +233,12 @@ export const QuestionInput = ({
       const newAttachment: AttachmentRef = {
         type: 'confluence',
         url: result.data.url,
-        title: confTitle.trim() || result.data.title,
+        title: result.data.title,
         space_name: result.data.space_name
       };
       
       setAttachments([...attachments, newAttachment]);
       setConfUrl("");
-      setConfTitle("");
       setShowConfluenceForm(false);
       setError(null);
     } catch (e: any) {
@@ -662,7 +661,7 @@ export const QuestionInput = ({
                       onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-hover)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
-                      <span style={{ fontSize: 16 }}>📄</span>
+                      <img src={uploadIcon} alt="Upload" style={{ width: 16, height: 16 }} />
                       <span style={{ color: "var(--text)" }}>Upload Document</span>
                     </div>
                     
@@ -830,6 +829,7 @@ export const QuestionInput = ({
                         placeholder="Paste your Confluence page URL here..."
                         value={confUrl}
                         onChange={(_, v) => setConfUrl(v.value)}
+                        onKeyDown={(e) => e.key === "Enter" && !attachmentsBusy && addConfluencePage()}
                         disabled={attachmentsBusy}
                         style={{ 
                           width: "100%",
@@ -838,22 +838,7 @@ export const QuestionInput = ({
                       />
                     </div>
 
-                    <div>
-                      <label style={{ fontSize: "12px", opacity: 0.8, display: "block", marginBottom: "4px", color: "var(--text-muted)" }}>
-                        Title (optional - will use page title if empty)
-                      </label>
-                      <Input
-                        placeholder="Optional: Custom display name..."
-                        value={confTitle}
-                        onChange={(_, v) => setConfTitle(v.value)}
-                        onKeyDown={(e) => e.key === "Enter" && !attachmentsBusy && addConfluencePage()}
-                        disabled={attachmentsBusy}
-                        style={{ 
-                          width: "100%",
-                          opacity: confTitle ? 1 : 0.7
-                        }}
-                      />
-                    </div>
+
 
                     {error && (
                       <div style={{ 
@@ -874,7 +859,7 @@ export const QuestionInput = ({
                         onClick={() => {
                           setShowConfluenceForm(false);
                           setConfUrl("");
-                          setConfTitle("");
+
                           setError(null);
                         }} 
                         disabled={attachmentsBusy}
