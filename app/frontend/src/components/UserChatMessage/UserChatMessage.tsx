@@ -2,58 +2,135 @@ import styles from "./UserChatMessage.module.css";
 import { AttachmentRef } from "../Attachments/AttachmentMenu";
 import confluenceLogo from "../../assets/confluence-logo.png";
 import jiraLogo from "../../assets/jira-logo.png";
+import {
+    Document24Regular,
+    DocumentPdf24Regular,
+    DocumentTable24Regular,
+    DocumentText24Regular
+} from "@fluentui/react-icons";
 
 interface Props {
     message: string;
     attachmentRefs?: AttachmentRef[];
 }
 
+// Helper to get document icon with bot theme colors
+const getFileIcon = (fileType?: string) => {
+    const iconStyle = { fontSize: 16, color: 'var(--primary)' };
+    if (!fileType) return <Document24Regular style={iconStyle} />;
+    if (fileType === ".pdf") return <DocumentPdf24Regular style={iconStyle} />;
+    if ([".xlsx", ".xls", ".csv"].includes(fileType)) return <DocumentTable24Regular style={iconStyle} />;
+    if ([".txt", ".docx"].includes(fileType)) return <DocumentText24Regular style={iconStyle} />;
+    return <Document24Regular style={iconStyle} />;
+};
+
+// Format file size
+const formatFileSize = (bytes?: number) => {
+    if (!bytes) return "";
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1048576) return Math.round(bytes / 1024) + " KB";
+    return Math.round(bytes / 1048576) + " MB";
+};
+
 const AttachmentChip = ({ attachment }: { attachment: AttachmentRef }) => {
-    const isJira = attachment.type === 'jira';
+    const chipClass = attachment.isLoading ? `${styles.attachmentChip} ${styles.loading}` : styles.attachmentChip;
     
+    if (attachment.type === 'document') {
+        return (
+            <div className={chipClass}>
+                <div className={styles.attachmentIcon}>
+                    {getFileIcon(attachment.fileType)}
+                </div>
+                <div className={styles.attachmentContent}>
+                    <span className={styles.attachmentTitle} title={attachment.filename}>
+                        {attachment.filename || "Document"}
+                    </span>
+                    {attachment.size && (
+                        <span className={styles.attachmentSize}>
+                            {formatFileSize(attachment.size)}
+                        </span>
+                    )}
+                </div>
+                {attachment.isLoading && (
+                    <div 
+                        className={styles.loadingBar}
+                        style={{ width: `${attachment.loadingProgress || 0}%` }}
+                    />
+                )}
+            </div>
+        );
+    }
+    
+    if (attachment.type === 'jira') {
+        return (
+            <div className={chipClass}>
+                <div className={styles.attachmentIcon}>
+                    <img 
+                        src={jiraLogo} 
+                        alt="Jira" 
+                        width="16" 
+                        height="16"
+                        style={{ filter: 'hue-rotate(0deg) saturate(0.8)' }}
+                    />
+                </div>
+                <div className={styles.attachmentContent}>
+                    <span className={styles.attachmentKey}>[{attachment.key}]</span>
+                    {attachment.url ? (
+                        <a 
+                            href={attachment.url} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            className={styles.attachmentTitle}
+                            title={attachment.summary}
+                        >
+                            {attachment.summary || attachment.key}
+                        </a>
+                    ) : (
+                        <span className={styles.attachmentTitle} title={attachment.summary}>
+                            {attachment.summary || attachment.key}
+                        </span>
+                    )}
+                </div>
+                {attachment.isLoading && (
+                    <div 
+                        className={styles.loadingBar}
+                        style={{ width: `${attachment.loadingProgress || 0}%` }}
+                    />
+                )}
+            </div>
+        );
+    }
+    
+    // Confluence type
     return (
-        <div className={styles.attachmentChip}>
+        <div className={chipClass}>
             <div className={styles.attachmentIcon}>
                 <img 
-                    src={isJira ? jiraLogo : confluenceLogo} 
-                    alt={isJira ? "Jira" : "Confluence"} 
+                    src={confluenceLogo} 
+                    alt="Confluence" 
                     width="16" 
-                    height="16" 
+                    height="16"
+                    style={{ filter: 'hue-rotate(0deg) saturate(0.8)' }}
                 />
             </div>
             <div className={styles.attachmentContent}>
-                {isJira ? (
-                    <>
-                        <span className={styles.attachmentKey}>[{attachment.key}]</span>
-                        {attachment.url ? (
-                            <a 
-                                href={attachment.url} 
-                                target="_blank" 
-                                rel="noreferrer" 
-                                className={styles.attachmentTitle}
-                                title={attachment.summary}
-                            >
-                                {attachment.summary || attachment.key}
-                            </a>
-                        ) : (
-                            <span className={styles.attachmentTitle} title={attachment.summary}>
-                                {attachment.summary || attachment.key}
-                            </span>
-                        )}
-                    </>
-                ) : (
-                    <a 
-                        href={attachment.url} 
-                        target="_blank" 
-                        rel="noreferrer" 
-                        className={styles.attachmentTitle}
-                        title={attachment.title}
-                    >
-                        <span className={styles.attachmentPrefix}>Confluence:</span>
-                        {attachment.title || "Page"}
-                    </a>
-                )}
+                <a 
+                    href={attachment.url} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className={styles.attachmentTitle}
+                    title={attachment.title}
+                >
+                    <span className={styles.attachmentPrefix}>Confluence:</span>
+                    {attachment.title || "Page"}
+                </a>
             </div>
+            {attachment.isLoading && (
+                <div 
+                    className={styles.loadingBar}
+                    style={{ width: `${attachment.loadingProgress || 0}%` }}
+                />
+            )}
         </div>
     );
 };

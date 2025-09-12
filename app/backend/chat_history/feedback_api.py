@@ -153,18 +153,35 @@ async def list_feedback(auth_claims: Dict[str, Any]):
         limit = request.args.get('limit', default=100, type=int)
         offset = request.args.get('offset', default=0, type=int)
         feedback_type = request.args.get('type')
+        bot_filter = request.args.get('bot')
         
         # Build query - simplified for Cosmos DB
+        conditions = []
+        params = []
+        
         if feedback_type:
-            query = "SELECT * FROM c WHERE c.feedback = @feedback_type ORDER BY c.timestamp DESC"
-            params = [{"name": "@feedback_type", "value": feedback_type}]
+            conditions.append("c.feedback = @feedback_type")
+            params.append({"name": "@feedback_type", "value": feedback_type})
+            
+        if bot_filter:
+            conditions.append("c.botId = @bot_id")
+            params.append({"name": "@bot_id", "value": bot_filter})
+        
+        if conditions:
+            query = f"SELECT * FROM c WHERE {' AND '.join(conditions)} ORDER BY c.timestamp DESC"
         else:
             query = "SELECT * FROM c ORDER BY c.timestamp DESC"
-            params = []
         
         # Execute query
         current_app.logger.info(f"Executing feedback query: {query} with params: {params}")
         items = await feedback_db.query_feedback(query, params)
+        
+        # Ensure backward compatibility for items without botId
+        for item in items:
+            if 'botId' not in item or item['botId'] is None:
+                item['botId'] = 'ava'  # Default to ava for old feedback
+            if 'artifact' not in item:
+                item['artifact'] = None
         await feedback_db.close()
         
         current_app.logger.info(f"Found {len(items)} feedback items")

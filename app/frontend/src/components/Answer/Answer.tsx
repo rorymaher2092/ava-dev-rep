@@ -14,10 +14,13 @@ import avaLogo from "../../assets/ava.svg"; // Ava logo import
 import { SpeechOutputBrowser } from "./SpeechOutputBrowser";
 import { SpeechOutputAzure } from "./SpeechOutputAzure";
 import { submitContentSuggestion } from "../../api";
+import { openMermaidDiagram } from "../../utils/mermaidRenderer";
+import { openStoryMapCanvas } from "../../utils/storyMapRenderer";
 
 // Ensure you are importing the correct bot logo from your BotConfig
 import { BotProfile, BOTS } from "../../config/botConfig";
 import { useBot } from "../../contexts/BotContext";
+import { useArtifact } from "../../contexts/ArtifactContext";
 
 // ADD THESE IMPORTS FOR YOUR NEW ICONS
 import confluenceLogo from "../../assets/confluence-logo.png";
@@ -64,6 +67,14 @@ export const Answer = ({
     //select correct bot image
     const { botId } = useBot(); // Access botId from the BotContext
     const botProfile: BotProfile = BOTS[botId] ?? BOTS["ava"]; // Default to Ava if botProfile is undefined
+    
+    // Get current artifact for Accelerate Assistant
+    const { selectedArtifactType } = useArtifact();
+    const currentArtifact = botId === 'ba' ? selectedArtifactType : undefined;
+    
+    // Get question and answer for Ava-Search context
+    const currentQuestion = botId === 'ava' ? userQuestion : undefined;
+    const currentAnswer = botId === 'ava' ? answer.message.content : undefined;
 
     // Feedback state
     const [feedbackGiven, setFeedbackGiven] = useState(false);
@@ -168,6 +179,20 @@ export const Answer = ({
     const parsedAnswer = useMemo(() => parseAnswerToHtml(answer, isStreaming, handleCitationClick), [answer, isStreaming]);
     const sanitizedAnswerHtml = DOMPurify.sanitize(parsedAnswer.answerHtml);
 
+    // Auto-open diagram when Mermaid code is detected
+    useMemo(() => {
+        if (parsedAnswer.mermaidCode && !isStreaming) {
+            openMermaidDiagram(parsedAnswer.mermaidCode);
+        }
+    }, [parsedAnswer.mermaidCode, isStreaming]);
+
+    // Auto-open story map when HTML is detected
+    useMemo(() => {
+        if (parsedAnswer.storyMapHtml && !isStreaming) {
+            openStoryMapCanvas(parsedAnswer.storyMapHtml);
+        }
+    }, [parsedAnswer.storyMapHtml, isStreaming]);
+
     const handleCopy = () => {
         // Copy the original markdown content instead of processed HTML
         const markdownContent = answer.message.content;
@@ -194,7 +219,16 @@ export const Answer = ({
                     })
                     .catch(() => null);
 
-                await submitFeedbackApi(`answer-${index}`, type, "", token?.accessToken);
+                await submitFeedbackApi(
+                    `answer-${index}`, 
+                    type, 
+                    "", 
+                    token?.accessToken,
+                    botId,
+                    currentArtifact,
+                    currentQuestion,
+                    currentAnswer
+                );
                 setFeedbackGiven(true);
             } catch (error) {
                 console.error("Error submitting feedback:", error);
@@ -216,7 +250,16 @@ export const Answer = ({
                 })
                 .catch(() => null);
 
-            await submitFeedbackApi(`answer-${index}`, feedbackType, feedbackComments, token?.accessToken);
+            await submitFeedbackApi(
+                `answer-${index}`, 
+                feedbackType, 
+                feedbackComments, 
+                token?.accessToken,
+                botId,
+                currentArtifact,
+                currentQuestion,
+                currentAnswer
+            );
             setFeedbackGiven(true);
             setShowFeedbackDialog(false);
         } catch (error) {
@@ -407,6 +450,8 @@ export const Answer = ({
                             📄
                         </button>
 
+
+
                         {showSpeechOutputAzure && (
                             <SpeechOutputAzure answer={sanitizedAnswerHtml} index={index} speechConfig={speechConfig} isStreaming={isStreaming} />
                         )}
@@ -436,6 +481,78 @@ export const Answer = ({
                             )
                         }}
                     />
+                    
+                    {/* Process Map Button */}
+                    {parsedAnswer.mermaidCode && (
+                        <div style={{ marginTop: "8px", textAlign: "left" }}>
+                            <button
+                                onClick={() => openMermaidDiagram(parsedAnswer.mermaidCode!)}
+                                style={{
+                                    backgroundColor: "transparent",
+                                    color: "var(--text)",
+                                    border: "1px solid var(--border)",
+                                    borderRadius: "6px",
+                                    padding: "8px 12px",
+                                    cursor: "pointer",
+                                    fontSize: "13px",
+                                    fontWeight: "500",
+                                    transition: "all 0.2s ease",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "6px"
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.backgroundColor = "#28a745";
+                                    e.currentTarget.style.color = "white";
+                                    e.currentTarget.style.borderColor = "#28a745";
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.backgroundColor = "transparent";
+                                    e.currentTarget.style.color = "var(--text)";
+                                    e.currentTarget.style.borderColor = "var(--border)";
+                                }}
+                                title="View Process Diagram"
+                            >
+                                🎨 Click to Open Process Map
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Story Map Canvas Button */}
+                    {parsedAnswer.storyMapHtml && (
+                        <div style={{ marginTop: "8px", textAlign: "left" }}>
+                            <button
+                                onClick={() => openStoryMapCanvas(parsedAnswer.storyMapHtml!)}
+                                style={{
+                                    backgroundColor: "transparent",
+                                    color: "var(--text)",
+                                    border: "1px solid var(--border)",
+                                    borderRadius: "6px",
+                                    padding: "8px 12px",
+                                    cursor: "pointer",
+                                    fontSize: "13px",
+                                    fontWeight: "500",
+                                    transition: "all 0.2s ease",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "6px"
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.backgroundColor = "#007bff";
+                                    e.currentTarget.style.color = "white";
+                                    e.currentTarget.style.borderColor = "#007bff";
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.backgroundColor = "transparent";
+                                    e.currentTarget.style.color = "var(--text)";
+                                    e.currentTarget.style.borderColor = "var(--border)";
+                                }}
+                                title="View Story Map"
+                            >
+                                📋 Click to Open {parsedAnswer.storyMapTitle || "Story Map"}
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Feedback section */}

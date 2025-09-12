@@ -58,16 +58,15 @@
     line-height: 1.6;
     min-height: 4rem;
     max-height: 15rem;
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow: hidden;
     background: transparent;
     border: none;
     outline: none;
     color: var(--text);
     font-size: 1rem;
     resize: none;
-    scrollbar-width: thin;
-    -ms-overflow-style: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     box-sizing: border-box;
     margin-right: 1rem;
 }
@@ -77,9 +76,11 @@
     min-height: 4rem;
     width: 100% !important;
     max-width: 100% !important;
-    overflow-x: hidden !important;
+    overflow: hidden !important;
     box-sizing: border-box !important;
     padding: 0.75rem !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
 }
 
 .questionInputTextArea :global(.ms-TextField-fieldGroup) {
@@ -92,15 +93,16 @@
     height: auto !important;
     padding: 0.75rem !important;
     overflow: hidden !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
 }
 
 .questionInputTextArea :global(.ms-TextField-field)::-webkit-scrollbar {
     display: none !important;
 }
 
-.questionInputTextArea :global(.ms-TextField-field) {
-    -ms-overflow-style: none !important;
-    scrollbar-width: none !important;
+.questionInputTextArea :global(textarea)::-webkit-scrollbar {
+    display: none !important;
 }
 
 .questionInputTextArea::-webkit-scrollbar {

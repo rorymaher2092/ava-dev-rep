@@ -16,17 +16,16 @@ export const enum VectorFields {
     TextAndImageEmbeddings = "textAndImageEmbeddings"
 }
 
-
 // Add this interface for the attachment reference type
 export interface AttachmentRef {
-  type: 'jira' | 'confluence';
-  key?: string;       // For JIRA tickets
-  url?: string;       // For Confluence pages
-  title?: string;     // Display name
-  summary?: string;   // For display purposes
-  status?: string;    // For JIRA tickets
-  priority?: string;  // For JIRA tickets
-  space_name?: string; // For Confluence pages
+    type: "jira" | "confluence" | "document";
+    key?: string; // For JIRA tickets
+    url?: string; // For Confluence pages
+    title?: string; // Display name
+    summary?: string; // For display purposes
+    status?: string; // For JIRA tickets
+    priority?: string; // For JIRA tickets
+    space_name?: string; // For Confluence pages
 }
 
 export type ChatAppRequestOverrides = {
@@ -58,6 +57,8 @@ export type ChatAppRequestOverrides = {
     bot_id?: string; // Optional bot ID to override the default bot
     graph_token?: string; // Optional Graph token for Microsoft Graph API
     attachment_refs?: AttachmentRef[];
+    attachment_ids?: string[]; // UUID-based attachment IDs
+    consume_attachments?: boolean; // Flag to trigger attachment processing
     artifact_type?: string;
     model?: string; // Optional model override
     examples?: Array<{ role: string; content: string }>; // Optional examples override
@@ -134,6 +135,10 @@ export type FeedbackRequest = {
     responseId: string;
     feedback: FeedbackType;
     comments?: string;
+    botId?: string;
+    artifact?: string;
+    question?: string;
+    answer?: string;
 };
 
 export interface SpeechConfig {

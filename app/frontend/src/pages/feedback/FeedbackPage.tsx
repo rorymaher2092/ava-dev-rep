@@ -13,6 +13,10 @@ interface FeedbackItem {
     userId: string;
     username: string;
     name: string;
+    botId?: string;
+    artifact?: string;
+    question?: string;
+    answer?: string;
 }
 
 const FeedbackPage: React.FC = () => {
@@ -20,9 +24,28 @@ const FeedbackPage: React.FC = () => {
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [filterType, setFilterType] = useState<string | undefined>(undefined);
+    const [filterBot, setFilterBot] = useState<string | undefined>(undefined);
     const { instance } = useMsal();
 
     const columns: IColumn[] = [
+        { key: 'botId', name: 'Bot', fieldName: 'botId', minWidth: 120, maxWidth: 150,
+          onRender: (item: FeedbackItem) => (
+            <Text style={{ color: '#e2e8f0' }}>
+                {item.botId === 'ava' ? 'Ava-Search' : 
+                 item.botId === 'ba' ? 'Accelerate Assistant' :
+                 item.botId === 'tender' ? 'Tender Wizard' :
+                 item.botId || 'Unknown'}
+            </Text>
+          )
+        },
+        { key: 'artifact', name: 'Artifact', fieldName: 'artifact', minWidth: 120, maxWidth: 180,
+          onRender: (item: FeedbackItem) => (
+            <Text style={{ color: '#e2e8f0' }}>
+                {item.artifact ? item.artifact.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 
+                 <em style={{ color: '#94a3b8' }}>None</em>}
+            </Text>
+          )
+        },
         { key: 'timestamp', name: 'Date', fieldName: 'timestamp', minWidth: 120, maxWidth: 150, 
           onRender: (item: FeedbackItem) => (
             <Text style={{ color: '#e2e8f0' }}>
@@ -77,6 +100,13 @@ const FeedbackPage: React.FC = () => {
         { key: 'negative', text: 'Negative Only' }
     ];
 
+    const botFilterOptions: IDropdownOption[] = [
+        { key: 'all', text: 'All Bots' },
+        { key: 'ava', text: 'Ava-Search' },
+        { key: 'ba', text: 'Accelerate Assistant' },
+        { key: 'tender', text: 'Tender Wizard' }
+    ];
+
     const fetchFeedback = async () => {
         setLoading(true);
         setError(null);
@@ -85,6 +115,9 @@ const FeedbackPage: React.FC = () => {
             let url = '/feedback/list?limit=100';
             if (filterType && filterType !== 'all') {
                 url += `&type=${filterType}`;
+            }
+            if (filterBot && filterBot !== 'all') {
+                url += `&bot=${filterBot}`;
             }
             
             const response = await fetch(url, {
@@ -108,16 +141,56 @@ const FeedbackPage: React.FC = () => {
 
     useEffect(() => {
         fetchFeedback();
-    }, [filterType]);
+    }, [filterType, filterBot]);
 
     const handleFilterChange = (_: React.FormEvent<HTMLDivElement>, option?: IDropdownOption) => {
         setFilterType(option?.key as string);
     };
 
-    // Calculate statistics
-    const totalFeedback = feedback.length;
-    const positiveFeedback = feedback.filter(f => f.feedback === 'positive').length;
-    const negativeFeedback = feedback.filter(f => f.feedback === 'negative').length;
+    const handleBotFilterChange = (_: React.FormEvent<HTMLDivElement>, option?: IDropdownOption) => {
+        setFilterBot(option?.key as string);
+    };
+
+    const exportToCSV = () => {
+        const headers = ['Bot', 'Artifact', 'Date', 'User', 'Feedback', 'Comments', 'Response ID'];
+        const csvData = filteredFeedback.map(item => [
+            item.botId === 'ava' ? 'Ava-Search' : 
+            item.botId === 'ba' ? 'Accelerate Assistant' :
+            item.botId === 'tender' ? 'Tender Wizard' :
+            item.botId || 'Unknown',
+            item.artifact ? item.artifact.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'None',
+            new Date(item.timestamp * 1000).toLocaleDateString() + ' ' + new Date(item.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+            item.name || 'Unknown',
+            item.feedback === 'positive' ? 'Positive' : 'Negative',
+            item.comments || '',
+            item.responseId
+        ]);
+        
+        const csvContent = [headers, ...csvData]
+            .map(row => row.map(field => `"${field.toString().replace(/"/g, '""')}"`).join(','))
+            .join('\n');
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `feedback-export-${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    // Calculate statistics based on current filters
+    const filteredFeedback = feedback.filter(item => {
+        const typeMatch = !filterType || filterType === 'all' || item.feedback === filterType;
+        const botMatch = !filterBot || filterBot === 'all' || item.botId === filterBot;
+        return typeMatch && botMatch;
+    });
+    
+    const totalFeedback = filteredFeedback.length;
+    const positiveFeedback = filteredFeedback.filter(f => f.feedback === 'positive').length;
+    const negativeFeedback = filteredFeedback.filter(f => f.feedback === 'negative').length;
     const positivePercentage = totalFeedback > 0 ? (positiveFeedback / totalFeedback) : 0;
 
     return (
@@ -132,7 +205,30 @@ const FeedbackPage: React.FC = () => {
                     <Text variant="xxLarge" style={{ color: 'var(--text)' }}>Feedback Dashboard</Text>
                     <Stack horizontal tokens={{ childrenGap: 10 }}>
                         <Dropdown
-                            label="Filter by"
+                            label="Filter by Bot"
+                            selectedKey={filterBot || 'all'}
+                            onChange={handleBotFilterChange}
+                            options={botFilterOptions}
+                            styles={{ 
+                                dropdown: { width: 200 },
+                                label: { color: 'var(--text)' },
+                                title: { 
+                                    backgroundColor: 'var(--surface)', 
+                                    color: 'var(--text)', 
+                                    border: '1px solid var(--border)' 
+                                },
+                                callout: { 
+                                    backgroundColor: 'var(--surface)', 
+                                    border: '1px solid var(--border)' 
+                                },
+                                dropdownItem: { 
+                                    backgroundColor: 'var(--surface)', 
+                                    color: 'var(--text)' 
+                                }
+                            }}
+                        />
+                        <Dropdown
+                            label="Filter by Type"
                             selectedKey={filterType || 'all'}
                             onChange={handleFilterChange}
                             options={filterOptions}
@@ -150,6 +246,21 @@ const FeedbackPage: React.FC = () => {
                                 },
                                 dropdownItem: { 
                                     backgroundColor: 'var(--surface)', 
+                                    color: 'var(--text)' 
+                                }
+                            }}
+                        />
+                        <DefaultButton 
+                            text="Export CSV" 
+                            onClick={exportToCSV}
+                            styles={{
+                                root: { 
+                                    backgroundColor: 'var(--surface)', 
+                                    color: 'var(--text)', 
+                                    border: '1px solid var(--border)' 
+                                },
+                                rootHovered: { 
+                                    backgroundColor: 'var(--surface-hover)', 
                                     color: 'var(--text)' 
                                 }
                             }}
@@ -268,7 +379,7 @@ const FeedbackPage: React.FC = () => {
 
                         <div className={styles.feedbackTable}>
                             <DetailsList
-                                items={feedback}
+                                items={filteredFeedback}
                                 columns={columns}
                                 layoutMode={DetailsListLayoutMode.justified}
                                 selectionMode={SelectionMode.none}
@@ -276,7 +387,7 @@ const FeedbackPage: React.FC = () => {
                             />
                         </div>
                         
-                        {feedback.length === 0 && (
+                        {filteredFeedback.length === 0 && (
                             <div style={{ 
                                 textAlign: 'center', 
                                 padding: '40px',
@@ -285,10 +396,10 @@ const FeedbackPage: React.FC = () => {
                                 borderRadius: '8px'
                             }}>
                                 <Text style={{ color: 'var(--text-secondary)', fontSize: '18px' }}>
-                                    No feedback found
+                                    {feedback.length === 0 ? 'No feedback found' : 'No feedback matches current filters'}
                                 </Text>
                                 <Text style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '8px' }}>
-                                    Feedback will appear here once users start rating responses
+                                    {feedback.length === 0 ? 'Feedback will appear here once users start rating responses' : 'Try adjusting your filters to see more results'}
                                 </Text>
                             </div>
                         )}

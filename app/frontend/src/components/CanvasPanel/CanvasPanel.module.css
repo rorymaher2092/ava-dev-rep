@@ -1,0 +1,200 @@
+.canvasPanel {
+    position: fixed;
+    top: 64px;
+    right: 0;
+    width: 50%;
+    height: calc(100vh - 64px);
+    background: var(--surface-elevated);
+    border-left: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+}
+
+.resizeHandle {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 4px;
+    height: 100%;
+    cursor: ew-resize;
+    background: transparent;
+    z-index: 1001;
+}
+
+.resizeHandle:hover {
+    background: var(--primary);
+    opacity: 0.5;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-elevated);
+    border-left: 3px solid var(--primary);
+    color: var(--text);
+}
+
+.headerLeft h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.headerLeft span {
+    font-size: 12px;
+    opacity: 0.7;
+    color: var(--text-secondary);
+}
+
+.headerRight {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.btn {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-hover);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    background: var(--primary);
+    color: var(--vocus-white);
+    border-color: var(--primary);
+}
+
+.closeBtn {
+    padding: 4px 8px;
+    border: none;
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    transition: all 0.2s ease;
+}
+
+.closeBtn:hover {
+    background: var(--error);
+    color: var(--vocus-white);
+}
+
+.content {
+    flex: 1;
+    overflow: auto;
+    padding: 20px;
+    background: var(--background);
+}
+
+/* Canvas content styling */
+.content :global(table) {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    font-size: 13px;
+    background: var(--surface);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+}
+
+.content :global(th), .content :global(td) {
+    border: 1px solid var(--border-light);
+    padding: 16px 14px;
+    text-align: left;
+    vertical-align: top;
+    position: relative;
+    color: var(--text);
+}
+
+.content :global(th) {
+    background: var(--surface-elevated);
+    border-bottom: 2px solid var(--primary);
+    color: var(--text);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.content :global(tr:nth-child(even)) {
+    background-color: var(--surface-hover);
+}
+
+.content :global(tr:hover) {
+    background-color: var(--surface-hover);
+    transition: all 0.2s ease;
+}
+
+.content :global(.row-label) {
+    background: var(--surface-elevated) !important;
+    border-right: 2px solid var(--primary) !important;
+    font-weight: 600;
+    color: var(--text);
+    text-align: center;
+    position: sticky;
+    left: 0;
+    z-index: 5;
+}
+
+.content :global(.requirements ul) {
+    margin: 5px 0;
+    padding-left: 18px;
+}
+
+.content :global(.requirements li) {
+    margin-bottom: 4px;
+    line-height: 1.4;
+}
+
+.content :global(.content) {
+    max-height: 150px;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    position: relative;
+}
+
+.content :global(.content:not(.expanded))::after {
+    content: '...';
+    position: absolute;
+    bottom: 0;
+    right: 8px;
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-weight: bold;
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.content :global(.content.expanded) {
+    max-height: none;
+}
+
+.content :global(.content.expanded)::after {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .canvasPanel {
+        width: 100%;
+        top: 0;
+        height: 100vh;
+    }
+}

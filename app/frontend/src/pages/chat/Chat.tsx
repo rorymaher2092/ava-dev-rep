@@ -31,6 +31,8 @@ import { AnalysisPanel, AnalysisPanelTabs } from "../../components/AnalysisPanel
 import { HistoryPanel } from "../../components/HistoryPanel";
 import { HistoryProviderOptions, useHistoryManager } from "../../components/HistoryProviders";
 import { HistoryButton } from "../../components/HistoryButton";
+import { CanvasPanel } from "../../components/CanvasPanel";
+import { setCanvasOpenCallback } from "../../utils/storyMapRenderer";
 // import { SettingsButton } from "../../components/SettingsButton";
 import { ClearChatButton } from "../../components/ClearChatButton";
 import { UploadFile } from "../../components/UploadFile";
@@ -132,6 +134,11 @@ const Chat = () => {
     const [showChatHistoryCosmos, setShowChatHistoryCosmos] = useState<boolean>(false);
     const [showAgenticRetrievalOption, setShowAgenticRetrievalOption] = useState<boolean>(false);
     const [useAgenticRetrieval, setUseAgenticRetrieval] = useState<boolean>(false);
+
+    // Canvas panel state
+    const [isCanvasPanelOpen, setIsCanvasPanelOpen] = useState<boolean>(false);
+    const [canvasContent, setCanvasContent] = useState<string>("");
+    const [canvasTitle, setCanvasTitle] = useState<string>("Canvas");
 
     // added to deal with cancelling mid request
     const [abortController, setAbortController] = useState<AbortController | null>(null);
@@ -492,8 +499,12 @@ const Chat = () => {
                         bot_id: botId,
                         graph_token: graphToken,
                         artifact_type: selectedArtifactType,
-                        // NEW: Include attachment references for just-in-time fetching
-                        attachment_refs: attachmentRefs || [],
+                        // Include attachment IDs for UUID-based fetching
+                        attachment_ids: attachmentRefs ? attachmentRefs.map(ref => ref.id).filter((id): id is string => Boolean(id)) : [],
+                        // Also include legacy attachment_refs for backward compatibility
+                        attachment_refs: attachmentRefs ? attachmentRefs.filter(ref => ref.type !== "document") : [],
+                        // CRITICAL: Tell backend to consume attachments if any exist
+                        consume_attachments: (attachmentRefs && attachmentRefs.length > 0) || false,
                         ...(seed !== null ? { seed: seed } : {})
                     }
                 },
@@ -620,6 +631,17 @@ const Chat = () => {
     useEffect(() => chatMessageStreamEnd.current?.scrollIntoView({ behavior: "auto" }), [streamedAnswers]);
     useEffect(() => {
         getConfig();
+
+        // Set up canvas callback
+        setCanvasOpenCallback((htmlContent: string) => {
+            // Extract title from HTML comment or use default
+            const titleMatch = htmlContent.match(/<!--\s*title:\s*([^-]+)\s*-->/);
+            const extractedTitle = titleMatch ? titleMatch[1].trim() : "Canvas";
+
+            setCanvasContent(htmlContent);
+            setCanvasTitle(extractedTitle);
+            setIsCanvasPanelOpen(true);
+        });
 
         // Check URL parameters for actions
         if (searchParams.get("clear") === "true") {
@@ -892,7 +914,7 @@ const Chat = () => {
             <div
                 className={styles.chatRoot}
                 style={{
-                    marginRight: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
+                    marginRight: activeAnalysisPanelTab && !isMobile ? "40%" : isCanvasPanelOpen && !isMobile ? "50%" : "0",
                     marginLeft: isHistoryPanelOpen && !isMobile ? "320px" : "0"
                 }}
             >
@@ -1032,7 +1054,7 @@ const Chat = () => {
                     <div
                         className={`${styles.chatInput} ${botId === "ba" ? styles.baBot : ""}`}
                         style={{
-                            right: activeAnalysisPanelTab && !isMobile ? "40%" : "0",
+                            right: activeAnalysisPanelTab && !isMobile ? "40%" : isCanvasPanelOpen && !isMobile ? "50%" : "0",
                             left: isHistoryPanelOpen && !isMobile ? "320px" : "0",
                             width: "auto",
                             backgroundColor: "var(--background)",
@@ -1148,6 +1170,9 @@ const Chat = () => {
                     />
                     {useLogin && <TokenClaimsDisplay />}
                 </Panel>
+
+                {/* Canvas Panel */}
+                <CanvasPanel htmlContent={canvasContent} isOpen={isCanvasPanelOpen} onClose={() => setIsCanvasPanelOpen(false)} title={canvasTitle} />
             </div>
         </div>
     );

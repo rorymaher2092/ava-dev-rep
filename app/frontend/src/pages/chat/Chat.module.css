@@ -156,14 +156,11 @@
     margin: 0 auto;
     left: 0;
     right: 0;
-    background: var(--surface-elevated);
-    backdrop-filter: blur(20px);
-    border-top: 1px solid var(--border-light);
-    padding: 1.5rem;
-    padding-bottom: 2rem;
+    background: var(--background);
+    padding: 1rem;
+    padding-bottom: 1.5rem;
     z-index: 999;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: var(--shadow-lg);
 }
 
 /* BA assistant wider input */

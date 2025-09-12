@@ -1,3 +1,4 @@
+import asyncio
 import dataclasses
 import io
 import json
@@ -37,6 +38,7 @@ from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
 from opentelemetry.instrumentation.httpx import (
     HTTPXClientInstrumentor,
 )
+
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 from quart import (
     Blueprint,
@@ -51,8 +53,7 @@ from quart import (
     session,
 )
 from quart_cors import cors
-import redis
-from quart_session import Session
+
 
 from bot_profiles import BotProfile, BOTS, DEFAULT_BOT_ID
 from approaches.approach import Approach
@@ -64,8 +65,15 @@ from approaches.retrievethenreadvision import RetrieveThenReadVisionApproach
 from approaches.confluence_search import ConfluenceSearchService 
 from attachments.attachment_api import attachment_bp
 # In your main route file, make sure you have:
-from attachments.attachment_helpers import fetch_attachments_for_chat
+from attachments.attachment_helpers import fetch_attachments_for_chat, fetch_jira_ticket_source, fetch_confluence_page_source, fetch_document_source, fetch_document_by_id
+from attachments.direct_attachment_storage import attachment_storage
+from attachments.cleanup_service import cleanup_service
 from chat_history.cosmosdb import chat_history_cosmosdb_bp
+
+from attachments.document_attachment_api import document_bp
+from attachments.direct_attachment_api import direct_attachment_bp
+from chat_history.feedback_api import feedback_bp
+from healthz import healthz_bp
 
 from config import (
     CONFIG_AGENT_CLIENT,
@@ -244,41 +252,55 @@ async def chat(auth_claims: dict[str, Any]):
         return jsonify({"error": "request must be json"}), 415
     request_json = await request.get_json()
 
+    current_app.logger.info(f"CHAT START")
+
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
 
-    # Extract overrides BEFORE using it
     overrides = context.get("overrides", {})
-    
-    # NEW: Get attachment references from request
-    attachment_refs = overrides.get("attachment_refs", [])
-    
-    current_app.logger.info(f"🔍 Chat request received")
-    current_app.logger.info(f"🔍 Attachment refs: {len(attachment_refs)} references")
-    
-    # NEW: Fetch attachment content just-in-time if refs provided
+    should_consume = overrides.get("consume_attachments", False)
+
+    current_app.logger.info(f"Should consume attachments: {should_consume}")
+
+    # DUAL ATTACHMENT SYSTEM: Handle both UUID-based documents and direct JIRA/Confluence refs
     attachment_sources = []
-    if attachment_refs:
-        current_app.logger.info(f"🔍 Fetching content for {len(attachment_refs)} attachment references")
-        try:
-            attachment_sources = await fetch_attachments_for_chat(attachment_refs)
-            current_app.logger.info(f"🔍 Successfully fetched {len(attachment_sources)} attachment sources")
+    
+    if should_consume:
+        current_app.logger.info("Processing attachments...")
+        
+        # Handle document attachments by file ID
+        attachment_ids = overrides.get("attachment_ids", [])
+        if attachment_ids:
+            current_app.logger.info(f"Loading {len(attachment_ids)} documents by ID")
             
-            # Debug log each source briefly
-            for i, source in enumerate(attachment_sources):
-                current_app.logger.info(f"🔍 Source {i+1}: {source[:200]}...")
-                
-        except Exception as e:
-            current_app.logger.error(f"❌ Failed to fetch attachments: {str(e)}")
-            # Continue without attachments rather than failing the whole request
-            attachment_sources = []
+            for file_id in attachment_ids:
+                try:
+                    # Fetch and process each document
+                    document_source = await fetch_document_by_id(file_id)
+                    if document_source:
+                        attachment_sources.append(document_source)
+                        current_app.logger.info(f"Successfully loaded document {file_id}")
+                except Exception as e:
+                    current_app.logger.error(f"Failed to load document {file_id}: {e}")
+        
+        # SYSTEM 2: Direct JIRA/Confluence references
+        attachment_refs = overrides.get("attachment_refs", [])
+        if attachment_refs:
+            current_app.logger.info(f"Processing {len(attachment_refs)} JIRA/Confluence references")
+            try:
+                jira_confluence_sources = await fetch_attachments_for_chat(attachment_refs)
+                attachment_sources.extend(jira_confluence_sources)
+                current_app.logger.info(f"Successfully loaded {len(jira_confluence_sources)} JIRA/Confluence sources")
+            except Exception as e:
+                current_app.logger.error(f"Failed to fetch JIRA/Confluence attachments: {str(e)}")
+        
+    else:
+        current_app.logger.info("No consume_attachments flag")
     
     # Add attachment data to context
     context["overrides"]["attachment_sources"] = attachment_sources
     context["overrides"]["has_attachments"] = len(attachment_sources) > 0
     context["overrides"]["attachment_count"] = len(attachment_sources)
-    
-    current_app.logger.info(f"🔍 Final context: {len(attachment_sources)} attachment sources added")
 
     # Extract the bot_id from the overrides in context
     bot_id = overrides.get("bot_id", DEFAULT_BOT_ID)
@@ -320,29 +342,51 @@ async def chat_stream(auth_claims: dict[str, Any]):
     if not request.is_json:
         return jsonify({"error": "request must be json"}), 415
     request_json = await request.get_json()
-    
+
+    current_app.logger.info(f"CHAT STREAM START")
+
     context = request_json.get("context", {})
     context["auth_claims"] = auth_claims
 
-    # Extract overrides BEFORE using it
     overrides = context.get("overrides", {})
-    
-    # NEW: Get attachment references from request
-    attachment_refs = overrides.get("attachment_refs", [])
-    
-    current_app.logger.info(f"🔍 STREAM: Chat request received")
-    current_app.logger.info(f"🔍 STREAM: Attachment refs: {len(attachment_refs)} references")
+    should_consume = overrides.get("consume_attachments", False)
 
-    # NEW: Fetch attachment content just-in-time if refs provided
+    current_app.logger.info(f"Should consume attachments: {should_consume}")
+
+    # DUAL ATTACHMENT SYSTEM: Handle both UUID-based documents and direct JIRA/Confluence refs
     attachment_sources = []
-    if attachment_refs:
-        current_app.logger.info(f"🔍 STREAM: Fetching content for {len(attachment_refs)} attachment references")
-        try:
-            attachment_sources = await fetch_attachments_for_chat(attachment_refs)
-            current_app.logger.info(f"🔍 STREAM: Successfully fetched {len(attachment_sources)} attachment sources")
-        except Exception as e:
-            current_app.logger.error(f"❌ STREAM: Failed to fetch attachments: {str(e)}")
-            attachment_sources = []
+    
+    if should_consume:
+        current_app.logger.info("Processing attachments...")
+        
+        # Handle document attachments by file ID
+        attachment_ids = overrides.get("attachment_ids", [])
+        if attachment_ids:
+            current_app.logger.info(f"Loading {len(attachment_ids)} documents by ID")
+            
+            for file_id in attachment_ids:
+                try:
+                    # Fetch and process each document
+                    document_source = await fetch_document_by_id(file_id)
+                    if document_source:
+                        attachment_sources.append(document_source)
+                        current_app.logger.info(f"Successfully loaded document {file_id}")
+                except Exception as e:
+                    current_app.logger.error(f"Failed to load document {file_id}: {e}")
+        
+        # SYSTEM 2: Direct JIRA/Confluence references
+        attachment_refs = overrides.get("attachment_refs", [])
+        if attachment_refs:
+            current_app.logger.info(f"Processing {len(attachment_refs)} JIRA/Confluence references")
+            try:
+                jira_confluence_sources = await fetch_attachments_for_chat(attachment_refs)
+                attachment_sources.extend(jira_confluence_sources)
+                current_app.logger.info(f"Successfully loaded {len(jira_confluence_sources)} JIRA/Confluence sources")
+            except Exception as e:
+                current_app.logger.error(f"Failed to fetch JIRA/Confluence attachments: {str(e)}")
+        
+    else:
+        current_app.logger.info("No consume_attachments flag")
     
     # Add attachment data to context
     context["overrides"]["attachment_sources"] = attachment_sources
@@ -563,6 +607,10 @@ async def submit_feedback(auth_claims: dict[str, Any]):
     response_id = request_json.get("responseId")
     feedback_type = request_json.get("feedback")
     comments = request_json.get("comments", "")
+    bot_id = request_json.get("botId", "ava")  # Default to ava if not provided
+    artifact = request_json.get("artifact")  # Can be null for non-artifact bots
+    question = request_json.get("question")  # Question for Ava-Search context
+    answer = request_json.get("answer")  # Answer for Ava-Search context
     
     if not response_id or not feedback_type:
         return jsonify({"error": "responseId and feedback are required"}), 400
@@ -575,6 +623,10 @@ async def submit_feedback(auth_claims: dict[str, Any]):
         "responseId": response_id,
         "feedback": feedback_type,
         "comments": comments,
+        "botId": bot_id,
+        "artifact": artifact,
+        "question": question,
+        "answer": answer,
         "timestamp": time.time(),
         "userId": auth_claims.get("oid", ""),
         "username": auth_claims.get("username", ""),
@@ -657,6 +709,24 @@ async def submit_suggestion(auth_claims: dict[str, Any]):
     except Exception as e:
         current_app.logger.error(f"Error storing suggestion in blob storage: {str(e)}")
         return jsonify({"message": "Suggestion logged but not stored", "error": str(e)}), 500
+
+
+@bp.route("/cleanup-attachments", methods=["POST"])
+@authenticated
+async def manual_cleanup_attachments(auth_claims: dict[str, Any]):
+    """Manual endpoint to trigger attachment cleanup"""
+    try:
+        current_app.logger.info("Manual attachment cleanup triggered")
+        deleted_count = await cleanup_service.cleanup_old_attachments()
+        
+        return jsonify({
+            "message": "Cleanup completed successfully",
+            "deleted_count": deleted_count
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Manual cleanup error: {e}")
+        return jsonify({"error": f"Cleanup failed: {str(e)}"}), 500
 
 @bp.before_app_serving
 async def setup_clients():
@@ -1194,15 +1264,23 @@ async def close_clients():
 def create_app():
     app = Quart(__name__)
     
+    # Set secret key for Quart sessions (even though we use UUID-based attachments)
+    app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
     
+    # No session configuration needed for attachments
+    
+    # Health check blueprint (FIRST - no sessions)
+    app.register_blueprint(healthz_bp)
+    
+    # Existing blueprints
     app.register_blueprint(bp)
     app.register_blueprint(chat_history_cosmosdb_bp)
-    
-    # Register feedback blueprint
-    from chat_history.feedback_api import feedback_bp
     app.register_blueprint(feedback_bp)
-
-    app.register_blueprint(attachment_bp)
+    app.register_blueprint(attachment_bp)  # Your existing attachment blueprint
+    
+    # ADD: New blueprints for document support
+    app.register_blueprint(document_bp)
+    app.register_blueprint(direct_attachment_bp)
 
 
     if os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):
@@ -1231,4 +1309,29 @@ def create_app():
             app.logger.info("CORS enabled for %s", allowed_origins)
             cors(app, allow_origin=allowed_origins, allow_methods=["GET", "POST"])
 
+    # Start background cleanup task
+    @app.before_serving
+    async def start_cleanup_task():
+        """Start the background cleanup task"""
+        async def cleanup_task():
+            """Background task to clean up old attachments every hour"""
+            while True:
+                try:
+                    app.logger.info("Running attachment cleanup...")
+                    deleted_count = await cleanup_service.cleanup_old_attachments()
+                    if deleted_count > 0:
+                        app.logger.info(f"Cleanup completed: deleted {deleted_count} old attachments")
+                    else:
+                        app.logger.debug("Cleanup completed: no old attachments found")
+                except Exception as e:
+                    app.logger.error(f"Cleanup task error: {e}")
+                
+                # Wait 1 hour before next cleanup
+                await asyncio.sleep(3600)  # 3600 seconds = 1 hour
+        
+        # Start the cleanup task in the background
+        import asyncio
+        asyncio.create_task(cleanup_task())
+        app.logger.info("Background attachment cleanup task started (runs every hour)")
+    
     return app
