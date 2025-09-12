@@ -1811,8 +1811,10 @@ EXCEPTIONS:
  
 **Process Title**
 Employee Expense Reimbursement Process
+
 **Process Purpose**
 This process ensures employees are properly reimbursed for legitimate business expenses while maintaining compliance with company policies and financial controls. It provides a standardized workflow for expense submission, validation, approval, and payment processing that protects both employee interests and organizational financial integrity.
+
 **Process Scope**
 Start Point: Employee submits an expense report online through the company system
 End Point: Employee receives reimbursement payment or formal rejection notification with reasons
@@ -1847,7 +1849,7 @@ WHO: Line Manager or Delegate
 INPUT: Expense report, attached receipts
 OUTPUT: Validation status (Complete/Incomplete)
 SYSTEM: Concur
-DETAILS: DETAILS: Manager checks for:
+DETAILS: Manager checks for:
 - All required fields completed
 - Receipts attached
 - Basic policy compliance
@@ -1881,7 +1883,7 @@ SYSTEM: Concur (automated notification)
  
 7. TASK: Process expense payment through payroll
 WHO: Payroll Coordinator
-OUTPUT: Reimbursement to employee’s bank account
+OUTPUT: Reimbursement to employee's bank account
 SYSTEM: Dayforce Payroll System
 DETAILS: Approved claims are exported from Concur and processed in Dayforce during the next payroll cycle (per Payroll Calendar cut-off dates).
  
@@ -1949,12 +1951,12 @@ Process for handling disputed rejections or employee appeals
 - Write at a level that someone new to the process could follow
 
 
-## VISUAL DIAGRAM GENERATION with BPMN DIAGRAM GENERATION:
+## VISUAL DIAGRAM GENERATION with BPMN 2.0 XML
 
 ### Automatic Diagram Generation:
 After providing the structured process documentation, ALWAYS generate a BPMN diagram by saying:
 
-"Here is the visual process map in BPMN format:"
+"Here is the visual process map in BPMN format that will open in a new tab:"
 
 Then immediately generate the BPMN XML.
 
@@ -1965,128 +1967,121 @@ If the user requests changes to an existing process diagram, then:
 3. Generate the updated BPMN XML with the requested modifications
 4. Use the phrase "Here is the updated process flow:" before generating the new diagram
 
-### BPMN XML Generation Rules:
+### CRITICAL BPMN XML GENERATION RULES:
 
-1. **Structure**: Create valid BPMN 2.0 XML with proper namespaces
-2. **Elements to use**:
-   - `startEvent` - Process start points
-   - `endEvent` - Process end points
-   - `userTask` - Human activities
-   - `serviceTask` - System/automated activities
-   - `exclusiveGateway` - Decision points (XOR)
-   - `parallelGateway` - Parallel split/join (AND)
-   - `sequenceFlow` - Connections between elements
+1. **Generate complete, valid BPMN 2.0 XML**
+2. **Include proper namespaces and structure**
+3. **Use valid element IDs (e.g., StartEvent_1, Task_1, Gateway_1, EndEvent_1)**
+4. **Include bpmndi:BPMNDiagram section with proper coordinates**
+5. **Ensure all sequenceFlow elements have valid sourceRef and targetRef**
+6. **Place the XML between markers: BPMN_PROCESS_XML_START and BPMN_PROCESS_XML_END**
 
-3. **Naming conventions**:
-   - Use clear, concise names (max 3-4 words)
-   - IDs: start_event, task_1, task_2, gateway_1, end_event
-   - Names: descriptive labels for display
+### BPMN Element Types to Use:
+- **Events:** startEvent, endEvent, intermediateCatchEvent, intermediateThrowEvent
+- **Tasks:** task, userTask, serviceTask, scriptTask, businessRuleTask, manualTask
+- **Gateways:** exclusiveGateway (XOR), parallelGateway (AND), inclusiveGateway (OR)
+- **Flows:** sequenceFlow (with conditions for gateway branches)
 
-### Output Format:
-When generating the BPMN XML, wrap it with these exact delimiters:
+### Coordinate Guidelines:
+- Start events: 36x36 pixels (circles)
+- Tasks: 100-120x60-80 pixels (rectangles)
+- Gateways: 50x50 pixels (diamonds)
+- End events: 36x36 pixels (circles)
+- Space elements 150-200 pixels apart horizontally
+- Keep y-coordinate around 150-170 for horizontal layouts
+- For complex processes, use multiple rows (y=150, y=300, y=450, etc.)
 
-BPMN_PROCESS_XML_START
-<?xml version="1.0" encoding="UTF-8"?>
-<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" 
-             xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
-             xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
-             xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
-             id="definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
-  <process id="process_1" isExecutable="false">
-    [Your BPMN elements here]
-  </process>
-  <bpmndi:BPMNDiagram id="diagram_1">
-    <bpmndi:BPMNPlane id="plane_1" bpmnElement="process_1">
-      [Diagram layout information]
-    </bpmndi:BPMNPlane>
-  </bpmndi:BPMNDiagram>
-</definitions>
-BPMN_PROCESS_XML_END
-
-### Example BPMN Output for Expense Process:
+### REQUIRED XML STRUCTURE:
 
 BPMN_PROCESS_XML_START
 <?xml version="1.0" encoding="UTF-8"?>
-<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" 
-             xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
-             xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
-             xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
-             id="definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
-  <process id="process_1" isExecutable="false">
-    <startEvent id="start_event" name="Start">
-      <outgoing>flow_1</outgoing>
-    </startEvent>
-    
-    <userTask id="task_1" name="Submit Expense Report">
-      <incoming>flow_1</incoming>
-      <incoming>flow_4</incoming>
-      <outgoing>flow_2</outgoing>
-    </userTask>
-    
-    <exclusiveGateway id="gateway_1" name="Complete?">
-      <incoming>flow_2</incoming>
-      <outgoing>flow_3</outgoing>
-      <outgoing>flow_4</outgoing>
-    </exclusiveGateway>
-    
-    <userTask id="task_2" name="Request Missing Info">
-      <incoming>flow_3</incoming>
-      <outgoing>flow_4</outgoing>
-    </userTask>
-    
-    <userTask id="task_3" name="Review Policy Compliance">
-      <incoming>flow_5</incoming>
-      <outgoing>flow_6</outgoing>
-    </userTask>
-    
-    <exclusiveGateway id="gateway_2" name="Compliant?">
-      <incoming>flow_6</incoming>
-      <outgoing>flow_7</outgoing>
-      <outgoing>flow_8</outgoing>
-    </exclusiveGateway>
-    
-    <userTask id="task_4" name="Send Rejection">
-      <incoming>flow_7</incoming>
-      <outgoing>flow_9</outgoing>
-    </userTask>
-    
-    <serviceTask id="task_5" name="Process Payment">
-      <incoming>flow_8</incoming>
-      <outgoing>flow_10</outgoing>
-    </serviceTask>
-    
-    <endEvent id="end_event" name="End">
-      <incoming>flow_9</incoming>
-      <incoming>flow_10</incoming>
-    </endEvent>
-    
-    <!-- Sequence Flows -->
-    <sequenceFlow id="flow_1" sourceRef="start_event" targetRef="task_1"/>
-    <sequenceFlow id="flow_2" sourceRef="task_1" targetRef="gateway_1"/>
-    <sequenceFlow id="flow_3" name="No" sourceRef="gateway_1" targetRef="task_2"/>
-    <sequenceFlow id="flow_4" sourceRef="task_2" targetRef="task_1"/>
-    <sequenceFlow id="flow_5" name="Yes" sourceRef="gateway_1" targetRef="task_3"/>
-    <sequenceFlow id="flow_6" sourceRef="task_3" targetRef="gateway_2"/>
-    <sequenceFlow id="flow_7" name="No" sourceRef="gateway_2" targetRef="task_4"/>
-    <sequenceFlow id="flow_8" name="Yes" sourceRef="gateway_2" targetRef="task_5"/>
-    <sequenceFlow id="flow_9" sourceRef="task_4" targetRef="end_event"/>
-    <sequenceFlow id="flow_10" sourceRef="task_5" targetRef="end_event"/>
-  </process>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  id="Definitions_1"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
   
-  <bpmndi:BPMNDiagram id="diagram_1">
-    <bpmndi:BPMNPlane id="plane_1" bpmnElement="process_1">
-      <!-- Auto-layout will be handled by bpmn-js -->
+  <bpmn:process id="Process_1" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Start">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <!-- Tasks (use appropriate type: userTask, serviceTask, etc.) -->
+    <bpmn:userTask id="Task_1" name="Task Name">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:userTask>
+    
+    <!-- Gateways -->
+    <bpmn:exclusiveGateway id="Gateway_1" name="Decision?">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_1" name="End">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Sequence Flows - MUST have valid sourceRef and targetRef -->
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Task_1"/>
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_1" targetRef="Gateway_1"/>
+    <bpmn:sequenceFlow id="Flow_3" name="Yes" sourceRef="Gateway_1" targetRef="EndEvent_1"/>
+  </bpmn:process>
+  
+  <!-- Diagram Information with Coordinates -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1">
+      
+      <!-- Shapes with coordinates -->
+      <bpmndi:BPMNShape id="Shape_StartEvent_1" bpmnElement="StartEvent_1">
+        <dc:Bounds x="150" y="150" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Shape_Task_1" bpmnElement="Task_1">
+        <dc:Bounds x="250" y="140" width="100" height="60"/>
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Shape_Gateway_1" bpmnElement="Gateway_1" isMarkerVisible="true">
+        <dc:Bounds x="400" y="150" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Shape_EndEvent_1" bpmnElement="EndEvent_1">
+        <dc:Bounds x="550" y="150" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      
+      <!-- Edges (connections) with waypoints -->
+      <bpmndi:BPMNEdge id="Edge_Flow_1" bpmnElement="Flow_1">
+        <di:waypoint x="186" y="168"/>
+        <di:waypoint x="250" y="170"/>
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_Flow_2" bpmnElement="Flow_2">
+        <di:waypoint x="350" y="170"/>
+        <di:waypoint x="400" y="175"/>
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_Flow_3" bpmnElement="Flow_3">
+        <di:waypoint x="450" y="175"/>
+        <di:waypoint x="550" y="168"/>
+      </bpmndi:BPMNEdge>
+      
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
-</definitions>
+</bpmn:definitions>
 BPMN_PROCESS_XML_END
 
-### Important Notes:
-- ALWAYS generate valid BPMN 2.0 XML
-- Include proper element IDs and references
-- Ensure all sequence flows have valid sourceRef and targetRef
-- Use appropriate BPMN element types for different activities
-- Gateway conditions should be reflected in sequence flow names
+### Important BPMN Notes:
+- ALWAYS use BPMN_PROCESS_XML_START and BPMN_PROCESS_XML_END markers
+- Ensure all element IDs match between process elements and diagram shapes
+- Every sequenceFlow MUST have valid sourceRef and targetRef
+- Include meaningful names for all elements
+- For complex processes, organize layout in swim lanes or multiple rows
+- Use appropriate task types: userTask for human activities, serviceTask for system activities
+- Gateway conditions should be reflected in sequence flow names (e.g., name="Yes" or name="No")
 
 {% elif artifact_type == "change_strategy" %}
 {% include "./BA_Folder/Change_Strategy_Prompt.md" %}
