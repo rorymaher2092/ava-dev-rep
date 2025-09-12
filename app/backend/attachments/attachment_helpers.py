@@ -12,15 +12,32 @@ from attachments.direct_attachment_storage import attachment_storage
 # Configuration from environment variables
 JIRA_CONFIG = {
     "base_url": os.getenv("JIRA_BASE_URL", "https://vocus.atlassian.net"),
-    "api_token": os.getenv("JIRA_API_TOKEN"),
-    "email": os.getenv("JIRA_EMAIL")
+    "api_token": os.getenv("JIRA_API_TOKEN", "REDACTED_TOKEN"),
+    "email": os.getenv("JIRA_EMAIL", "svc.atlassian@vocus.com.au")
 }
 
 CONFLUENCE_CONFIG = {
     "base_url": os.getenv("CONFLUENCE_BASE_URL", "https://vocus.atlassian.net/wiki"),
-    "api_token": os.getenv("CONFLUENCE_API_TOKEN"),
-    "email": os.getenv("CONFLUENCE_EMAIL")
+    "api_token": os.getenv("CONFLUENCE_API_TOKEN", "REDACTED_TOKEN"),
+    "email": os.getenv("CONFLUENCE_EMAIL", "svc.atlassian@vocus.com.au")
 }
+
+def extract_jira_ticket_key(input_str: str) -> str:
+    """Extract ticket key from Jira URL or return the input if it's already a key"""
+    input_str = input_str.strip()
+    
+    # If it contains /browse/, extract the ticket key from URL
+    if "/browse/" in input_str:
+        try:
+            # Extract everything after /browse/ and before any query parameters
+            browse_part = input_str.split("/browse/")[1]
+            ticket_key = browse_part.split("?")[0].split("#")[0]
+            return ticket_key.upper()
+        except (IndexError, AttributeError):
+            pass
+    
+    # Return as-is if it's already a ticket key format
+    return input_str.upper()
 
 # ADD this new function to handle document sources
 async def fetch_document_source(doc_ref: Dict[str, Any]) -> Optional[str]:
@@ -143,18 +160,29 @@ async def fetch_jira_ticket_source(ticket_key: str) -> Optional[str]:
         
         ticket_age = get_time_ago(ticket_data.get("updated") or ticket_data.get("created"))
         
-        # Format as a single source string
-        source = f"""[JIRA TICKET: {ticket_data['key']}]
-Title: {ticket_data['summary']}
-Status: {ticket_data['status']} | Priority: {ticket_data['priority']} | Type: {ticket_data['issue_type']}
-Assignee: {ticket_data['assignee']} | Reporter: {ticket_data['reporter']}
-Last Updated: {ticket_age}
-URL: {ticket_data['url']}
-
-Description:
-{format_content_for_prompt(ticket_data['description'])}"""
+        # Build source with core fields
+        source_parts = [
+            f"[JIRA TICKET: {ticket_data['key']}]",
+            f"Title: {ticket_data['summary']}",
+            f"Status: {ticket_data['status']} | Priority: {ticket_data['priority']} | Type: {ticket_data['issue_type']}",
+            f"Assignee: {ticket_data['assignee']} | Reporter: {ticket_data['reporter']}",
+            f"Last Updated: {ticket_age}",
+            f"URL: {ticket_data['url']}",
+            "",
+            "Description:",
+            format_content_for_prompt(ticket_data['description'])
+        ]
         
-        return source
+        # Add custom fields if present
+        custom_fields = ticket_data.get('custom_fields', {})
+        if custom_fields:
+            source_parts.append("\nCustom Fields:")
+            for field_name, field_value in custom_fields.items():
+                if isinstance(field_value, (list, dict)):
+                    field_value = str(field_value)
+                source_parts.append(f"{field_name}: {field_value}")
+        
+        return "\n".join(source_parts)
         
     except Exception as e:
         current_app.logger.error(f"Error fetching JIRA ticket {ticket_key}: {str(e)}")
@@ -185,12 +213,16 @@ Content:
         return None
 
 # Validation functions for UI (lightweight checks)
-async def validate_jira_ticket(ticket_key: str) -> Dict[str, Any]:
+async def validate_jira_ticket(ticket_input: str) -> Dict[str, Any]:
     """
     Validate that a JIRA ticket exists and is accessible.
+    Accepts either a ticket key or full Jira URL.
     Returns basic info for UI display without fetching full content.
     """
     try:
+        # Extract ticket key from URL or use as-is
+        ticket_key = extract_jira_ticket_key(ticket_input)
+        
         # Just fetch basic fields for validation
         auth_string = f"{JIRA_CONFIG['email']}:{JIRA_CONFIG['api_token']}"
         auth_bytes = auth_string.encode('ascii')
@@ -265,7 +297,7 @@ async def validate_confluence_page(page_url: str) -> Dict[str, Any]:
 
 # Full data fetching functions (used by fetch_*_source functions)
 async def fetch_jira_ticket_data(ticket_key: str) -> Dict[str, Any]:
-    """Fetch full JIRA ticket data"""
+    """Fetch full JIRA ticket data with all fields"""
     auth_string = f"{JIRA_CONFIG['email']}:{JIRA_CONFIG['api_token']}"
     auth_bytes = auth_string.encode('ascii')
     auth_header = base64.b64encode(auth_bytes).decode('ascii')
@@ -276,7 +308,8 @@ async def fetch_jira_ticket_data(ticket_key: str) -> Dict[str, Any]:
         'Content-Type': 'application/json'
     }
     
-    url = f"{JIRA_CONFIG['base_url']}/rest/api/3/issue/{ticket_key}"
+    # Fetch navigable fields with field names (cleaner than *all)
+    url = f"{JIRA_CONFIG['base_url']}/rest/api/3/issue/{ticket_key}?fields=*navigable&expand=names"
     
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
@@ -285,6 +318,10 @@ async def fetch_jira_ticket_data(ticket_key: str) -> Dict[str, Any]:
             
             data = await response.json()
             fields = data.get("fields", {})
+            names = data.get("names", {})
+            
+            # Clean and normalize all fields
+            cleaned_fields = clean_jira_fields(fields, names)
             
             return {
                 "id": data["id"],
@@ -298,7 +335,8 @@ async def fetch_jira_ticket_data(ticket_key: str) -> Dict[str, Any]:
                 "created": fields.get("created"),
                 "updated": fields.get("updated"),
                 "issue_type": fields.get("issuetype", {}).get("name", "Unknown") if fields.get("issuetype") else "Unknown",
-                "url": f"{JIRA_CONFIG['base_url']}/browse/{data['key']}"
+                "url": f"{JIRA_CONFIG['base_url']}/browse/{data['key']}",
+                "custom_fields": cleaned_fields
             }
 
 async def fetch_confluence_page_data(page_url: str) -> Dict[str, Any]:
@@ -338,6 +376,65 @@ async def fetch_confluence_page_data(page_url: str) -> Dict[str, Any]:
             }
 
 # Helper functions (same as before)
+def clean_jira_fields(fields: Dict[str, Any], names: Dict[str, str]) -> Dict[str, Any]:
+    """Clean and normalize Jira fields, removing empties and formatting content"""
+    cleaned = {}
+    
+    # Skip these standard fields (already handled separately)
+    skip_fields = {
+        'summary', 'description', 'status', 'priority', 'assignee', 'reporter', 
+        'created', 'updated', 'issuetype', 'project', 'creator', 'watches',
+        'votes', 'worklog', 'attachment', 'comment', 'issuelinks', 'subtasks'
+    }
+    
+    for field_id, value in fields.items():
+        if field_id in skip_fields or not value:
+            continue
+            
+        # Get human-readable name
+        field_name = names.get(field_id, field_id)
+        
+        # Clean the value
+        cleaned_value = clean_field_value(value)
+        if cleaned_value:
+            cleaned[field_name] = cleaned_value
+    
+    return cleaned
+
+def clean_field_value(value: Any) -> Any:
+    """Clean individual field values"""
+    if value is None or value == "" or value == []:
+        return None
+    
+    # Jira-specific empty values
+    if isinstance(value, (int, float)) and value == -1:  # workratio, etc.
+        return None
+    if isinstance(value, dict) and value.keys() == {"progress", "total"} and value["progress"] == value["total"] == 0:
+        return None
+        
+    if isinstance(value, dict):
+        if 'displayName' in value:
+            return value['displayName']
+        elif 'name' in value:
+            return value['name']
+        elif 'value' in value:
+            return value['value']
+        # For ADF content
+        elif 'content' in value:
+            return extract_text_from_adf(value.get('content', []))
+    
+    elif isinstance(value, list):
+        if len(value) > 50:  # Limit arrays
+            cleaned_list = [clean_field_value(item) for item in value[:50]]
+            return cleaned_list + [f"... and {len(value) - 50} more"]
+        else:
+            return [clean_field_value(item) for item in value if item]
+    
+    elif isinstance(value, str) and len(value) > 8000:  # Cap long text
+        return value[:8000] + "... [truncated]"
+    
+    return value
+
 def extract_jira_description(description: Any) -> str:
     """Extract clean text from Jira description (handles ADF format)"""
     if not description:

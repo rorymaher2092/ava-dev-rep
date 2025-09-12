@@ -17,9 +17,7 @@ async def validate_jira():
         if not ticket_key:
             return jsonify({"error": "ticketKey is required"}), 400
         
-        # Normalize ticket key
-        ticket_key = ticket_key.strip().upper()
-        
+        # Let validate_jira_ticket handle URL extraction and normalization
         result = await validate_jira_ticket(ticket_key)
         
         if result["valid"]:
