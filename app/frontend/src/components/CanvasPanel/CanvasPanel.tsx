@@ -10,21 +10,12 @@ interface CanvasPanelProps {
 }
 
 export const CanvasPanel = ({ htmlContent, isOpen, onClose, title = "Story Map" }: CanvasPanelProps) => {
-    const [isExpanded, setIsExpanded] = useState(false);
     const [versions, setVersions] = useState<Record<string, number>>({});
     const [lastContent, setLastContent] = useState("");
     const [lastTitle, setLastTitle] = useState("");
     const [width, setWidth] = useState(50); // percentage
     const panelRef = useRef<HTMLDivElement>(null);
     const isResizing = useRef(false);
-
-    const toggleExpand = () => {
-        const contents = document.querySelectorAll('.canvas-content .content');
-        contents.forEach(content => {
-            content.classList.toggle('expanded');
-        });
-        setIsExpanded(!isExpanded);
-    };
 
     const exportToExcel = () => {
         const table = document.querySelector('.canvas-content table');
@@ -103,13 +94,6 @@ export const CanvasPanel = ({ htmlContent, isOpen, onClose, title = "Story Map" 
                 <div className={styles.headerRight}>
                     <button 
                         className={styles.btn}
-                        onClick={toggleExpand}
-                        title="Toggle expand all content"
-                    >
-                        {isExpanded ? "Collapse" : "Expand"}
-                    </button>
-                    <button 
-                        className={styles.btn}
                         onClick={exportToExcel}
                         title="Export to Excel"
                     >
@@ -125,7 +109,7 @@ export const CanvasPanel = ({ htmlContent, isOpen, onClose, title = "Story Map" 
                 </div>
             </div>
             <div 
-                className={`${styles.content} canvas-content`}
+                className={`${styles.content} canvas-content expanded`}
                 dangerouslySetInnerHTML={{ __html: htmlContent }}
             />
         </div>

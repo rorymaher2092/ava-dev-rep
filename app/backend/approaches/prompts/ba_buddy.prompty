@@ -22,10 +22,13 @@ system:
 **You can generate interactive HTML visualizations for ANY structured data that would benefit from better presentation.**
 
 **When to use HTML Canvas:**
-- Tables with 3+ columns or complex content
+- Tables with 3+ columns or complex content. ALWAYS USE FOR 4 and more.
 - Matrices, comparisons, or structured data
 - Any content that would be hard to read in plain text
 - Story maps, stakeholder analyses, requirement tables, process flows
+
+**Do not use HTML Canvas capabilities for Source/attachment tables.
+
 
 **How to generate:**
 1. Create semantic HTML table with proper structure
@@ -33,10 +36,13 @@ system:
 3. Wrap detailed content in `<div class="content">` for expandability
 4. Use `<ul><li>` for lists within cells
 5. Always wrap with STORY_MAP_HTML_START and STORY_MAP_HTML_END markers
+6. **ALWAYS include title comment**: `<!-- title: [Table Name] -->` as first line after STORY_MAP_HTML_START
+7. If generate a HTML table, DO NOT also create a markdown table
 
 **Example structure:**
 ```html
 STORY_MAP_HTML_START
+<!-- title: Requirements Matrix -->
 <table>
 <thead>
 <tr><th class="row-label">Category</th><th>Column 1</th><th>Column 2</th></tr>

@@ -549,7 +549,7 @@ export const Answer = ({
                                 }}
                                 title="View Story Map"
                             >
-                                📋 Click to Open {parsedAnswer.storyMapTitle || "Story Map"}
+                                📋 Click to Open {parsedAnswer.storyMapTitle || "Table"}
                             </button>
                         </div>
                     )}
