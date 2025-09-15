@@ -20,6 +20,23 @@ from approaches.approach import (
 class ChatApproach(Approach, ABC):
 
     NO_RESPONSE = "0"
+    
+    def validate_messages(self, messages: list[ChatCompletionMessageParam]) -> list[ChatCompletionMessageParam]:
+        """Validate and clean messages to prevent prompt format errors"""
+        validated_messages = []
+        for msg in messages:
+            if isinstance(msg, dict) and "content" in msg:
+                content = msg["content"]
+                # Skip empty or None content
+                if content is None or (isinstance(content, str) and not content.strip()):
+                    import logging
+                    logging.warning(f"Skipping message with empty content: {msg}")
+                    continue
+                validated_messages.append(msg)
+            else:
+                # Keep non-content messages (like system messages)
+                validated_messages.append(msg)
+        return validated_messages
 
     @abstractmethod
     async def run_until_final_call(
@@ -57,12 +74,22 @@ class ChatApproach(Approach, ABC):
         auth_claims: dict[str, Any],
         session_state: Any = None,
     ) -> dict[str, Any]:
+        # Validate messages before processing
+        validated_messages = self.validate_messages(messages)
+        
         extra_info, chat_coroutine = await self.run_until_final_call(
-            messages, overrides, auth_claims, should_stream=False
+            validated_messages, overrides, auth_claims, should_stream=False
         )
         chat_completion_response: ChatCompletion = await cast(Awaitable[ChatCompletion], chat_coroutine)
         content = chat_completion_response.choices[0].message.content
         role = chat_completion_response.choices[0].message.role
+        
+        # Validate response content
+        if not content or not content.strip():
+            import logging
+            logging.warning("AI generated empty response, providing fallback")
+            content = "I apologize, but I couldn't generate a proper response. Please try rephrasing your question."
+        
         if overrides.get("suggest_followup_questions"):
             content, followup_questions = self.extract_followup_questions(content)
             extra_info.followup_questions = followup_questions
@@ -83,8 +110,11 @@ class ChatApproach(Approach, ABC):
         auth_claims: dict[str, Any],
         session_state: Any = None,
     ) -> AsyncGenerator[dict, None]:
+        # Validate messages before processing
+        validated_messages = self.validate_messages(messages)
+        
         extra_info, chat_coroutine = await self.run_until_final_call(
-            messages, overrides, auth_claims, should_stream=True
+            validated_messages, overrides, auth_claims, should_stream=True
         )
         chat_coroutine = cast(Awaitable[AsyncStream[ChatCompletionChunk]], chat_coroutine)
         yield {"delta": {"role": "assistant"}, "context": extra_info, "session_state": session_state}

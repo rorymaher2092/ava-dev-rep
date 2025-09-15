@@ -239,6 +239,13 @@ class JSONEncoder(json.JSONEncoder):
 async def format_as_ndjson(r: AsyncGenerator[dict, None]) -> AsyncGenerator[str, None]:
     try:
         async for event in r:
+            # Validate event before processing
+            if event is None:
+                logging.warning("Skipping None event in response stream")
+                continue
+            if isinstance(event, dict) and not event:
+                logging.warning("Skipping empty dict event in response stream")
+                continue
             yield json.dumps(event, ensure_ascii=False, cls=JSONEncoder) + "\n"
     except Exception as error:
         logging.exception("Exception while generating response stream: %s", error)
