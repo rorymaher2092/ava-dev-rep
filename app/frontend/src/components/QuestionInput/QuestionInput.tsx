@@ -760,7 +760,7 @@ export const QuestionInput = ({
                                                 <img src={jiraLogo} alt="Jira" style={{ width: 20, height: 20 }} />
                                                 <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600, color: "var(--text)" }}>Add Jira Ticket</h3>
                                             </div>
-                                            {/*
+
                                             <div>
                                                 <label
                                                     style={{
@@ -771,7 +771,7 @@ export const QuestionInput = ({
                                                         color: "var(--text-muted)"
                                                     }}
                                                 >
-                                                    Issue key (e.g., PROJ-123) - Optional if URL provided
+                                                    Issue key (e.g., PROJ-123) {/*- Optional if URL provided*/}
                                                 </label>
                                                 <Input
                                                     placeholder="Enter JIRA ticket key here..."
@@ -784,7 +784,7 @@ export const QuestionInput = ({
                                                     }}
                                                 />
                                             </div>
-                                            */}
+                                            {/*
                                             <div>
                                                 <label
                                                     style={{
@@ -809,6 +809,7 @@ export const QuestionInput = ({
                                                     }}
                                                 />
                                             </div>
+                                            */}
 
                                             {error && (
                                                 <div
