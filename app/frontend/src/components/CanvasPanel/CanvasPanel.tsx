@@ -28,12 +28,25 @@ export const CanvasPanel = ({ htmlContent, isOpen, onClose, title = "Story Map" 
     // Handle version updates with useEffect
     useEffect(() => {
         if (htmlContent !== lastContent) {
+            // Only increment version if this is the same title with genuinely different content
             if (lastContent !== "" && title === lastTitle) {
-                // Same table type with new content - increment version
-                setVersions(prev => ({
-                    ...prev,
-                    [title]: (prev[title] || 0) + 1
-                }));
+                // Extract text content to compare actual data, not HTML formatting
+                const getTextContent = (html: string) => {
+                    const div = document.createElement('div');
+                    div.innerHTML = html;
+                    return div.textContent || div.innerText || '';
+                };
+                
+                const currentText = getTextContent(htmlContent);
+                const lastText = getTextContent(lastContent);
+                
+                // Only increment if the actual text content has changed
+                if (currentText !== lastText) {
+                    setVersions(prev => ({
+                        ...prev,
+                        [title]: (prev[title] || 0) + 1
+                    }));
+                }
             }
             setLastContent(htmlContent);
         }
