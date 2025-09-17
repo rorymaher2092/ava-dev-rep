@@ -109,7 +109,7 @@ export const CanvasPanel = ({ htmlContent, isOpen, onClose, title = "Story Map" 
                 </div>
             </div>
             <div 
-                className={`${styles.content} canvas-content expanded`}
+                className={`${styles.content} canvas-content`}
                 dangerouslySetInnerHTML={{ __html: htmlContent }}
             />
         </div>

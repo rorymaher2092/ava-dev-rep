@@ -162,34 +162,7 @@
     line-height: 1.4;
 }
 
-.content :global(.content) {
-    max-height: 150px;
-    overflow: hidden;
-    transition: max-height 0.3s ease;
-    position: relative;
-}
 
-.content :global(.content:not(.expanded))::after {
-    content: '...';
-    position: absolute;
-    bottom: 0;
-    right: 8px;
-    background: var(--surface);
-    color: var(--text-secondary);
-    font-weight: bold;
-    padding: 2px 4px;
-    border-radius: 2px;
-    font-size: 12px;
-    opacity: 0.7;
-}
-
-.content :global(.content.expanded) {
-    max-height: none;
-}
-
-.content :global(.content.expanded)::after {
-    display: none;
-}
 
 @media (max-width: 768px) {
     .canvasPanel {
