@@ -25,6 +25,33 @@ export const CanvasPanel = ({ htmlContent, isOpen, onClose, title = "Story Map" 
         XLSX.writeFile(wb, "story-map.xlsx");
     };
 
+    const copyTable = () => {
+        const table = document.querySelector('.canvas-content table');
+        if (!table) return;
+        
+        const cleanTable = table.cloneNode(true) as HTMLTableElement;
+        cleanTable.removeAttribute('style');
+        cleanTable.style.borderCollapse = 'collapse';
+        
+        const allElements = cleanTable.querySelectorAll('*');
+        allElements.forEach(el => {
+            el.removeAttribute('style');
+            el.removeAttribute('class');
+            if (el.tagName === 'TD' || el.tagName === 'TH') {
+                (el as HTMLElement).style.border = '1px solid #000';
+                (el as HTMLElement).style.padding = '4px';
+            }
+        });
+        
+        const html = cleanTable.outerHTML;
+        navigator.clipboard.write([
+            new ClipboardItem({
+                'text/html': new Blob([html], { type: 'text/html' }),
+                'text/plain': new Blob([cleanTable.innerText], { type: 'text/plain' })
+            })
+        ]);
+    };
+
     // Handle version updates with useEffect
     useEffect(() => {
         if (htmlContent !== lastContent) {
@@ -105,6 +132,13 @@ export const CanvasPanel = ({ htmlContent, isOpen, onClose, title = "Story Map" 
                     <span>Interactive Visualization</span>
                 </div>
                 <div className={styles.headerRight}>
+                    <button 
+                        className={styles.btn}
+                        onClick={copyTable}
+                        title="Copy table to clipboard"
+                    >
+                        Copy
+                    </button>
                     <button 
                         className={styles.btn}
                         onClick={exportToExcel}

@@ -200,11 +200,50 @@ export const Answer = ({
     }, [parsedAnswer.storyMapHtml, parsedAnswer.storyMapTitle, isStreaming, onCanvasDetected, canvasDetected]);
 
     const handleCopy = () => {
-        // Copy the original markdown content instead of processed HTML
-        const markdownContent = answer.message.content;
+        let cleanContent = answer.message.content;
+        
+        // Remove HTML sections
+        const storyMapStart = cleanContent.indexOf("STORY_MAP_HTML_START");
+        const storyMapEnd = cleanContent.indexOf("STORY_MAP_HTML_END");
+        if (storyMapStart !== -1 && storyMapEnd !== -1) {
+            const beforeHtml = cleanContent.substring(0, storyMapStart);
+            const afterHtml = cleanContent.substring(storyMapEnd + "STORY_MAP_HTML_END".length);
+            cleanContent = (beforeHtml + afterHtml).trim();
+        }
+        
+        const mermaidStart = cleanContent.indexOf("MERMAID_PROCESS_CODE_START");
+        const mermaidEnd = cleanContent.indexOf("MERMAID_PROCESS_CODE_END");
+        if (mermaidStart !== -1 && mermaidEnd !== -1) {
+            const beforeMermaid = cleanContent.substring(0, mermaidStart);
+            const afterMermaid = cleanContent.substring(mermaidEnd + "MERMAID_PROCESS_CODE_END".length);
+            cleanContent = (beforeMermaid + afterMermaid).trim();
+        }
+        
+        // Convert markdown to plain text
+        cleanContent = cleanContent
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/^#{1,6}\s+/gm, '') // Remove markdown headers
+            .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
+            .replace(/\*(.*?)\*/g, '$1') // Remove italic
+            .replace(/^\s*[-*+]\s+/gm, '• ') // Convert bullet points
+            .replace(/^\s*\d+\.\s+/gm, (match, offset, string) => {
+                const lineStart = string.lastIndexOf('\n', offset) + 1;
+                const lineContent = string.substring(lineStart, offset);
+                const indent = lineContent.match(/^\s*/)?.[0] || '';
+                const num = match.match(/\d+/)?.[0] || '1';
+                return indent + num + '. ';
+            }) // Keep numbered lists
+            .replace(/\|(.+?)\|/g, (match) => {
+                return match.split('|').filter(cell => cell.trim()).join('\t');
+            }) // Convert tables to tab-separated
+            .replace(/^\|?[-:]+\|?$/gm, '') // Remove table separators
+            .replace(/\n{3,}/g, '\n\n'); // Clean up extra newlines
 
-        navigator.clipboard
-            .writeText(markdownContent)
+        navigator.clipboard.writeText(cleanContent)
             .then(() => {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
