@@ -365,13 +365,16 @@ const Chat = () => {
                 async () => {
                     try {
                         console.log("Proactive token refresh check");
-                        await getGraphToken(true);
+                        await getGraphToken(); // Don't force refresh, let MSAL handle it
                     } catch (error) {
                         console.error("Proactive token refresh failed:", error);
-                        await clearAllMsalCache(); // Clear cache if background refresh fails
+                        // Only clear cache on specific interaction required errors
+                        if (error instanceof Error && error.message === "INTERACTION_REQUIRED") {
+                            await clearAllMsalCache();
+                        }
                     }
                 },
-                10 * 60 * 1000
+                2 * 60 * 60 * 1000
             );
 
             return () => clearInterval(tokenRefreshInterval);
@@ -420,30 +423,37 @@ const Chat = () => {
             } catch (authError) {
                 console.error("Auth failed:", authError);
 
-                // Force immediate re-authentication for any auth error
-                const confirmLogin = window.confirm("Your session has expired. Please sign in again to continue.");
+                // Only force re-authentication for interaction required errors
+                if (authError instanceof Error && authError.message === "INTERACTION_REQUIRED") {
+                    const confirmLogin = window.confirm("Your session has expired. Please sign in again to continue.");
 
-                if (!confirmLogin) {
-                    setError(new Error("Authentication required to continue"));
-                    setIsLoading(false);
-                    return;
-                }
-
-                try {
-                    // Clear everything and force fresh login
-                    await clearAllMsalCache();
-                    await loginToMicrosoft();
-
-                    // Get fresh tokens after login
-                    authToken = await getToken();
-                    graphToken = await getGraphToken();
-
-                    if (!authToken || !graphToken) {
-                        throw new Error("Failed to obtain token after re-authentication");
+                    if (!confirmLogin) {
+                        setError(new Error("Authentication required to continue"));
+                        setIsLoading(false);
+                        return;
                     }
-                } catch (loginError) {
-                    console.error("Re-authentication failed:", loginError);
-                    setError(new Error("Failed to authenticate. Please refresh the page and try again."));
+
+                    try {
+                        // Clear cache and force fresh login only for interaction required
+                        await clearAllMsalCache();
+                        await loginToMicrosoft();
+
+                        // Get fresh tokens after login
+                        authToken = await getToken();
+                        graphToken = await getGraphToken();
+
+                        if (!authToken || !graphToken) {
+                            throw new Error("Failed to obtain token after re-authentication");
+                        }
+                    } catch (loginError) {
+                        console.error("Re-authentication failed:", loginError);
+                        setError(new Error("Failed to authenticate. Please refresh the page and try again."));
+                        setIsLoading(false);
+                        return;
+                    }
+                } else {
+                    // For other auth errors, just show error without forcing re-auth
+                    setError(new Error("Authentication error. Please try again or refresh the page."));
                     setIsLoading(false);
                     return;
                 }
@@ -533,6 +543,14 @@ const Chat = () => {
                 const parsedResponse: ChatAppResponse = await handleAsyncRequest(question, answers, response.body, abortController?.signal);
                 setAnswers([...answers, [question, parsedResponse, attachmentRefs]]);
 
+                // Check if response contains story map markers and auto-open canvas
+                if (parsedResponse.message.content.includes("STORY_MAP_HTML_START") && 
+                    parsedResponse.message.content.includes("STORY_MAP_HTML_END")) {
+                    setCanvasContent(parsedResponse.message.content);
+                    setCanvasTitle("Story Map");
+                    setIsCanvasPanelOpen(true);
+                }
+
                 if (useSuggestFollowupQuestions) {
                     setCurrentFollowupQuestions(parsedResponse.context?.followup_questions || []);
                 }
@@ -558,6 +576,15 @@ const Chat = () => {
                     throw Error(parsedResponse.error);
                 }
                 setAnswers([...answers, [question, parsedResponse as ChatAppResponse, attachmentRefs]]);
+
+                // Check if response contains story map markers and auto-open canvas
+                const response_content = (parsedResponse as ChatAppResponse).message.content;
+                if (response_content.includes("STORY_MAP_HTML_START") && 
+                    response_content.includes("STORY_MAP_HTML_END")) {
+                    setCanvasContent(response_content);
+                    setCanvasTitle("Story Map");
+                    setIsCanvasPanelOpen(true);
+                }
 
                 if (useSuggestFollowupQuestions) {
                     setCurrentFollowupQuestions((parsedResponse as ChatAppResponse).context?.followup_questions || []);
@@ -748,8 +775,8 @@ const Chat = () => {
         // Fetch immediately and set up interval for periodic refresh
         fetchUserDetails();
 
-        // Refresh user details every 5 minutes to handle token expiry
-        const interval = setInterval(fetchUserDetails, 5 * 60 * 1000);
+        // Refresh user details every 30 minutes to handle token expiry
+        const interval = setInterval(fetchUserDetails, 30 * 60 * 1000);
 
         return () => clearInterval(interval);
     }, [client, loggedIn]);

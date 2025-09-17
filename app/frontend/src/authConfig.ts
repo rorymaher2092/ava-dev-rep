@@ -289,6 +289,8 @@ export const getToken = async (): Promise<string | undefined> => {
 
 // In authConfig.ts, add interaction tracking
 let isInteractionInProgress = false;
+let lastCacheClearTime = 0;
+const CACHE_CLEAR_THROTTLE = 4 * 60 * 60 * 1000; // 4 hours
 
 // Remove the automatic login attempts - let users trigger it manually
 export const getGraphToken = async (forceReauth = false): Promise<string | undefined> => {
@@ -316,12 +318,12 @@ export const getGraphToken = async (forceReauth = false): Promise<string | undef
                 forceRefresh: forceReauth
             });
 
-            // Validate token isn't about to expire (5 minutes buffer)
+            // Validate token isn't about to expire (1 minute buffer)
             const expiresOn = response.expiresOn;
             const now = new Date();
-            const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
+            const oneMinuteFromNow = new Date(now.getTime() + 1 * 60 * 1000);
 
-            if (expiresOn && expiresOn < fiveMinutesFromNow) {
+            if (expiresOn && expiresOn < oneMinuteFromNow) {
                 console.log("Token expires soon, getting fresh token");
                 return getGraphToken(true); // Force refresh
             }
@@ -332,9 +334,15 @@ export const getGraphToken = async (forceReauth = false): Promise<string | undef
             console.error("Silent token acquisition failed:", silentError);
 
             if (silentError instanceof InteractionRequiredAuthError) {
-                // ✅ Clear cache IMMEDIATELY when interaction is required
-                console.log("Interaction required, clearing MSAL cache");
-                await clearAllMsalCache();
+                const now = Date.now();
+                // Only clear cache if it hasn't been cleared in the last hour
+                if (now - lastCacheClearTime > CACHE_CLEAR_THROTTLE) {
+                    console.log("Interaction required, clearing cache (throttled)");
+                    await clearAllMsalCache();
+                    lastCacheClearTime = now;
+                } else {
+                    console.log("Interaction required but cache cleared recently, skipping");
+                }
                 throw new Error("INTERACTION_REQUIRED");
             }
             throw silentError;
