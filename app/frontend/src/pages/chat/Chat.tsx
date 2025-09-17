@@ -162,6 +162,13 @@ const Chat = () => {
         return out;
     }
 
+    const handleCanvasDetected = (htmlContent: string, title: string) => {
+        // Since this is only called during the current response processing, just open it
+        setCanvasContent(htmlContent);
+        setCanvasTitle(title);
+        setIsCanvasPanelOpen(true);
+    };
+
     // Add artifact context
     const { selectedArtifactType, getSelectedArtifact } = useArtifact();
 
@@ -543,14 +550,6 @@ const Chat = () => {
                 const parsedResponse: ChatAppResponse = await handleAsyncRequest(question, answers, response.body, abortController?.signal);
                 setAnswers([...answers, [question, parsedResponse, attachmentRefs]]);
 
-                // Check if response contains story map markers and auto-open canvas
-                if (parsedResponse.message.content.includes("STORY_MAP_HTML_START") && 
-                    parsedResponse.message.content.includes("STORY_MAP_HTML_END")) {
-                    setCanvasContent(parsedResponse.message.content);
-                    setCanvasTitle("Story Map");
-                    setIsCanvasPanelOpen(true);
-                }
-
                 if (useSuggestFollowupQuestions) {
                     setCurrentFollowupQuestions(parsedResponse.context?.followup_questions || []);
                 }
@@ -576,15 +575,6 @@ const Chat = () => {
                     throw Error(parsedResponse.error);
                 }
                 setAnswers([...answers, [question, parsedResponse as ChatAppResponse, attachmentRefs]]);
-
-                // Check if response contains story map markers and auto-open canvas
-                const response_content = (parsedResponse as ChatAppResponse).message.content;
-                if (response_content.includes("STORY_MAP_HTML_START") && 
-                    response_content.includes("STORY_MAP_HTML_END")) {
-                    setCanvasContent(response_content);
-                    setCanvasTitle("Story Map");
-                    setIsCanvasPanelOpen(true);
-                }
 
                 if (useSuggestFollowupQuestions) {
                     setCurrentFollowupQuestions((parsedResponse as ChatAppResponse).context?.followup_questions || []);
@@ -1028,6 +1018,7 @@ const Chat = () => {
                                                 onSupportingContentClicked={() => onToggleTab(AnalysisPanelTabs.SupportingContentTab, index)}
                                                 showSpeechOutputAzure={showSpeechOutputAzure}
                                                 showSpeechOutputBrowser={showSpeechOutputBrowser}
+                                                onCanvasDetected={index === streamedAnswers.length - 1 ? handleCanvasDetected : undefined}
                                             />
                                         </div>
                                     </div>
@@ -1052,6 +1043,7 @@ const Chat = () => {
                                                 showSpeechOutputBrowser={showSpeechOutputBrowser}
                                                 userQuestion={answer[0]} // Pass the user's question
                                                 onContentSuggestion={suggestion => handleContentSuggestion(suggestion, answer[0])}
+                                                onCanvasDetected={index === answers.length - 1 ? handleCanvasDetected : undefined}
                                             />
                                         </div>
                                     </div>

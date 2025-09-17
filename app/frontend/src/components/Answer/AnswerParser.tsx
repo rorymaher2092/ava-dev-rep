@@ -23,6 +23,7 @@ function extractStoryMapHtml(content: string): { cleanedContent: string; storyMa
     const startIndex = content.indexOf(startMarker);
     const endIndex = content.indexOf(endMarker);
 
+    // Only process if BOTH markers are present
     if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
         return { cleanedContent: content };
     }
@@ -47,23 +48,23 @@ function extractStoryMapHtml(content: string): { cleanedContent: string; storyMa
 function extractMermaidCode(content: string): { cleanedContent: string; mermaidCode?: string } {
     const startMarker = "MERMAID_PROCESS_CODE_START";
     const endMarker = "MERMAID_PROCESS_CODE_END";
-    
+
     const startIndex = content.indexOf(startMarker);
     const endIndex = content.indexOf(endMarker);
-    
+
     if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
         return { cleanedContent: content };
     }
-    
+
     // Extract the Mermaid code
     const mermaidStart = startIndex + startMarker.length;
     const mermaidCode = content.substring(mermaidStart, endIndex).trim();
-    
+
     // Remove the Mermaid code section from the content
     const beforeMermaid = content.substring(0, startIndex);
     const afterMermaid = content.substring(endIndex + endMarker.length);
     const cleanedContent = (beforeMermaid + afterMermaid).trim();
-    
+
     return { cleanedContent, mermaidCode: validateAndCleanMermaidCode(mermaidCode) };
 }
 
@@ -74,11 +75,11 @@ function validateStoryMapHtml(html: string): string | undefined {
     // Clean the HTML
     let cleanedHtml = html.trim();
 
-    // Basic validation - check for table elements
-    const hasTable = cleanedHtml.includes("<table") || cleanedHtml.includes("|");
+    // Strict validation - must contain actual HTML table tags (not just markdown)
+    const hasHtmlTable = cleanedHtml.includes("<table") && cleanedHtml.includes("</table>");
 
-    if (!hasTable) {
-        console.warn("Generated content doesn't appear to be valid story map HTML");
+    if (!hasHtmlTable) {
+        console.warn("Content doesn't contain valid HTML table structure for story map");
         return undefined;
     }
 
@@ -88,23 +89,23 @@ function validateStoryMapHtml(html: string): string | undefined {
 // Validate and clean Mermaid code
 function validateAndCleanMermaidCode(code: string): string | undefined {
     if (!code) return undefined;
-    
+
     // Clean the code
     let cleanedCode = code
-        .replace(/```mermaid/g, '')
-        .replace(/```/g, '')
-        .replace(/;/g, '')
+        .replace(/```mermaid/g, "")
+        .replace(/```/g, "")
+        .replace(/;/g, "")
         .trim();
-    
+
     // Basic validation
-    const mermaidKeywords = ['graph', 'flowchart', 'sequenceDiagram', 'classDiagram', '-->', '---'];
+    const mermaidKeywords = ["graph", "flowchart", "sequenceDiagram", "classDiagram", "-->", "---"];
     const isValid = mermaidKeywords.some(keyword => cleanedCode.includes(keyword));
-    
+
     if (!isValid) {
-        console.warn('Generated code doesn\'t appear to be valid Mermaid syntax');
+        console.warn("Generated code doesn't appear to be valid Mermaid syntax");
         return undefined;
     }
-    
+
     return cleanedCode;
 }
 
@@ -313,7 +314,7 @@ export function parseAnswerToHtml(
 
     // Extract Mermaid code and clean content
     const { cleanedContent: contentAfterMermaid, mermaidCode } = extractMermaidCode(contentAfterStoryMap);
-    
+
     // Remove the knowledge gap tag from the displayed content
     let cleanedContent = contentAfterMermaid.replace(/\[KNOWLEDGE_GAP\]/g, "");
 

@@ -41,6 +41,7 @@ interface Props {
     showSpeechOutputAzure?: boolean;
     userQuestion?: string; // Pass the user's question to the component
     onContentSuggestion?: (suggestion: string, questionAsked: string) => void;
+    onCanvasDetected?: (htmlContent: string, title: string) => void;
 }
 
 export const Answer = ({
@@ -57,7 +58,8 @@ export const Answer = ({
     showSpeechOutputAzure,
     showSpeechOutputBrowser,
     userQuestion,
-    onContentSuggestion
+    onContentSuggestion,
+    onCanvasDetected
 }: Props) => {
     const followupQuestions = answer.context?.followup_questions;
     const { t } = useTranslation();
@@ -185,12 +187,17 @@ export const Answer = ({
         }
     }, [parsedAnswer.mermaidCode, isStreaming]);
 
-    // Auto-open story map when HTML is detected
+    // Track if canvas has been detected for this answer to prevent repeated calls
+    const [canvasDetected, setCanvasDetected] = useState(false);
+    
+    // Auto-open story map when HTML is detected (one-time only)
     useMemo(() => {
-        if (parsedAnswer.storyMapHtml && !isStreaming) {
-            openStoryMapCanvas(parsedAnswer.storyMapHtml);
+        if (parsedAnswer.storyMapHtml && !isStreaming && onCanvasDetected && !canvasDetected) {
+            // Notify parent component that canvas content was detected
+            onCanvasDetected(parsedAnswer.storyMapHtml, parsedAnswer.storyMapTitle || "Table");
+            setCanvasDetected(true);
         }
-    }, [parsedAnswer.storyMapHtml, isStreaming]);
+    }, [parsedAnswer.storyMapHtml, parsedAnswer.storyMapTitle, isStreaming, onCanvasDetected, canvasDetected]);
 
     const handleCopy = () => {
         // Copy the original markdown content instead of processed HTML
