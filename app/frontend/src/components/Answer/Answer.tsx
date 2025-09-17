@@ -25,7 +25,6 @@ import { useArtifact } from "../../contexts/ArtifactContext";
 // ADD THESE IMPORTS FOR YOUR NEW ICONS
 import confluenceLogo from "../../assets/confluence-logo.png";
 import pdfIcon from "../../assets/pdf-icon.png"; // Replace with your actual PDF icon path
-import { TextFieldBase } from "@fluentui/react";
 
 interface Props {
     answer: ChatAppResponse;
@@ -67,14 +66,14 @@ export const Answer = ({
     //select correct bot image
     const { botId } = useBot(); // Access botId from the BotContext
     const botProfile: BotProfile = BOTS[botId] ?? BOTS["ava"]; // Default to Ava if botProfile is undefined
-    
+
     // Get current artifact for Accelerate Assistant
     const { selectedArtifactType } = useArtifact();
-    const currentArtifact = botId === 'ba' ? selectedArtifactType : undefined;
-    
+    const currentArtifact = botId === "ba" ? selectedArtifactType : undefined;
+
     // Get question and answer for Ava-Search context
-    const currentQuestion = botId === 'ava' ? userQuestion : undefined;
-    const currentAnswer = botId === 'ava' ? answer.message.content : undefined;
+    const currentQuestion = botId === "ava" ? userQuestion : undefined;
+    const currentAnswer = botId === "ava" ? answer.message.content : undefined;
 
     // Feedback state
     const [feedbackGiven, setFeedbackGiven] = useState(false);
@@ -196,7 +195,7 @@ export const Answer = ({
     const handleCopy = () => {
         // Copy the original markdown content instead of processed HTML
         const markdownContent = answer.message.content;
-        
+
         navigator.clipboard
             .writeText(markdownContent)
             .then(() => {
@@ -219,16 +218,7 @@ export const Answer = ({
                     })
                     .catch(() => null);
 
-                await submitFeedbackApi(
-                    `answer-${index}`, 
-                    type, 
-                    "", 
-                    token?.accessToken,
-                    botId,
-                    currentArtifact,
-                    currentQuestion,
-                    currentAnswer
-                );
+                await submitFeedbackApi(`answer-${index}`, type, "", token?.accessToken, botId, currentArtifact, currentQuestion, currentAnswer);
                 setFeedbackGiven(true);
             } catch (error) {
                 console.error("Error submitting feedback:", error);
@@ -251,9 +241,9 @@ export const Answer = ({
                 .catch(() => null);
 
             await submitFeedbackApi(
-                `answer-${index}`, 
-                feedbackType, 
-                feedbackComments, 
+                `answer-${index}`,
+                feedbackType,
+                feedbackComments,
                 token?.accessToken,
                 botId,
                 currentArtifact,
@@ -423,7 +413,7 @@ export const Answer = ({
                             💡
                         </button>
 
-                        <button
+                        {/* <button
                             onClick={() => onSupportingContentClicked()}
                             disabled={!answer.context.data_points || isStreaming}
                             style={{
@@ -448,9 +438,7 @@ export const Answer = ({
                             title={t("tooltips.showSupportingContent")}
                         >
                             📄
-                        </button>
-
-
+                        </button> */}
 
                         {showSpeechOutputAzure && (
                             <SpeechOutputAzure answer={sanitizedAnswerHtml} index={index} speechConfig={speechConfig} isStreaming={isStreaming} />
@@ -469,19 +457,19 @@ export const Answer = ({
                         padding: "0 8px"
                     }}
                 >
-                    <ReactMarkdown 
-                        children={sanitizedAnswerHtml} 
-                        rehypePlugins={[rehypeRaw]} 
+                    <ReactMarkdown
+                        children={sanitizedAnswerHtml}
+                        rehypePlugins={[rehypeRaw]}
                         remarkPlugins={[remarkGfm]}
                         components={{
-                            table: ({children}) => (
+                            table: ({ children }) => (
                                 <div className={styles.tableWrapper}>
                                     <table>{children}</table>
                                 </div>
                             )
                         }}
                     />
-                    
+
                     {/* Process Map Button */}
                     {parsedAnswer.mermaidCode && (
                         <div style={{ marginTop: "8px", textAlign: "left" }}>
