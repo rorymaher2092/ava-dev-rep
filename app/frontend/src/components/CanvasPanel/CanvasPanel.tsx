@@ -10,21 +10,12 @@ interface CanvasPanelProps {
 }
 
 export const CanvasPanel = ({ htmlContent, isOpen, onClose, title = "Story Map" }: CanvasPanelProps) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-    const [version, setVersion] = useState(1);
+    const [versions, setVersions] = useState<Record<string, number>>({});
     const [lastContent, setLastContent] = useState("");
     const [lastTitle, setLastTitle] = useState("");
     const [width, setWidth] = useState(50); // percentage
     const panelRef = useRef<HTMLDivElement>(null);
     const isResizing = useRef(false);
-
-    const toggleExpand = () => {
-        const contents = document.querySelectorAll('.canvas-content .content');
-        contents.forEach(content => {
-            content.classList.toggle('expanded');
-        });
-        setIsExpanded(!isExpanded);
-    };
 
     const exportToExcel = () => {
         const table = document.querySelector('.canvas-content table');
@@ -34,22 +25,66 @@ export const CanvasPanel = ({ htmlContent, isOpen, onClose, title = "Story Map" 
         XLSX.writeFile(wb, "story-map.xlsx");
     };
 
-    // Check if content or title changed to manage version
-    if (htmlContent !== lastContent && lastContent !== "") {
-        if (title === lastTitle) {
-            // Same table type, increment version
-            setVersion(prev => prev + 1);
-        } else {
-            // Different table type, reset to version 1
-            setVersion(1);
+    const copyTable = () => {
+        const table = document.querySelector('.canvas-content table');
+        if (!table) return;
+        
+        const cleanTable = table.cloneNode(true) as HTMLTableElement;
+        cleanTable.removeAttribute('style');
+        cleanTable.style.borderCollapse = 'collapse';
+        
+        const allElements = cleanTable.querySelectorAll('*');
+        allElements.forEach(el => {
+            el.removeAttribute('style');
+            el.removeAttribute('class');
+            if (el.tagName === 'TD' || el.tagName === 'TH') {
+                (el as HTMLElement).style.border = '1px solid #000';
+                (el as HTMLElement).style.padding = '4px';
+            }
+        });
+        
+        const html = cleanTable.outerHTML;
+        navigator.clipboard.write([
+            new ClipboardItem({
+                'text/html': new Blob([html], { type: 'text/html' }),
+                'text/plain': new Blob([cleanTable.innerText], { type: 'text/plain' })
+            })
+        ]);
+    };
+
+    // Handle version updates with useEffect
+    useEffect(() => {
+        if (htmlContent !== lastContent) {
+            // Only increment version if this is the same title with genuinely different content
+            if (lastContent !== "" && title === lastTitle) {
+                // Extract text content to compare actual data, not HTML formatting
+                const getTextContent = (html: string) => {
+                    const div = document.createElement('div');
+                    div.innerHTML = html;
+                    return div.textContent || div.innerText || '';
+                };
+                
+                const currentText = getTextContent(htmlContent);
+                const lastText = getTextContent(lastContent);
+                
+                // Only increment if the actual text content has changed
+                if (currentText !== lastText) {
+                    setVersions(prev => ({
+                        ...prev,
+                        [title]: (prev[title] || 0) + 1
+                    }));
+                }
+            }
+            setLastContent(htmlContent);
         }
-    }
-    if (htmlContent !== lastContent) {
-        setLastContent(htmlContent);
-    }
-    if (title !== lastTitle) {
-        setLastTitle(title);
-    }
+        if (title !== lastTitle) {
+            setLastTitle(title);
+        }
+    }, [htmlContent, title, lastContent, lastTitle]);
+    
+    // Calculate display title
+    const currentVersion = versions[title] || 0;
+    const displayTitle = currentVersion > 0 ? `${title} v${currentVersion + 1}` : title;
 
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
@@ -93,16 +128,16 @@ export const CanvasPanel = ({ htmlContent, isOpen, onClose, title = "Story Map" 
             />
             <div className={styles.header}>
                 <div className={styles.headerLeft}>
-                    <h2>📋 {title}{version > 1 ? ` v${version}` : ""}</h2>
+                    <h2>📋 {displayTitle}</h2>
                     <span>Interactive Visualization</span>
                 </div>
                 <div className={styles.headerRight}>
                     <button 
                         className={styles.btn}
-                        onClick={toggleExpand}
-                        title="Toggle expand all content"
+                        onClick={copyTable}
+                        title="Copy table to clipboard"
                     >
-                        {isExpanded ? "Collapse" : "Expand"}
+                        Copy
                     </button>
                     <button 
                         className={styles.btn}

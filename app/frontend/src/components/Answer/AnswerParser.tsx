@@ -8,6 +8,7 @@ type HtmlParsedAnswer = {
     mermaidCode?: string;
     bpmnXml?: string;
     storyMapHtml?: string;
+    storyMapTitle?: string;
 };
 
 // Add this function to detect if answer contains knowledge gap
@@ -16,13 +17,14 @@ function hasKnowledgeGap(content: string): boolean {
 }
 
 // Function to detect and extract Story Map HTML
-function extractStoryMapHtml(content: string): { cleanedContent: string; storyMapHtml?: string } {
+function extractStoryMapHtml(content: string): { cleanedContent: string; storyMapHtml?: string; storyMapTitle?: string } {
     const startMarker = "STORY_MAP_HTML_START";
     const endMarker = "STORY_MAP_HTML_END";
 
     const startIndex = content.indexOf(startMarker);
     const endIndex = content.indexOf(endMarker);
 
+    // Only process if BOTH markers are present
     if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
         return { cleanedContent: content };
     }
@@ -31,12 +33,16 @@ function extractStoryMapHtml(content: string): { cleanedContent: string; storyMa
     const htmlStart = startIndex + startMarker.length;
     const storyMapHtml = content.substring(htmlStart, endIndex).trim();
 
+    // Extract title from HTML comment
+    const titleMatch = storyMapHtml.match(/<!--\s*title:\s*([^-]+)\s*-->/);
+    const storyMapTitle = titleMatch ? titleMatch[1].trim() : undefined;
+
     // Remove the HTML section from the content
     const beforeHtml = content.substring(0, startIndex);
     const afterHtml = content.substring(endIndex + endMarker.length);
     const cleanedContent = (beforeHtml + afterHtml).trim();
 
-    return { cleanedContent, storyMapHtml: validateStoryMapHtml(storyMapHtml) };
+    return { cleanedContent, storyMapHtml: validateStoryMapHtml(storyMapHtml), storyMapTitle };
 }
 
 function extractBpmnXml(content: string): { cleanedContent: string; bpmnXml?: string } {
@@ -55,7 +61,11 @@ function extractBpmnXml(content: string): { cleanedContent: string; bpmnXml?: st
         const cleanedContent = content.replace(codeBlockRegex, "[BPMN Diagram Generated - Click button below to view]").trim();
 
         console.log("Extracted BPMN from code block, length:", bpmnXml.length);
-        return { cleanedContent, bpmnXml: validateBpmnXml(bpmnXml) };
+        const validatedXml = validateBpmnXml(bpmnXml);
+        if (validatedXml) {
+            console.log("Final BPMN XML for image generation (from code block):", validatedXml);
+        }
+        return { cleanedContent, bpmnXml: validatedXml };
     }
 
     // Fall back to marker-based extraction
@@ -87,7 +97,11 @@ function extractBpmnXml(content: string): { cleanedContent: string; bpmnXml?: st
     const cleanedContent = (beforeXml + afterXml).trim();
 
     console.log("Extracted BPMN from markers, length:", bpmnXml.length);
-    return { cleanedContent, bpmnXml: validateBpmnXml(bpmnXml) };
+    const validatedXml = validateBpmnXml(bpmnXml);
+    if (validatedXml) {
+        console.log("Final BPMN XML for image generation:", validatedXml);
+    }
+    return { cleanedContent, bpmnXml: validatedXml };
 }
 
 // Function to detect and extract Mermaid code (kept for backward compatibility)
@@ -117,6 +131,10 @@ function extractMermaidCode(content: string): { cleanedContent: string; mermaidC
 function validateBpmnXml(xml: string): string | undefined {
     if (!xml) return undefined;
 
+    console.log("BPMN Validation - Original XML length:", xml.length);
+    console.log("BPMN Validation - Contains BPMNEdge?", xml.includes("BPMNEdge"));
+    console.log("BPMN Validation - Contains 'Edges omitted'?", xml.includes("Edges omitted"));
+
     // Aggressively trim whitespace and newlines
     let cleanedXml = xml.trim();
 
@@ -128,18 +146,24 @@ function validateBpmnXml(xml: string): string | undefined {
     const bpmnEndIndex = cleanedXml.indexOf(bpmnEndTag);
 
     if (bpmnEndIndex !== -1) {
+        console.log("BPMN Validation - Found closing tag at index:", bpmnEndIndex);
         cleanedXml = cleanedXml.substring(0, bpmnEndIndex + bpmnEndTag.length);
     } else {
         // Try alternative closing tag without namespace
         const altEndTag = "</definitions>";
         const altEndIndex = cleanedXml.indexOf(altEndTag);
         if (altEndIndex !== -1) {
+            console.log("BPMN Validation - Found alt closing tag at index:", altEndIndex);
             cleanedXml = cleanedXml.substring(0, altEndIndex + altEndTag.length);
+        } else {
+            console.log("BPMN Validation - No closing tag found!");
         }
     }
 
     // Final trim after extraction
     cleanedXml = cleanedXml.trim();
+    console.log("BPMN Validation - Final XML length:", cleanedXml.length);
+    console.log("BPMN Validation - Final XML contains BPMNEdge?", cleanedXml.includes("BPMNEdge"));
 
     // More lenient validation
     const bpmnKeywords = [
@@ -206,11 +230,11 @@ function validateStoryMapHtml(html: string): string | undefined {
     // Clean the HTML
     let cleanedHtml = html.trim();
 
-    // Basic validation - check for table elements
-    const hasTable = cleanedHtml.includes("<table") || cleanedHtml.includes("|");
+    // Strict validation - must contain actual HTML table tags (not just markdown)
+    const hasHtmlTable = cleanedHtml.includes("<table") && cleanedHtml.includes("</table>");
 
-    if (!hasTable) {
-        console.warn("Generated content doesn't appear to be valid story map HTML");
+    if (!hasHtmlTable) {
+        console.warn("Content doesn't contain valid HTML table structure for story map");
         return undefined;
     }
 
@@ -418,7 +442,7 @@ export function parseAnswerToHtml(
     const hasGap = hasKnowledgeGap(answer.message.content);
 
     // Extract Story Map HTML and clean content
-    const { cleanedContent: contentAfterStoryMap, storyMapHtml } = extractStoryMapHtml(answer.message.content);
+    const { cleanedContent: contentAfterStoryMap, storyMapHtml, storyMapTitle } = extractStoryMapHtml(answer.message.content);
 
     // Extract BPMN XML and clean content
     const { cleanedContent: contentAfterBpmn, bpmnXml } = extractBpmnXml(contentAfterStoryMap);
@@ -571,6 +595,7 @@ export function parseAnswerToHtml(
         hasKnowledgeGap: hasGap,
         mermaidCode,
         bpmnXml,
-        storyMapHtml
+        storyMapHtml,
+        storyMapTitle
     };
 }

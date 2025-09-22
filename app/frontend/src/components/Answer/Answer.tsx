@@ -26,7 +26,6 @@ import { useArtifact } from "../../contexts/ArtifactContext";
 // ADD THESE IMPORTS FOR YOUR NEW ICONS
 import confluenceLogo from "../../assets/confluence-logo.png";
 import pdfIcon from "../../assets/pdf-icon.png"; // Replace with your actual PDF icon path
-import { TextFieldBase } from "@fluentui/react";
 
 interface Props {
     answer: ChatAppResponse;
@@ -43,6 +42,7 @@ interface Props {
     showSpeechOutputAzure?: boolean;
     userQuestion?: string; // Pass the user's question to the component
     onContentSuggestion?: (suggestion: string, questionAsked: string) => void;
+    onCanvasDetected?: (htmlContent: string, title: string) => void;
 }
 
 export const Answer = ({
@@ -59,7 +59,8 @@ export const Answer = ({
     showSpeechOutputAzure,
     showSpeechOutputBrowser,
     userQuestion,
-    onContentSuggestion
+    onContentSuggestion,
+    onCanvasDetected
 }: Props) => {
     const followupQuestions = answer.context?.followup_questions;
     const { t } = useTranslation();
@@ -68,14 +69,14 @@ export const Answer = ({
     //select correct bot image
     const { botId } = useBot(); // Access botId from the BotContext
     const botProfile: BotProfile = BOTS[botId] ?? BOTS["ava"]; // Default to Ava if botProfile is undefined
-    
+
     // Get current artifact for Accelerate Assistant
     const { selectedArtifactType } = useArtifact();
-    const currentArtifact = botId === 'ba' ? selectedArtifactType : undefined;
-    
+    const currentArtifact = botId === "ba" ? selectedArtifactType : undefined;
+
     // Get question and answer for Ava-Search context
-    const currentQuestion = botId === 'ava' ? userQuestion : undefined;
-    const currentAnswer = botId === 'ava' ? answer.message.content : undefined;
+    const currentQuestion = botId === "ava" ? userQuestion : undefined;
+    const currentAnswer = botId === "ava" ? answer.message.content : undefined;
 
     // Feedback state
     const [feedbackGiven, setFeedbackGiven] = useState(false);
@@ -180,6 +181,9 @@ export const Answer = ({
     const parsedAnswer = useMemo(() => parseAnswerToHtml(answer, isStreaming, handleCitationClick), [answer, isStreaming]);
     const sanitizedAnswerHtml = DOMPurify.sanitize(parsedAnswer.answerHtml);
 
+    // Track if canvas has been detected for this answer to prevent repeated calls
+    const [canvasDetected, setCanvasDetected] = useState(false);
+
     // Auto-open BPMN diagram when detected (prioritize over Mermaid)
     useMemo(() => {
         if (parsedAnswer.bpmnXml && !isStreaming) {
@@ -190,19 +194,74 @@ export const Answer = ({
         }
     }, [parsedAnswer.bpmnXml, parsedAnswer.mermaidCode, isStreaming]);
 
-    // Auto-open story map when HTML is detected
+    // Auto-open story map when HTML is detected (one-time only)
     useMemo(() => {
-        if (parsedAnswer.storyMapHtml && !isStreaming) {
-            openStoryMapCanvas(parsedAnswer.storyMapHtml);
+        if (parsedAnswer.storyMapHtml && !isStreaming && onCanvasDetected && !canvasDetected) {
+            // Notify parent component that canvas content was detected
+            onCanvasDetected(parsedAnswer.storyMapHtml, parsedAnswer.storyMapTitle || "Table");
+            setCanvasDetected(true);
         }
-    }, [parsedAnswer.storyMapHtml, isStreaming]);
+    }, [parsedAnswer.storyMapHtml, parsedAnswer.storyMapTitle, isStreaming, onCanvasDetected, canvasDetected]);
 
     const handleCopy = () => {
-        // Copy the original markdown content instead of processed HTML
-        const markdownContent = answer.message.content;
-        
+        let cleanContent = answer.message.content;
+
+        // Remove HTML sections
+        const storyMapStart = cleanContent.indexOf("STORY_MAP_HTML_START");
+        const storyMapEnd = cleanContent.indexOf("STORY_MAP_HTML_END");
+        if (storyMapStart !== -1 && storyMapEnd !== -1) {
+            const beforeHtml = cleanContent.substring(0, storyMapStart);
+            const afterHtml = cleanContent.substring(storyMapEnd + "STORY_MAP_HTML_END".length);
+            cleanContent = (beforeHtml + afterHtml).trim();
+        }
+
+        // Remove BPMN sections
+        const bpmnStart = cleanContent.indexOf("BPMN_PROCESS_XML_START");
+        const bpmnEnd = cleanContent.indexOf("BPMN_PROCESS_XML_END");
+        if (bpmnStart !== -1 && bpmnEnd !== -1) {
+            const beforeBpmn = cleanContent.substring(0, bpmnStart);
+            const afterBpmn = cleanContent.substring(bpmnEnd + "BPMN_PROCESS_XML_END".length);
+            cleanContent = (beforeBpmn + afterBpmn).trim();
+        }
+
+        // Remove Mermaid sections (for backward compatibility)
+        const mermaidStart = cleanContent.indexOf("MERMAID_PROCESS_CODE_START");
+        const mermaidEnd = cleanContent.indexOf("MERMAID_PROCESS_CODE_END");
+        if (mermaidStart !== -1 && mermaidEnd !== -1) {
+            const beforeMermaid = cleanContent.substring(0, mermaidStart);
+            const afterMermaid = cleanContent.substring(mermaidEnd + "MERMAID_PROCESS_CODE_END".length);
+            cleanContent = (beforeMermaid + afterMermaid).trim();
+        }
+
+        // Convert markdown to plain text
+        cleanContent = cleanContent
+            .replace(/&amp;/g, "&")
+            .replace(/&lt;/g, "<")
+            .replace(/&gt;/g, ">")
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/^#{1,6}\s+/gm, "") // Remove markdown headers
+            .replace(/\*\*(.*?)\*\*/g, "$1") // Remove bold
+            .replace(/\*(.*?)\*/g, "$1") // Remove italic
+            .replace(/^\s*[-*+]\s+/gm, "• ") // Convert bullet points
+            .replace(/^\s*\d+\.\s+/gm, (match, offset, string) => {
+                const lineStart = string.lastIndexOf("\n", offset) + 1;
+                const lineContent = string.substring(lineStart, offset);
+                const indent = lineContent.match(/^\s*/)?.[0] || "";
+                const num = match.match(/\d+/)?.[0] || "1";
+                return indent + num + ". ";
+            }) // Keep numbered lists
+            .replace(/\|(.+?)\|/g, match => {
+                return match
+                    .split("|")
+                    .filter(cell => cell.trim())
+                    .join("\t");
+            }) // Convert tables to tab-separated
+            .replace(/^\|?[-:]+\|?$/gm, "") // Remove table separators
+            .replace(/\n{3,}/g, "\n\n"); // Clean up extra newlines
+
         navigator.clipboard
-            .writeText(markdownContent)
+            .writeText(cleanContent)
             .then(() => {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
@@ -223,16 +282,7 @@ export const Answer = ({
                     })
                     .catch(() => null);
 
-                await submitFeedbackApi(
-                    `answer-${index}`, 
-                    type, 
-                    "", 
-                    token?.accessToken,
-                    botId,
-                    currentArtifact,
-                    currentQuestion,
-                    currentAnswer
-                );
+                await submitFeedbackApi(`answer-${index}`, type, "", token?.accessToken, botId, currentArtifact, currentQuestion, currentAnswer);
                 setFeedbackGiven(true);
             } catch (error) {
                 console.error("Error submitting feedback:", error);
@@ -255,9 +305,9 @@ export const Answer = ({
                 .catch(() => null);
 
             await submitFeedbackApi(
-                `answer-${index}`, 
-                feedbackType, 
-                feedbackComments, 
+                `answer-${index}`,
+                feedbackType,
+                feedbackComments,
                 token?.accessToken,
                 botId,
                 currentArtifact,
@@ -427,34 +477,14 @@ export const Answer = ({
                             💡
                         </button>
 
-                        <button
+                        {/* Note: Supporting content button commented out in main, keeping it commented */}
+                        {/* <button
                             onClick={() => onSupportingContentClicked()}
                             disabled={!answer.context.data_points || isStreaming}
-                            style={{
-                                backgroundColor: "transparent",
-                                border: "1px solid var(--border)",
-                                borderRadius: "8px",
-                                padding: "8px",
-                                color: "var(--text)",
-                                cursor: "pointer",
-                                fontSize: "12px",
-                                transition: "all 0.2s ease",
-                                opacity: !answer.context.data_points || isStreaming ? 0.5 : 1
-                            }}
-                            onMouseEnter={e => {
-                                if (!e.currentTarget.disabled) {
-                                    e.currentTarget.style.backgroundColor = "var(--surface-hover)";
-                                }
-                            }}
-                            onMouseLeave={e => {
-                                e.currentTarget.style.backgroundColor = "transparent";
-                            }}
-                            title={t("tooltips.showSupportingContent")}
+                            style={{...}}
                         >
                             📄
-                        </button>
-
-
+                        </button> */}
 
                         {showSpeechOutputAzure && (
                             <SpeechOutputAzure answer={sanitizedAnswerHtml} index={index} speechConfig={speechConfig} isStreaming={isStreaming} />
@@ -473,19 +503,19 @@ export const Answer = ({
                         padding: "0 8px"
                     }}
                 >
-                    <ReactMarkdown 
-                        children={sanitizedAnswerHtml} 
-                        rehypePlugins={[rehypeRaw]} 
+                    <ReactMarkdown
+                        children={sanitizedAnswerHtml}
+                        rehypePlugins={[rehypeRaw]}
                         remarkPlugins={[remarkGfm]}
                         components={{
-                            table: ({children}) => (
+                            table: ({ children }) => (
                                 <div className={styles.tableWrapper}>
                                     <table>{children}</table>
                                 </div>
                             )
                         }}
                     />
-                    
+
                     {/* BPMN Process Map Button - Priority over Mermaid */}
                     {parsedAnswer.bpmnXml && (
                         <div style={{ marginTop: "8px", textAlign: "left" }}>
@@ -521,7 +551,7 @@ export const Answer = ({
                             </button>
                         </div>
                     )}
-                    
+
                     {/* Mermaid Process Map Button - Fallback for backward compatibility */}
                     {!parsedAnswer.bpmnXml && parsedAnswer.mermaidCode && (
                         <div style={{ marginTop: "8px", textAlign: "left" }}>
@@ -589,7 +619,7 @@ export const Answer = ({
                                 }}
                                 title="View Story Map"
                             >
-                                📋 Click to Open Story Map
+                                📋 Click to Open {parsedAnswer.storyMapTitle || "Table"}
                             </button>
                         </div>
                     )}

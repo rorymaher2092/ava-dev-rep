@@ -12,7 +12,7 @@ export const MicrosoftSignIn: React.FC = () => {
     useEffect(() => {
         checkMicrosoftAuth();
 
-        // Validate session periodically
+        // Validate session periodically (reduced frequency)
         const interval = setInterval(
             async () => {
                 if (isMsAuthenticated) {
@@ -20,11 +20,14 @@ export const MicrosoftSignIn: React.FC = () => {
                         await getGraphToken();
                     } catch (error) {
                         console.error("Session validation failed:", error);
-                        await checkMicrosoftAuth(); // Force re-check
+                        // Only re-check on specific errors, don't force immediate re-auth
+                        if (error instanceof Error && error.message === "INTERACTION_REQUIRED") {
+                            await checkMicrosoftAuth();
+                        }
                     }
                 }
             },
-            5 * 60 * 1000
+            60 * 60 * 1000
         );
 
         return () => clearInterval(interval);
@@ -49,16 +52,16 @@ export const MicrosoftSignIn: React.FC = () => {
         } catch (error) {
             console.log("Auth check failed:", error);
             
-            await clearAllMsalCache();
             setIsMsAuthenticated(false);
             setMsUsername(null);
             
-            // ✅ Type guard the error before accessing .message
+            // Only clear cache and show error for interaction required
             if (error instanceof Error && error.message === "INTERACTION_REQUIRED") {
+                await clearAllMsalCache();
                 setAuthError("Session expired. Please sign in again.");
             } else {
-                // Handle other error types
-                setAuthError("Authentication failed. Please sign in again.");
+                // For other errors, just log and continue
+                console.log("Non-critical auth error, will retry on next interaction");
             }
         }
     };
@@ -67,8 +70,10 @@ export const MicrosoftSignIn: React.FC = () => {
         setLoading(true);
         setAuthError(null);
         try {
-            // ✅ Always clear cache before login attempt
-            await clearAllMsalCache();
+            // Only clear cache if there was a previous auth error
+            if (authError) {
+                await clearAllMsalCache();
+            }
             await loginToMicrosoft();
             await checkMicrosoftAuth();
         } catch (error) {

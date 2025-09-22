@@ -134,12 +134,11 @@ const Chat = () => {
     const [showChatHistoryCosmos, setShowChatHistoryCosmos] = useState<boolean>(false);
     const [showAgenticRetrievalOption, setShowAgenticRetrievalOption] = useState<boolean>(false);
     const [useAgenticRetrieval, setUseAgenticRetrieval] = useState<boolean>(false);
-    
+
     // Canvas panel state
     const [isCanvasPanelOpen, setIsCanvasPanelOpen] = useState<boolean>(false);
     const [canvasContent, setCanvasContent] = useState<string>("");
-    const [canvasTitle, setCanvasTitle] = useState<string>("Story Map");
-    const [lastCanvasTitle, setLastCanvasTitle] = useState<string>("");
+    const [canvasTitle, setCanvasTitle] = useState<string>("Canvas");
 
     // added to deal with cancelling mid request
     const [abortController, setAbortController] = useState<AbortController | null>(null);
@@ -162,6 +161,13 @@ const Chat = () => {
         (files ?? []).forEach(f => out.push({ kind: "file", name: f.name, size: f.size, mime: f.type }));
         return out;
     }
+
+    const handleCanvasDetected = (htmlContent: string, title: string) => {
+        // Since this is only called during the current response processing, just open it
+        setCanvasContent(htmlContent);
+        setCanvasTitle(title);
+        setIsCanvasPanelOpen(true);
+    };
 
     // Add artifact context
     const { selectedArtifactType, getSelectedArtifact } = useArtifact();
@@ -366,13 +372,16 @@ const Chat = () => {
                 async () => {
                     try {
                         console.log("Proactive token refresh check");
-                        await getGraphToken(true);
+                        await getGraphToken(); // Don't force refresh, let MSAL handle it
                     } catch (error) {
                         console.error("Proactive token refresh failed:", error);
-                        await clearAllMsalCache(); // Clear cache if background refresh fails
+                        // Only clear cache on specific interaction required errors
+                        if (error instanceof Error && error.message === "INTERACTION_REQUIRED") {
+                            await clearAllMsalCache();
+                        }
                     }
                 },
-                10 * 60 * 1000
+                2 * 60 * 60 * 1000
             );
 
             return () => clearInterval(tokenRefreshInterval);
@@ -421,30 +430,37 @@ const Chat = () => {
             } catch (authError) {
                 console.error("Auth failed:", authError);
 
-                // Force immediate re-authentication for any auth error
-                const confirmLogin = window.confirm("Your session has expired. Please sign in again to continue.");
+                // Only force re-authentication for interaction required errors
+                if (authError instanceof Error && authError.message === "INTERACTION_REQUIRED") {
+                    const confirmLogin = window.confirm("Your session has expired. Please sign in again to continue.");
 
-                if (!confirmLogin) {
-                    setError(new Error("Authentication required to continue"));
-                    setIsLoading(false);
-                    return;
-                }
-
-                try {
-                    // Clear everything and force fresh login
-                    await clearAllMsalCache();
-                    await loginToMicrosoft();
-
-                    // Get fresh tokens after login
-                    authToken = await getToken();
-                    graphToken = await getGraphToken();
-
-                    if (!authToken || !graphToken) {
-                        throw new Error("Failed to obtain token after re-authentication");
+                    if (!confirmLogin) {
+                        setError(new Error("Authentication required to continue"));
+                        setIsLoading(false);
+                        return;
                     }
-                } catch (loginError) {
-                    console.error("Re-authentication failed:", loginError);
-                    setError(new Error("Failed to authenticate. Please refresh the page and try again."));
+
+                    try {
+                        // Clear cache and force fresh login only for interaction required
+                        await clearAllMsalCache();
+                        await loginToMicrosoft();
+
+                        // Get fresh tokens after login
+                        authToken = await getToken();
+                        graphToken = await getGraphToken();
+
+                        if (!authToken || !graphToken) {
+                            throw new Error("Failed to obtain token after re-authentication");
+                        }
+                    } catch (loginError) {
+                        console.error("Re-authentication failed:", loginError);
+                        setError(new Error("Failed to authenticate. Please refresh the page and try again."));
+                        setIsLoading(false);
+                        return;
+                    }
+                } else {
+                    // For other auth errors, just show error without forcing re-auth
+                    setError(new Error("Authentication error. Please try again or refresh the page."));
                     setIsLoading(false);
                     return;
                 }
@@ -503,7 +519,7 @@ const Chat = () => {
                         // Include attachment IDs for UUID-based fetching
                         attachment_ids: attachmentRefs ? attachmentRefs.map(ref => ref.id).filter((id): id is string => Boolean(id)) : [],
                         // Also include legacy attachment_refs for backward compatibility
-                        attachment_refs: attachmentRefs ? attachmentRefs.filter(ref => ref.type !== 'document') : [],
+                        attachment_refs: attachmentRefs ? attachmentRefs.filter(ref => ref.type !== "document") : [],
                         // CRITICAL: Tell backend to consume attachments if any exist
                         consume_attachments: (attachmentRefs && attachmentRefs.length > 0) || false,
                         ...(seed !== null ? { seed: seed } : {})
@@ -632,23 +648,15 @@ const Chat = () => {
     useEffect(() => chatMessageStreamEnd.current?.scrollIntoView({ behavior: "auto" }), [streamedAnswers]);
     useEffect(() => {
         getConfig();
-        
+
         // Set up canvas callback
         setCanvasOpenCallback((htmlContent: string) => {
             // Extract title from HTML comment or use default
             const titleMatch = htmlContent.match(/<!--\s*title:\s*([^-]+)\s*-->/);
-            const extractedTitle = titleMatch ? titleMatch[1].trim() : "Story Map";
-            
+            const extractedTitle = titleMatch ? titleMatch[1].trim() : "Canvas";
+
             setCanvasContent(htmlContent);
-            
-            if (extractedTitle === lastCanvasTitle) {
-                // Same table type, don't change title (CanvasPanel will increment version)
-            } else {
-                // Different table type, reset to base title
-                setCanvasTitle(extractedTitle);
-                setLastCanvasTitle(extractedTitle);
-            }
-            
+            setCanvasTitle(extractedTitle);
             setIsCanvasPanelOpen(true);
         });
 
@@ -757,8 +765,8 @@ const Chat = () => {
         // Fetch immediately and set up interval for periodic refresh
         fetchUserDetails();
 
-        // Refresh user details every 5 minutes to handle token expiry
-        const interval = setInterval(fetchUserDetails, 5 * 60 * 1000);
+        // Refresh user details every 30 minutes to handle token expiry
+        const interval = setInterval(fetchUserDetails, 30 * 60 * 1000);
 
         return () => clearInterval(interval);
     }, [client, loggedIn]);
@@ -923,7 +931,7 @@ const Chat = () => {
             <div
                 className={styles.chatRoot}
                 style={{
-                    marginRight: (activeAnalysisPanelTab && !isMobile) ? "40%" : (isCanvasPanelOpen && !isMobile) ? "50%" : "0",
+                    marginRight: activeAnalysisPanelTab && !isMobile ? "40%" : isCanvasPanelOpen && !isMobile ? "50%" : "0",
                     marginLeft: isHistoryPanelOpen && !isMobile ? "320px" : "0"
                 }}
             >
@@ -1010,6 +1018,7 @@ const Chat = () => {
                                                 onSupportingContentClicked={() => onToggleTab(AnalysisPanelTabs.SupportingContentTab, index)}
                                                 showSpeechOutputAzure={showSpeechOutputAzure}
                                                 showSpeechOutputBrowser={showSpeechOutputBrowser}
+                                                onCanvasDetected={index === streamedAnswers.length - 1 ? handleCanvasDetected : undefined}
                                             />
                                         </div>
                                     </div>
@@ -1034,6 +1043,7 @@ const Chat = () => {
                                                 showSpeechOutputBrowser={showSpeechOutputBrowser}
                                                 userQuestion={answer[0]} // Pass the user's question
                                                 onContentSuggestion={suggestion => handleContentSuggestion(suggestion, answer[0])}
+                                                onCanvasDetected={index === answers.length - 1 ? handleCanvasDetected : undefined}
                                             />
                                         </div>
                                     </div>
@@ -1063,7 +1073,7 @@ const Chat = () => {
                     <div
                         className={`${styles.chatInput} ${botId === "ba" ? styles.baBot : ""}`}
                         style={{
-                            right: (activeAnalysisPanelTab && !isMobile) ? "40%" : (isCanvasPanelOpen && !isMobile) ? "50%" : "0",
+                            right: activeAnalysisPanelTab && !isMobile ? "40%" : isCanvasPanelOpen && !isMobile ? "50%" : "0",
                             left: isHistoryPanelOpen && !isMobile ? "320px" : "0",
                             width: "auto",
                             backgroundColor: "var(--background)",
@@ -1179,14 +1189,9 @@ const Chat = () => {
                     />
                     {useLogin && <TokenClaimsDisplay />}
                 </Panel>
-                
+
                 {/* Canvas Panel */}
-                <CanvasPanel 
-                    htmlContent={canvasContent}
-                    isOpen={isCanvasPanelOpen}
-                    onClose={() => setIsCanvasPanelOpen(false)}
-                    title={canvasTitle}
-                />
+                <CanvasPanel htmlContent={canvasContent} isOpen={isCanvasPanelOpen} onClose={() => setIsCanvasPanelOpen(false)} title={canvasTitle} />
             </div>
         </div>
     );
