@@ -15,6 +15,7 @@ import { SpeechOutputBrowser } from "./SpeechOutputBrowser";
 import { SpeechOutputAzure } from "./SpeechOutputAzure";
 import { submitContentSuggestion } from "../../api";
 import { openMermaidDiagram } from "../../utils/mermaidRenderer";
+import { openBpmnDiagram } from "../../utils/bpmnRenderer";
 import { openStoryMapCanvas } from "../../utils/storyMapRenderer";
 
 // Ensure you are importing the correct bot logo from your BotConfig
@@ -180,16 +181,19 @@ export const Answer = ({
     const parsedAnswer = useMemo(() => parseAnswerToHtml(answer, isStreaming, handleCitationClick), [answer, isStreaming]);
     const sanitizedAnswerHtml = DOMPurify.sanitize(parsedAnswer.answerHtml);
 
-    // Auto-open diagram when Mermaid code is detected
-    useMemo(() => {
-        if (parsedAnswer.mermaidCode && !isStreaming) {
-            openMermaidDiagram(parsedAnswer.mermaidCode);
-        }
-    }, [parsedAnswer.mermaidCode, isStreaming]);
-
     // Track if canvas has been detected for this answer to prevent repeated calls
     const [canvasDetected, setCanvasDetected] = useState(false);
-    
+
+    // Auto-open BPMN diagram when detected (prioritize over Mermaid)
+    useMemo(() => {
+        if (parsedAnswer.bpmnXml && !isStreaming) {
+            openBpmnDiagram(parsedAnswer.bpmnXml);
+        } else if (parsedAnswer.mermaidCode && !isStreaming) {
+            // Fallback to Mermaid for backward compatibility
+            openMermaidDiagram(parsedAnswer.mermaidCode);
+        }
+    }, [parsedAnswer.bpmnXml, parsedAnswer.mermaidCode, isStreaming]);
+
     // Auto-open story map when HTML is detected (one-time only)
     useMemo(() => {
         if (parsedAnswer.storyMapHtml && !isStreaming && onCanvasDetected && !canvasDetected) {
@@ -201,7 +205,7 @@ export const Answer = ({
 
     const handleCopy = () => {
         let cleanContent = answer.message.content;
-        
+
         // Remove HTML sections
         const storyMapStart = cleanContent.indexOf("STORY_MAP_HTML_START");
         const storyMapEnd = cleanContent.indexOf("STORY_MAP_HTML_END");
@@ -210,7 +214,17 @@ export const Answer = ({
             const afterHtml = cleanContent.substring(storyMapEnd + "STORY_MAP_HTML_END".length);
             cleanContent = (beforeHtml + afterHtml).trim();
         }
-        
+
+        // Remove BPMN sections
+        const bpmnStart = cleanContent.indexOf("BPMN_PROCESS_XML_START");
+        const bpmnEnd = cleanContent.indexOf("BPMN_PROCESS_XML_END");
+        if (bpmnStart !== -1 && bpmnEnd !== -1) {
+            const beforeBpmn = cleanContent.substring(0, bpmnStart);
+            const afterBpmn = cleanContent.substring(bpmnEnd + "BPMN_PROCESS_XML_END".length);
+            cleanContent = (beforeBpmn + afterBpmn).trim();
+        }
+
+        // Remove Mermaid sections (for backward compatibility)
         const mermaidStart = cleanContent.indexOf("MERMAID_PROCESS_CODE_START");
         const mermaidEnd = cleanContent.indexOf("MERMAID_PROCESS_CODE_END");
         if (mermaidStart !== -1 && mermaidEnd !== -1) {
@@ -218,32 +232,36 @@ export const Answer = ({
             const afterMermaid = cleanContent.substring(mermaidEnd + "MERMAID_PROCESS_CODE_END".length);
             cleanContent = (beforeMermaid + afterMermaid).trim();
         }
-        
+
         // Convert markdown to plain text
         cleanContent = cleanContent
-            .replace(/&amp;/g, '&')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, "&")
+            .replace(/&lt;/g, "<")
+            .replace(/&gt;/g, ">")
             .replace(/&quot;/g, '"')
             .replace(/&#39;/g, "'")
-            .replace(/^#{1,6}\s+/gm, '') // Remove markdown headers
-            .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
-            .replace(/\*(.*?)\*/g, '$1') // Remove italic
-            .replace(/^\s*[-*+]\s+/gm, '• ') // Convert bullet points
+            .replace(/^#{1,6}\s+/gm, "") // Remove markdown headers
+            .replace(/\*\*(.*?)\*\*/g, "$1") // Remove bold
+            .replace(/\*(.*?)\*/g, "$1") // Remove italic
+            .replace(/^\s*[-*+]\s+/gm, "• ") // Convert bullet points
             .replace(/^\s*\d+\.\s+/gm, (match, offset, string) => {
-                const lineStart = string.lastIndexOf('\n', offset) + 1;
+                const lineStart = string.lastIndexOf("\n", offset) + 1;
                 const lineContent = string.substring(lineStart, offset);
-                const indent = lineContent.match(/^\s*/)?.[0] || '';
-                const num = match.match(/\d+/)?.[0] || '1';
-                return indent + num + '. ';
+                const indent = lineContent.match(/^\s*/)?.[0] || "";
+                const num = match.match(/\d+/)?.[0] || "1";
+                return indent + num + ". ";
             }) // Keep numbered lists
-            .replace(/\|(.+?)\|/g, (match) => {
-                return match.split('|').filter(cell => cell.trim()).join('\t');
+            .replace(/\|(.+?)\|/g, match => {
+                return match
+                    .split("|")
+                    .filter(cell => cell.trim())
+                    .join("\t");
             }) // Convert tables to tab-separated
-            .replace(/^\|?[-:]+\|?$/gm, '') // Remove table separators
-            .replace(/\n{3,}/g, '\n\n'); // Clean up extra newlines
+            .replace(/^\|?[-:]+\|?$/gm, "") // Remove table separators
+            .replace(/\n{3,}/g, "\n\n"); // Clean up extra newlines
 
-        navigator.clipboard.writeText(cleanContent)
+        navigator.clipboard
+            .writeText(cleanContent)
             .then(() => {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
@@ -459,29 +477,11 @@ export const Answer = ({
                             💡
                         </button>
 
+                        {/* Note: Supporting content button commented out in main, keeping it commented */}
                         {/* <button
                             onClick={() => onSupportingContentClicked()}
                             disabled={!answer.context.data_points || isStreaming}
-                            style={{
-                                backgroundColor: "transparent",
-                                border: "1px solid var(--border)",
-                                borderRadius: "8px",
-                                padding: "8px",
-                                color: "var(--text)",
-                                cursor: "pointer",
-                                fontSize: "12px",
-                                transition: "all 0.2s ease",
-                                opacity: !answer.context.data_points || isStreaming ? 0.5 : 1
-                            }}
-                            onMouseEnter={e => {
-                                if (!e.currentTarget.disabled) {
-                                    e.currentTarget.style.backgroundColor = "var(--surface-hover)";
-                                }
-                            }}
-                            onMouseLeave={e => {
-                                e.currentTarget.style.backgroundColor = "transparent";
-                            }}
-                            title={t("tooltips.showSupportingContent")}
+                            style={{...}}
                         >
                             📄
                         </button> */}
@@ -516,8 +516,44 @@ export const Answer = ({
                         }}
                     />
 
-                    {/* Process Map Button */}
-                    {parsedAnswer.mermaidCode && (
+                    {/* BPMN Process Map Button - Priority over Mermaid */}
+                    {parsedAnswer.bpmnXml && (
+                        <div style={{ marginTop: "8px", textAlign: "left" }}>
+                            <button
+                                onClick={() => openBpmnDiagram(parsedAnswer.bpmnXml!)}
+                                style={{
+                                    backgroundColor: "transparent",
+                                    color: "var(--text)",
+                                    border: "1px solid var(--border)",
+                                    borderRadius: "6px",
+                                    padding: "8px 12px",
+                                    cursor: "pointer",
+                                    fontSize: "13px",
+                                    fontWeight: "500",
+                                    transition: "all 0.2s ease",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "6px"
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.backgroundColor = "#667eea";
+                                    e.currentTarget.style.color = "white";
+                                    e.currentTarget.style.borderColor = "#667eea";
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.backgroundColor = "transparent";
+                                    e.currentTarget.style.color = "var(--text)";
+                                    e.currentTarget.style.borderColor = "var(--border)";
+                                }}
+                                title="View BPMN Process Diagram"
+                            >
+                                📊 Click to Open BPMN Process Map
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Mermaid Process Map Button - Fallback for backward compatibility */}
+                    {!parsedAnswer.bpmnXml && parsedAnswer.mermaidCode && (
                         <div style={{ marginTop: "8px", textAlign: "left" }}>
                             <button
                                 onClick={() => openMermaidDiagram(parsedAnswer.mermaidCode!)}
