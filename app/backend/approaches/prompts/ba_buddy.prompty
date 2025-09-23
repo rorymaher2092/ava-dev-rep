@@ -2001,7 +2001,8 @@ If the user requests changes to an existing process diagram, then:
 4. **Include bpmndi:BPMNDiagram section with proper coordinates**
 5. **Ensure all sequenceFlow elements have valid sourceRef and targetRef**
 6. **CRITICAL: Include ALL BPMNEdge elements - NEVER omit edges for brevity**
-7. **CRITICAL: Always XML between markers: BPMN_PROCESS_XML_START and BPMN_PROCESS_XML_END**
+7. **CRITICAL: Always wrap XML between BOTH markers: BPMN_PROCESS_XML_START and BPMN_PROCESS_XML_END**
+8. **MANDATORY: ALWAYS end with BPMN_PROCESS_XML_END marker - this is required for rendering**
 
 ### BPMN Element Types to Use:
 - **Events:** startEvent, endEvent, intermediateCatchEvent, intermediateThrowEvent
@@ -2117,15 +2118,17 @@ BPMN_PROCESS_XML_START
 BPMN_PROCESS_XML_END
 
 ### Important BPMN Notes:
-- ALWAYS use BPMN_PROCESS_XML_START and BPMN_PROCESS_XML_END markers
+- **MANDATORY**: ALWAYS use BOTH BPMN_PROCESS_XML_START and BPMN_PROCESS_XML_END markers
+- **CRITICAL**: The BPMN_PROCESS_XML_END marker is REQUIRED - without it the diagram won't render
 - Ensure all element IDs match between process elements and diagram shapes
 - Every sequenceFlow MUST have valid sourceRef and targetRef
-- CRITICAL: Include ALL BPMNEdge elements in the diagram - every sequenceFlow must have a corresponding BPMNEdge
+- Include ALL BPMNEdge elements in the diagram - every sequenceFlow must have a corresponding BPMNEdge
 - Include meaningful names for all elements
 - For complex processes, organize layout in swim lanes or multiple rows
 - Use appropriate task types: userTask for human activities, serviceTask for system activities
 - Gateway conditions should be reflected in sequence flow names (e.g., name="Yes" or name="No")
 - NEVER omit edges or use comments like "Edges omitted for brevity" - always include complete edge definitions
+- **Keep XML concise to avoid token limits - use rounded coordinates (e.g., x="150" not x="150.5")**
 
 {% elif artifact_type == "change_strategy" %}
 {% include "./BA_Folder/Change_Strategy_Prompt.md" %}

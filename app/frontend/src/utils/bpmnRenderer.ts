@@ -1,4 +1,5 @@
 // bpmnRenderer.ts
+import avaLogo from "../assets/ava-white-noborder.png";
 
 export function openBpmnDiagram(bpmnXml: string): void {
     // Clean the BPMN XML - remove escape sequences
@@ -32,11 +33,29 @@ export function openBpmnDiagram(bpmnXml: string): void {
         }
         
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #0f1c47;
             color: white;
             padding: 20px;
             text-align: center;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+        
+        .header-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .header-logo {
+            width: 60px;
+            height: 60px;
+            margin-right: 15px;
+            border: none;
+            outline: none;
         }
         
         .header h1 {
@@ -73,12 +92,12 @@ export function openBpmnDiagram(bpmnXml: string): void {
         }
         
         .btn-primary {
-            background: #667eea;
+            background: #0f1c47;
             color: white;
         }
         
         .btn-primary:hover {
-            background: #5a67d8;
+            background: #1a2951;
             transform: translateY(-1px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         }
@@ -117,8 +136,11 @@ export function openBpmnDiagram(bpmnXml: string): void {
 </head>
 <body>
     <div class="header">
-        <h1>📊 Business Process Diagram</h1>
-        <p>Interactive BPMN Process Model</p>
+        <img src="${avaLogo}" alt="Ava Logo" class="header-logo" id="ava-logo">
+        <div class="header-content">
+            <h1>Business Process Diagram</h1>
+            <p>Interactive BPMN Process Model</p>
+        </div>
     </div>
     
     <div class="controls">
