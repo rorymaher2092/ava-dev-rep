@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { ChatAppResponse, getCitationFilePath } from "../../api";
+import { jsonToBpmnNoDI } from "../../utils/bpmnConverter";
 
 type HtmlParsedAnswer = {
     answerHtml: string;
@@ -7,6 +8,7 @@ type HtmlParsedAnswer = {
     citationDetails: Map<string, { url: string; title: string; isConfluence: boolean }>;
     mermaidCode?: string;
     bpmnXml?: string;
+    bpmnTitle?: string;
     storyMapHtml?: string;
     storyMapTitle?: string;
 };
@@ -43,6 +45,60 @@ function extractStoryMapHtml(content: string): { cleanedContent: string; storyMa
     const cleanedContent = (beforeHtml + afterHtml).trim();
 
     return { cleanedContent, storyMapHtml: validateStoryMapHtml(storyMapHtml), storyMapTitle };
+}
+
+function extractBpmnJson(content: string): { cleanedContent: string; bpmnJson?: any; bpmnTitle?: string } {
+    const startMarker = "BPMN_JSON_START";
+    const endMarker = "BPMN_JSON_END";
+    const si = content.indexOf(startMarker);
+    const ei = content.indexOf(endMarker);
+    
+    console.log("BPMN JSON Extraction - Start marker found:", si !== -1);
+    console.log("BPMN JSON Extraction - End marker found:", ei !== -1);
+    
+    if (si === -1 || ei === -1 || si >= ei) {
+        console.log("BPMN JSON Extraction - No valid JSON markers found");
+        return { cleanedContent: content };
+    }
+
+    const jsonRaw = content.substring(si + startMarker.length, ei).trim();
+    console.log("BPMN JSON Extraction - Raw JSON length:", jsonRaw.length);
+    console.log("BPMN JSON Extraction - Raw JSON (first 500 chars):", jsonRaw.substring(0, 500));
+    
+    const cleanedContent = (content.substring(0, si) + content.substring(ei + endMarker.length)).trim();
+
+    try {
+        const parsed = JSON.parse(jsonRaw);
+        console.log("BPMN JSON Extraction - Successfully parsed JSON:", parsed);
+        console.log("BPMN JSON Extraction - Has nodes:", !!parsed?.nodes, "Count:", parsed?.nodes?.length || 0);
+        console.log("BPMN JSON Extraction - Has flows:", !!parsed?.flows, "Count:", parsed?.flows?.length || 0);
+        console.log("BPMN JSON Extraction - Has lanes:", !!parsed?.lanes, "Count:", parsed?.lanes?.length || 0);
+        console.log("BPMN JSON Extraction - Title:", parsed?.title);
+        
+        // Enhanced validation
+        if (!parsed || typeof parsed !== 'object') {
+            console.warn("BPMN JSON Extraction - Invalid JSON structure: not an object");
+            return { cleanedContent };
+        }
+        
+        if (!Array.isArray(parsed.nodes) || !Array.isArray(parsed.flows)) {
+            console.warn("BPMN JSON Extraction - Invalid JSON structure: nodes or flows not arrays");
+            console.warn("BPMN JSON Extraction - nodes type:", typeof parsed.nodes, "flows type:", typeof parsed.flows);
+            return { cleanedContent };
+        }
+        
+        if (parsed.nodes.length === 0) {
+            console.warn("BPMN JSON Extraction - No nodes in JSON topology");
+            return { cleanedContent };
+        }
+        
+        console.log("BPMN JSON Extraction - Validation passed, returning JSON");
+        return { cleanedContent, bpmnJson: parsed, bpmnTitle: parsed.title };
+    } catch (error) {
+        console.error("BPMN JSON Extraction - JSON parsing failed:", error);
+        console.error("BPMN JSON Extraction - Raw JSON that failed:", jsonRaw);
+        return { cleanedContent };
+    }
 }
 
 function extractBpmnXml(content: string): { cleanedContent: string; bpmnXml?: string } {
@@ -444,16 +500,52 @@ export function parseAnswerToHtml(
     // Extract Story Map HTML and clean content
     const { cleanedContent: contentAfterStoryMap, storyMapHtml, storyMapTitle } = extractStoryMapHtml(answer.message.content);
 
-    // Extract BPMN XML and clean content
-    const { cleanedContent: contentAfterBpmn, bpmnXml } = extractBpmnXml(contentAfterStoryMap);
-    console.log("BPMN extraction:", {
+    // Extract BPMN JSON first, then XML as fallback
+    const { cleanedContent: contentAfterBpmnJson, bpmnJson, bpmnTitle } = extractBpmnJson(contentAfterStoryMap);
+    
+    let bpmnXml: string | undefined;
+    let contentAfterBpmn: string;
+    
+    if (bpmnJson) {
+        console.log("=== CONVERTING JSON TO BPMN XML ===");
+        console.log("Input JSON for conversion:", JSON.stringify(bpmnJson, null, 2));
+        try {
+            bpmnXml = jsonToBpmnNoDI(bpmnJson);
+            console.log("JSON to BPMN conversion successful");
+            console.log("Generated BPMN XML length:", bpmnXml?.length || 0);
+            console.log("Generated BPMN XML (first 1000 chars):", bpmnXml?.substring(0, 1000) || "N/A");
+            console.log("Generated BPMN XML (last 500 chars):", bpmnXml?.substring(Math.max(0, (bpmnXml?.length || 0) - 500)) || "N/A");
+        } catch (error) {
+            console.error("=== JSON TO BPMN CONVERSION FAILED ===");
+            console.error("Conversion error:", error);
+            console.error("Error stack:", error instanceof Error ? error.stack : 'No stack trace');
+            console.error("JSON that failed conversion:", JSON.stringify(bpmnJson, null, 2));
+            bpmnXml = undefined;
+        }
+        contentAfterBpmn = contentAfterBpmnJson;
+    } else {
+        // Fallback to XML extraction for backward compatibility
+        const xmlResult = extractBpmnXml(contentAfterBpmnJson);
+        bpmnXml = xmlResult.bpmnXml;
+        contentAfterBpmn = xmlResult.cleanedContent;
+    }
+    console.log("=== FINAL BPMN STATUS ===");
+    console.log("BPMN extraction result:", {
+        source: bpmnJson ? "JSON" : (bpmnXml ? "XML" : "NONE"),
         hasBpmn: !!bpmnXml,
-        originalLength: contentAfterStoryMap.length,
-        cleanedLength: contentAfterBpmn.length,
         bpmnLength: bpmnXml?.length || 0,
-        hasStartMarker: contentAfterStoryMap.includes("BPMN_PROCESS_XML_START"),
-        hasEndMarker: contentAfterStoryMap.includes("BPMN_PROCESS_XML_END")
+        jsonFound: !!bpmnJson,
+        xmlFound: !!bpmnXml
     });
+    
+    if (bpmnXml) {
+        console.log("Final BPMN XML validation check:");
+        console.log("- Contains <?xml:", bpmnXml.includes('<?xml'));
+        console.log("- Contains definitions:", bpmnXml.includes('definitions'));
+        console.log("- Contains process:", bpmnXml.includes('process'));
+        console.log("- Contains startEvent:", bpmnXml.includes('startEvent'));
+        console.log("- Contains endEvent:", bpmnXml.includes('endEvent'));
+    }
 
     // Extract Mermaid code and clean content (kept for backward compatibility)
     const { cleanedContent: contentAfterMermaid, mermaidCode } = extractMermaidCode(contentAfterBpmn);
@@ -595,6 +687,7 @@ export function parseAnswerToHtml(
         hasKnowledgeGap: hasGap,
         mermaidCode,
         bpmnXml,
+        bpmnTitle,
         storyMapHtml,
         storyMapTitle
     };

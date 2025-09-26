@@ -1,7 +1,7 @@
 // bpmnRenderer.ts
 import avaLogo from "../assets/ava-white-noborder.png";
 
-export function openBpmnDiagram(bpmnXml: string): void {
+export function openBpmnDiagram(bpmnXml: string, title?: string, username?: string): void {
     // Clean the BPMN XML - remove escape sequences
     const cleanedXml = bpmnXml.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\"/g, '"').replace(/\\\\/g, "\\").trim();
 
@@ -36,18 +36,31 @@ export function openBpmnDiagram(bpmnXml: string): void {
             background: #0f1c47;
             color: white;
             padding: 20px;
-            text-align: center;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 15px;
+            justify-content: space-between;
         }
         
-        .header-content {
+        .header-left {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            font-size: 0.85em;
+            line-height: 1.4;
+        }
+        
+        .header-center {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
             display: flex;
             flex-direction: column;
             align-items: center;
+        }
+        
+        .header-right {
+            width: 60px;
         }
         
         .header-logo {
@@ -136,10 +149,17 @@ export function openBpmnDiagram(bpmnXml: string): void {
 </head>
 <body>
     <div class="header">
-        <img src="${avaLogo}" alt="Ava Logo" class="header-logo" id="ava-logo">
-        <div class="header-content">
+        <div class="header-left">
+            ${title ? `<div>Title: ${title}</div>` : ""}
+            ${username ? `<div>Created by: ${username}</div>` : ""}
+            <div>Date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
+        </div>
+        <div class="header-center">
             <h1>Business Process Diagram</h1>
             <p>Interactive BPMN Process Model</p>
+        </div>
+        <div class="header-right">
+            <img src="${avaLogo}" alt="Ava Logo" class="header-logo" id="ava-logo">
         </div>
     </div>
     
@@ -162,37 +182,82 @@ export function openBpmnDiagram(bpmnXml: string): void {
     
     <script>
         let bpmnModeler;
-        const bpmnXmlData = ${JSON.stringify(cleanedXml)};
-        
-        async function initModeler() {
-            const canvas = document.getElementById('canvas');
+        const bpmnXmlData = ${JSON.stringify(cleanedXml.replace(/<\/script>/gi, "<\\/script>"))};
+        const titleName = ${title ? `'${title.replace(/[^a-zA-Z0-9]/g, "_")}'` : "'process-diagram'"};
+
+        function addMetadataToSvg(svg) {
+            const currentDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
             
+            // Create metadata text
+            const metadata = [];
+            ${title ? `metadata.push('Title: ${title}');` : ""}
+            ${username ? `metadata.push('Created by: ${username}');` : ""}
+            metadata.push('Date: ' + currentDate);
+            metadata.push('Supported by Ava');
+            
+            // Get SVG dimensions and add padding
+            const svgMatch = svg.match(/<svg[^>]*viewBox="([^"]*)"/i);
+            let viewBox = svgMatch ? svgMatch[1].split(' ').map(Number) : [0, 0, 1200, 800];
+            const topPadding = 120;
+            
+            // Adjust viewBox to add padding at top
+            viewBox[1] -= topPadding;
+            viewBox[3] += topPadding;
+            
+            // Add metadata text above the diagram with more spacing
+            let metadataElements = '';
+            metadata.forEach((text, index) => {
+                const isTitleLine = text.startsWith('Title:');
+                const fontWeight = isTitleLine ? 'bold' : 'normal';
+                metadataElements += '<text x="' + (viewBox[0] + 10) + '" y="' + (viewBox[1] + 30 + (index * 18)) + '" font-family="Arial, sans-serif" font-size="12" font-weight="' + fontWeight + '" fill="#666">' + text + '</text>';
+            });
+            
+            // Update viewBox and insert metadata
+            return svg
+                .replace(/viewBox="[^"]*"/i, 'viewBox="' + viewBox.join(' ') + '"')
+                .replace(/(<svg[^>]*>)/, '$1' + metadataElements);
+        }
+
+        function hasDI(xml) {
+            return /\bBPMNDiagram\b|\bbpmndi:/i.test(xml);
+        }
+
+        async function ensureDI(xml) {
+            if (hasDI(xml)) return xml;
             try {
-                // Clear loading message
-                canvas.innerHTML = '';
-                
-                // Create modeler with editing capabilities
-                bpmnModeler = new BpmnJS({
-                    container: '#canvas',
-                    keyboard: {
-                        bindTo: window
-                    }
-                });
-                
-                // Import the BPMN XML
-                await bpmnModeler.importXML(bpmnXmlData);
-                
-                // Fit diagram to viewport
-                fitViewport();
-                
-                console.log('BPMN diagram loaded successfully');
-                
-            } catch (error) {
-                console.error('Error loading BPMN:', error);
-                canvas.innerHTML = '<div class="error">Error loading BPMN diagram: ' + error.message + '</div>';
+            // dynamic ESM import guarantees availability here (no race)
+            const mod = await import('https://cdn.skypack.dev/bpmn-auto-layout');
+            const layout = mod.layoutProcess || mod.default;
+            if (!layout) throw new Error('layoutProcess export not found');
+            const laidOut = await layout(xml);
+            return typeof laidOut === 'string' ? laidOut : laidOut.xml;
+            } catch (e) {
+            console.error('Auto-layout failed:', e);
+            throw new Error('Auto-layout failed: ' + (e?.message || e));
             }
         }
-        
+
+        async function initModeler() {
+            const canvasEl = document.getElementById('canvas');
+            try {
+            canvasEl.innerHTML = '';
+            bpmnModeler = new BpmnJS({ container: '#canvas', keyboard: { bindTo: window } });
+
+            const xmlWithDI = await ensureDI(bpmnXmlData);
+            await bpmnModeler.importXML(xmlWithDI);
+            fitViewport();
+            console.log('BPMN diagram loaded successfully');
+            } catch (error) {
+            console.error('Error loading BPMN:', error);
+            const needsDI = !hasDI(bpmnXmlData);
+            canvasEl.innerHTML = '<div class="error">'
+                + (needsDI
+                ? 'This diagram has no DI (shapes/edges). Auto-layout failed, so it cannot be rendered.'
+                : 'Error loading BPMN: ' + error.message)
+                + '</div>';
+            }
+        }
+            
         function fitViewport() {
             if (bpmnModeler) {
                 const canvas = bpmnModeler.get('canvas');
@@ -220,11 +285,12 @@ export function openBpmnDiagram(bpmnXml: string): void {
             if (!bpmnModeler) return;
             try {
                 const { svg } = await bpmnModeler.saveSVG({ format: true });
-                const blob = new Blob([svg], { type: 'image/svg+xml' });
+                const enhancedSvg = addMetadataToSvg(svg);
+                const blob = new Blob([enhancedSvg], { type: 'image/svg+xml' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'process-diagram.svg';
+                a.download = titleName + '.svg';
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -242,7 +308,7 @@ export function openBpmnDiagram(bpmnXml: string): void {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'process-diagram.bpmn';
+                a.download = titleName + '.bpmn';
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -261,25 +327,30 @@ export function openBpmnDiagram(bpmnXml: string): void {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 const img = new Image();
+                const logoImg = new Image();
+                
+
                 
                 img.onload = function() {
-                    // Set canvas dimensions
-                    canvas.width = img.width || 1200;
-                    canvas.height = img.height || 800;
+                    // Set canvas dimensions with minimal left/right padding and more top/bottom
+                    const topBottomPadding = 120;
+                    const leftRightPadding = 20;
+                    canvas.width = (img.width || 1200) + leftRightPadding;
+                    canvas.height = (img.height || 800) + topBottomPadding;
                     
                     // White background
                     ctx.fillStyle = 'white';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     
-                    // Draw the image
-                    ctx.drawImage(img, 0, 0);
+                    // Draw the diagram with minimal left/right padding
+                    ctx.drawImage(img, leftRightPadding/2, topBottomPadding/2);
                     
                     // Convert to blob and download
                     canvas.toBlob(function(blob) {
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = 'process-diagram.png';
+                        a.download = titleName + '.png';
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
@@ -288,7 +359,8 @@ export function openBpmnDiagram(bpmnXml: string): void {
                 };
                 
                 // Convert SVG to data URL
-                const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+                const enhancedSvg = addMetadataToSvg(svg);
+                const svgBlob = new Blob([enhancedSvg], { type: 'image/svg+xml;charset=utf-8' });
                 const svgUrl = URL.createObjectURL(svgBlob);
                 img.src = svgUrl;
                 

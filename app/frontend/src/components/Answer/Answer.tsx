@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Stack, IconButton, Dialog, DialogType, DialogFooter, PrimaryButton, DefaultButton, TextField } from "@fluentui/react";
 import { useTranslation } from "react-i18next";
 import DOMPurify from "dompurify";
@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import { useMsal } from "@azure/msal-react";
+import { getUsername } from "../../authConfig";
 
 import styles from "./Answer.module.css";
 import { ChatAppResponse, getCitationFilePath, SpeechConfig, submitFeedbackApi } from "../../api";
@@ -177,6 +178,20 @@ export const Answer = ({
     const [showContentSuggestion, setShowContentSuggestion] = useState(false);
     const [contentSuggestion, setContentSuggestion] = useState("");
     const [isSubmittingSuggestion, setIsSubmittingSuggestion] = useState(false);
+    const [username, setUsername] = useState<string | null>(null);
+
+    // Get username on component mount
+    useEffect(() => {
+        const fetchUsername = async () => {
+            try {
+                const user = await getUsername();
+                setUsername(user);
+            } catch (error) {
+                console.error('Failed to get username:', error);
+            }
+        };
+        fetchUsername();
+    }, []);
 
     const parsedAnswer = useMemo(() => parseAnswerToHtml(answer, isStreaming, handleCitationClick), [answer, isStreaming]);
     const sanitizedAnswerHtml = DOMPurify.sanitize(parsedAnswer.answerHtml);
@@ -187,12 +202,12 @@ export const Answer = ({
     // Auto-open BPMN diagram when detected (prioritize over Mermaid)
     useMemo(() => {
         if (parsedAnswer.bpmnXml && !isStreaming) {
-            openBpmnDiagram(parsedAnswer.bpmnXml);
+            openBpmnDiagram(parsedAnswer.bpmnXml, parsedAnswer.bpmnTitle, username || undefined);
         } else if (parsedAnswer.mermaidCode && !isStreaming) {
             // Fallback to Mermaid for backward compatibility
             openMermaidDiagram(parsedAnswer.mermaidCode);
         }
-    }, [parsedAnswer.bpmnXml, parsedAnswer.mermaidCode, isStreaming]);
+    }, [parsedAnswer.bpmnXml, parsedAnswer.bpmnTitle, parsedAnswer.mermaidCode, isStreaming, username]);
 
     // Auto-open story map when HTML is detected (one-time only)
     useMemo(() => {
@@ -520,7 +535,7 @@ export const Answer = ({
                     {parsedAnswer.bpmnXml && (
                         <div style={{ marginTop: "8px", textAlign: "left" }}>
                             <button
-                                onClick={() => openBpmnDiagram(parsedAnswer.bpmnXml!)}
+                                onClick={() => openBpmnDiagram(parsedAnswer.bpmnXml!, parsedAnswer.bpmnTitle, username || undefined)}
                                 style={{
                                     backgroundColor: "transparent",
                                     color: "var(--text)",

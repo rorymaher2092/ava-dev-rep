@@ -52,9 +52,10 @@ If user is coming from Story Maps → Acceptance Criteria, you MUST use the acce
 2. Use CSS classes: `row-label`, `process-stage`, `persona-system`, `requirements`, `content`
 3. Wrap detailed content in `<div class="content">` for expandability
 4. Use `<ul><li>` for lists within cells
-5. Always wrap with STORY_MAP_HTML_START and STORY_MAP_HTML_END markers
+5. **MANDATORY**: Always wrap with STORY_MAP_HTML_START and STORY_MAP_HTML_END markers
 6. **ALWAYS include title comment**: `<!-- title: [Table Name] -->` as first line after STORY_MAP_HTML_START
 7. If generate a HTML table, DO NOT also create a markdown table
+
 
 **Example structure:**
 ```html
@@ -1977,158 +1978,301 @@ Process for handling disputed rejections or employee appeals
 - Write at a level that someone new to the process could follow
 
 
-## VISUAL DIAGRAM GENERATION with BPMN 2.0 XML
+## VISUAL DIAGRAM GENERATION with JSON Topology
 
 ### Automatic Diagram Generation:
-After providing the structured process documentation, ALWAYS generate a BPMN diagram by saying:
+After providing the structured process documentation, ALWAYS generate a process diagram by saying:
 
-"Here is the visual process map in BPMN format that will open in a new tab:"
+"Here is the visual process map that will open in a new tab:"
 
-Then immediately generate the BPMN XML.
+Then immediately generate the JSON topology.
 
 ### Diagram Modifications:
 If the user requests changes to an existing process diagram, then:
 1. Acknowledge the requested changes
 2. Provide a brief explanation of what will be updated
-3. Generate the updated BPMN XML with the requested modifications
+3. Generate the updated JSON topology with the requested modifications
 4. Use the phrase "Here is the updated process flow:" before generating the new diagram
 
-### CRITICAL BPMN XML GENERATION RULES:
+### Swimlane Examples:
+**Use swimlanes for:** "Customer submits request, Sales reviews it, Finance approves, Operations delivers"
+**Don't use swimlanes for:** "Manager handles the entire approval process" or unclear role descriptions
 
-1. **Generate complete, valid BPMN 2.0 XML**
-2. **Include proper namespaces and structure**
-3. **Use valid element IDs (e.g., StartEvent_1, Task_1, Gateway_1, EndEvent_1)**
-4. **Include bpmndi:BPMNDiagram section with proper coordinates**
-5. **Ensure all sequenceFlow elements have valid sourceRef and targetRef**
-6. **CRITICAL: Include ALL BPMNEdge elements - NEVER omit edges for brevity**
-7. **CRITICAL: Always wrap XML between BOTH markers: BPMN_PROCESS_XML_START and BPMN_PROCESS_XML_END**
-8. **MANDATORY: ALWAYS end with BPMN_PROCESS_XML_END marker - this is required for rendering**
+### JSON TOPOLOGY FORMAT:
+Generate clean JSON topology (no coordinates) wrapped between BPMN_JSON_START and BPMN_JSON_END markers.
 
-### BPMN Element Types to Use:
-- **Events:** startEvent, endEvent, intermediateCatchEvent, intermediateThrowEvent
-- **Tasks:** task, userTask, serviceTask, scriptTask, businessRuleTask, manualTask
-- **Gateways:** exclusiveGateway (XOR), parallelGateway (AND), inclusiveGateway (OR)
-- **Flows:** sequenceFlow (with conditions for gateway branches)
+**CRITICAL RULES:**
+1. **Always wrap JSON between BPMN_JSON_START and BPMN_JSON_END markers**
+2. **Use only these node types:** startEvent | endEvent | intermediateCatchEvent | intermediateThrowEvent | task | userTask | serviceTask | manualTask | scriptTask | businessRuleTask | exclusiveGateway | parallelGateway | inclusiveGateway
+3. **Do NOT include any coordinates, bpmndi:*, or waypoints**
+4. **Ensure all flows have valid source and target references**
+5. **Use swimlanes (lanes) when you can clearly identify different roles, teams, or departments performing activities**
 
-### Coordinate Guidelines:
-- Start events: 36x36 pixels (circles)
-- Tasks: 100-120x60-80 pixels (rectangles)
-- Gateways: 50x50 pixels (diamonds)
-- End events: 36x36 pixels (circles)
-- Space elements 150-200 pixels apart horizontally
-- Keep y-coordinate around 150-170 for horizontal layouts
-- For complex processes, use multiple rows (y=150, y=300, y=450, etc.)
+**SWIMLANE DECISION LOGIC:**
+- **Create lanes when:** Process involves multiple distinct roles/teams (e.g., Customer, Sales, Operations, Finance)
+- **Don't create lanes when:** Unclear responsibilities, or generic descriptions
+- **Lane assignment:** Each activity should be assigned to the appropriate lane based on who performs it
 
-### REQUIRED XML STRUCTURE:
+**Required JSON Structure:**
+```
+BPMN_JSON_START
+{
+  "title": "Process Title",
+  "processId": "Process_1",
+  "name": "Process Name",
+  "lanes": [
+    { "id": "Lane_Employee", "name": "Employee" },
+    { "id": "Lane_Manager", "name": "Manager" }
+  ],
+  "nodes": [
+    { "id": "StartEvent_1", "type": "startEvent", "name": "Start", "laneId": "Lane_Employee" },
+    { "id": "Task_1", "type": "userTask", "name": "Submit Request", "laneId": "Lane_Employee" },
+    { "id": "Gateway_1", "type": "exclusiveGateway", "name": "Approved?" },
+    { "id": "Task_2", "type": "userTask", "name": "Process Request", "laneId": "Lane_Manager" },
+    { "id": "EndEvent_1", "type": "endEvent", "name": "Complete" }
+  ],
+  "flows": [
+    { "id": "Flow_1", "source": "StartEvent_1", "target": "Task_1" },
+    { "id": "Flow_2", "source": "Task_1", "target": "Gateway_1" },
+    { "id": "Flow_3", "source": "Gateway_1", "target": "Task_2", "name": "Yes" },
+    { "id": "Flow_4", "source": "Task_2", "target": "EndEvent_1" }
+  ]
+}
+BPMN_JSON_END
+```
 
-BPMN_PROCESS_XML_START
-<?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
-                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
-                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
-                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
-                  id="Definitions_1"
-                  targetNamespace="http://bpmn.io/schema/bpmn">
+**Note:** Omit the "lanes" array entirely if no clear role separation exists. Gateways and shared activities can be left without laneId.oing>
+</bpmn:userTask>
+
+<!-- Success End Event -->
+<bpmn:endEvent id="EndEvent_ServiceProvisioned" name="Provisioning Completed">
+  <bpmn:incoming>Flow_12</bpmn:incoming>
+</bpmn:endEvent>
+
+<!-- Middle Branch - Reject Path -->
+<bpmn:userTask id="Task_RejectOrder" name="Reject Order for Template Mismatch">
+  <bpmn:incoming>Flow_8</bpmn:incoming>
+  <bpmn:outgoing>Flow_14</bpmn:outgoing>
+</bpmn:userTask>
+
+<bpmn:endEvent id="EndEvent_OrderRejected" name="Order Rejected">
+  <bpmn:incoming>Flow_14</bpmn:incoming>
+</bpmn:endEvent>
+
+<!-- Lower Branch - Remote Activation Path -->
+<bpmn:userTask id="Task_HandleRemoteActivation" name="Handle Remote Activation Delay">
+  <bpmn:incoming>Flow_5</bpmn:incoming>
+  <bpmn:outgoing>Flow_13</bpmn:outgoing>
+</bpmn:userTask>
+
+<bpmn:endEvent id="EndEvent_RemoteActivationRaised" name="SR Raised to NBN">
+  <bpmn:incoming>Flow_13</bpmn:incoming>
+</bpmn:endEvent>
+
+<!-- Sequence Flows -->
+<bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Task_IdentifyStuckTransfers"/>
+<bpmn:sequenceFlow id="Flow_2" sourceRef="Task_IdentifyStuckTransfers" targetRef="Task_DetermineTransferType"/>
+<bpmn:sequenceFlow id="Flow_3" sourceRef="Task_DetermineTransferType" targetRef="Gateway_1"/>
+<bpmn:sequenceFlow id="Flow_4" name="Yes" sourceRef="Gateway_1" targetRef="Task_ValidateProductTemplate"/>
+<bpmn:sequenceFlow id="Flow_5" name="No" sourceRef="Gateway_1" targetRef="Task_HandleRemoteActivation"/>
+<bpmn:sequenceFlow id="Flow_6" sourceRef="Task_ValidateProductTemplate" targetRef="Gateway_2"/>
+<bpmn:sequenceFlow id="Flow_7" name="Valid" sourceRef="Gateway_2" targetRef="Task_FreeUpPRI"/>
+<bpmn:sequenceFlow id="Flow_8" name="Invalid" sourceRef="Gateway_2" targetRef="Task_RejectOrder"/>
+<bpmn:sequenceFlow id="Flow_9" sourceRef="Task_FreeUpPRI" targetRef="Task_AssignPRI"/>
+<bpmn:sequenceFlow id="Flow_10" sourceRef="Task_AssignPRI" targetRef="Task_UpdateNIM"/>
+<bpmn:sequenceFlow id="Flow_11" sourceRef="Task_UpdateNIM" targetRef="Task_UpdateStaffPortal"/>
+<bpmn:sequenceFlow id="Flow_12" sourceRef="Task_UpdateStaffPortal" targetRef="EndEvent_ServiceProvisioned"/>
+<bpmn:sequenceFlow id="Flow_13" sourceRef="Task_HandleRemoteActivation" targetRef="EndEvent_RemoteActivationRaised"/>
+<bpmn:sequenceFlow id="Flow_14" sourceRef="Task_RejectOrder" targetRef="EndEvent_OrderRejected"/>
+</bpmn:process>
+  <!-- Diagram Information with Professional Spacing and Alignment -->
+<bpmndi:BPMNDiagram id="BPMNDiagram_1">
+<bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1">
+  <!-- Start Event - Main flow at y=200 -->
+  <bpmndi:BPMNShape id="Shape_StartEvent_1" bpmnElement="StartEvent_1">
+    <dc:Bounds x="100" y="182" width="36" height="36"/>
+  </bpmndi:BPMNShape>
   
-  <bpmn:process id="Process_1" isExecutable="false">
-    <!-- Start Event -->
-    <bpmn:startEvent id="StartEvent_1" name="Start">
-      <bpmn:outgoing>Flow_1</bpmn:outgoing>
-    </bpmn:startEvent>
-    
-    <!-- Tasks (use appropriate type: userTask, serviceTask, etc.) -->
-    <bpmn:userTask id="Task_1" name="Task Name">
-      <bpmn:incoming>Flow_1</bpmn:incoming>
-      <bpmn:outgoing>Flow_2</bpmn:outgoing>
-    </bpmn:userTask>
-    
-    <!-- Gateways -->
-    <bpmn:exclusiveGateway id="Gateway_1" name="Decision?">
-      <bpmn:incoming>Flow_2</bpmn:incoming>
-      <bpmn:outgoing>Flow_3</bpmn:outgoing>
-      <bpmn:outgoing>Flow_4</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
-    
-    <!-- End Events -->
-    <bpmn:endEvent id="EndEvent_1" name="End">
-      <bpmn:incoming>Flow_3</bpmn:incoming>
-    </bpmn:endEvent>
-    
-    <bpmn:endEvent id="EndEvent_2" name="Alternative End">
-      <bpmn:incoming>Flow_4</bpmn:incoming>
-    </bpmn:endEvent>
-    
-    <!-- Sequence Flows - MUST have valid sourceRef and targetRef -->
-    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Task_1"/>
-    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_1" targetRef="Gateway_1"/>
-    <bpmn:sequenceFlow id="Flow_3" name="Yes" sourceRef="Gateway_1" targetRef="EndEvent_1"/>
-    <bpmn:sequenceFlow id="Flow_4" name="No" sourceRef="Gateway_1" targetRef="EndEvent_2"/>
-  </bpmn:process>
+  <!-- Main Flow Tasks - All aligned at y=160-240 (height 80) -->
+  <bpmndi:BPMNShape id="Shape_Task_IdentifyStuckTransfers" bpmnElement="Task_IdentifyStuckTransfers">
+    <dc:Bounds x="200" y="160" width="100" height="80"/>
+  </bpmndi:BPMNShape>
   
-  <!-- Diagram Information with Coordinates -->
-  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
-    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1">
-      
-      <!-- Shapes with coordinates -->
-      <bpmndi:BPMNShape id="Shape_StartEvent_1" bpmnElement="StartEvent_1">
-        <dc:Bounds x="150" y="150" width="36" height="36"/>
-      </bpmndi:BPMNShape>
-      
-      <bpmndi:BPMNShape id="Shape_Task_1" bpmnElement="Task_1">
-        <dc:Bounds x="250" y="140" width="100" height="60"/>
-      </bpmndi:BPMNShape>
-      
-      <bpmndi:BPMNShape id="Shape_Gateway_1" bpmnElement="Gateway_1" isMarkerVisible="true">
-        <dc:Bounds x="400" y="150" width="50" height="50"/>
-      </bpmndi:BPMNShape>
-      
-      <bpmndi:BPMNShape id="Shape_EndEvent_1" bpmnElement="EndEvent_1">
-        <dc:Bounds x="550" y="150" width="36" height="36"/>
-      </bpmndi:BPMNShape>
-      
-      <bpmndi:BPMNShape id="Shape_EndEvent_2" bpmnElement="EndEvent_2">
-        <dc:Bounds x="550" y="250" width="36" height="36"/>
-      </bpmndi:BPMNShape>
-      
-      <!-- Edges (connections) with waypoints -->
-      <bpmndi:BPMNEdge id="Edge_Flow_1" bpmnElement="Flow_1">
-        <di:waypoint x="186" y="168"/>
-        <di:waypoint x="250" y="170"/>
-      </bpmndi:BPMNEdge>
-      
-      <bpmndi:BPMNEdge id="Edge_Flow_2" bpmnElement="Flow_2">
-        <di:waypoint x="350" y="170"/>
-        <di:waypoint x="400" y="175"/>
-      </bpmndi:BPMNEdge>
-      
-      <bpmndi:BPMNEdge id="Edge_Flow_3" bpmnElement="Flow_3">
-        <di:waypoint x="450" y="175"/>
-        <di:waypoint x="550" y="168"/>
-      </bpmndi:BPMNEdge>
-      
-      <bpmndi:BPMNEdge id="Edge_Flow_4" bpmnElement="Flow_4">
-        <di:waypoint x="425" y="200"/>
-        <di:waypoint x="425" y="268"/>
-        <di:waypoint x="550" y="268"/>
-      </bpmndi:BPMNEdge>
-      
-    </bpmndi:BPMNPlane>
-  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNShape id="Shape_Task_DetermineTransferType" bpmnElement="Task_DetermineTransferType">
+    <dc:Bounds x="350" y="160" width="100" height="80"/>
+  </bpmndi:BPMNShape>
+  
+  <!-- First Gateway - Properly centered -->
+  <bpmndi:BPMNShape id="Shape_Gateway_1" bpmnElement="Gateway_1" isMarkerVisible="true">
+    <dc:Bounds x="500" y="175" width="50" height="50"/>
+  </bpmndi:BPMNShape>
+  
+  <!-- Upper Branch - Internal Transfer Path (y=80) -->
+  <bpmndi:BPMNShape id="Shape_Task_ValidateProductTemplate" bpmnElement="Task_ValidateProductTemplate">
+    <dc:Bounds x="600" y="40" width="120" height="80"/>
+  </bpmndi:BPMNShape>
+  
+  <bpmndi:BPMNShape id="Shape_Gateway_2" bpmnElement="Gateway_2" isMarkerVisible="true">
+    <dc:Bounds x="770" y="55" width="50" height="50"/>
+  </bpmndi:BPMNShape>
+  
+  <!-- Success Path continues on upper level -->
+  <bpmndi:BPMNShape id="Shape_Task_FreeUpPRI" bpmnElement="Task_FreeUpPRI">
+    <dc:Bounds x="870" y="40" width="120" height="80"/>
+  </bpmndi:BPMNShape>
+  
+  <bpmndi:BPMNShape id="Shape_Task_AssignPRI" bpmnElement="Task_AssignPRI">
+    <dc:Bounds x="1040" y="40" width="120" height="80"/>
+  </bpmndi:BPMNShape>
+  
+  <bpmndi:BPMNShape id="Shape_Task_UpdateNIM" bpmnElement="Task_UpdateNIM">
+    <dc:Bounds x="1210" y="40" width="120" height="80"/>
+  </bpmndi:BPMNShape>
+  
+  <bpmndi:BPMNShape id="Shape_Task_UpdateStaffPortal" bpmnElement="Task_UpdateStaffPortal">
+    <dc:Bounds x="1380" y="40" width="120" height="80"/>
+  </bpmndi:BPMNShape>
+  
+  <!-- Success End Event -->
+  <bpmndi:BPMNShape id="Shape_EndEvent_ServiceProvisioned" bpmnElement="EndEvent_ServiceProvisioned">
+    <dc:Bounds x="1550" y="62" width="36" height="36"/>
+  </bpmndi:BPMNShape>
+  
+  <!-- Middle Branch - Reject Path (y=160) -->
+  <bpmndi:BPMNShape id="Shape_Task_RejectOrder" bpmnElement="Task_RejectOrder">
+    <dc:Bounds x="870" y="160" width="120" height="80"/>
+  </bpmndi:BPMNShape>
+  
+  <bpmndi:BPMNShape id="Shape_EndEvent_OrderRejected" bpmnElement="EndEvent_OrderRejected">
+    <dc:Bounds x="1040" y="182" width="36" height="36"/>
+  </bpmndi:BPMNShape>
+  
+  <!-- Lower Branch - Remote Activation Path (y=280) -->
+  <bpmndi:BPMNShape id="Shape_Task_HandleRemoteActivation" bpmnElement="Task_HandleRemoteActivation">
+    <dc:Bounds x="600" y="280" width="150" height="80"/>
+  </bpmndi:BPMNShape>
+  
+  <bpmndi:BPMNShape id="Shape_EndEvent_RemoteActivationRaised" bpmnElement="EndEvent_RemoteActivationRaised">
+    <dc:Bounds x="800" y="302" width="36" height="36"/>
+  </bpmndi:BPMNShape>
+  
+  <!-- Sequence Flow Edges with Clean Routing -->
+  <bpmndi:BPMNEdge id="Edge_Flow_1" bpmnElement="Flow_1">
+    <di:waypoint x="136" y="200"/>
+    <di:waypoint x="200" y="200"/>
+  </bpmndi:BPMNEdge>
+  
+  <bpmndi:BPMNEdge id="Edge_Flow_2" bpmnElement="Flow_2">
+    <di:waypoint x="300" y="200"/>
+    <di:waypoint x="350" y="200"/>
+  </bpmndi:BPMNEdge>
+  
+  <bpmndi:BPMNEdge id="Edge_Flow_3" bpmnElement="Flow_3">
+    <di:waypoint x="450" y="200"/>
+    <di:waypoint x="500" y="200"/>
+  </bpmndi:BPMNEdge>
+  
+  <!-- Upper branch - Yes path -->
+  <bpmndi:BPMNEdge id="Edge_Flow_4" bpmnElement="Flow_4">
+    <di:waypoint x="525" y="175"/>
+    <di:waypoint x="525" y="80"/>
+    <di:waypoint x="600" y="80"/>
+  </bpmndi:BPMNEdge>
+  
+  <!-- Lower branch - No path -->
+  <bpmndi:BPMNEdge id="Edge_Flow_5" bpmnElement="Flow_5">
+    <di:waypoint x="525" y="225"/>
+    <di:waypoint x="525" y="320"/>
+    <di:waypoint x="600" y="320"/>
+  </bpmndi:BPMNEdge>
+  
+  <bpmndi:BPMNEdge id="Edge_Flow_6" bpmnElement="Flow_6">
+    <di:waypoint x="720" y="80"/>
+    <di:waypoint x="770" y="80"/>
+  </bpmndi:BPMNEdge>
+  
+  <!-- Valid path continues straight -->
+  <bpmndi:BPMNEdge id="Edge_Flow_7" bpmnElement="Flow_7">
+    <di:waypoint x="820" y="80"/>
+    <di:waypoint x="870" y="80"/>
+  </bpmndi:BPMNEdge>
+  
+  <!-- Invalid path goes down to middle level -->
+  <bpmndi:BPMNEdge id="Edge_Flow_8" bpmnElement="Flow_8">
+    <di:waypoint x="795" y="105"/>
+    <di:waypoint x="795" y="200"/>
+    <di:waypoint x="870" y="200"/>
+  </bpmndi:BPMNEdge>
+  
+  <!-- Success path continues -->
+  <bpmndi:BPMNEdge id="Edge_Flow_9" bpmnElement="Flow_9">
+    <di:waypoint x="990" y="80"/>
+    <di:waypoint x="1040" y="80"/>
+  </bpmndi:BPMNEdge>
+  
+  <bpmndi:BPMNEdge id="Edge_Flow_10" bpmnElement="Flow_10">
+    <di:waypoint x="1160" y="80"/>
+    <di:waypoint x="1210" y="80"/>
+  </bpmndi:BPMNEdge>
+  
+  <bpmndi:BPMNEdge id="Edge_Flow_11" bpmnElement="Flow_11">
+    <di:waypoint x="1330" y="80"/>
+    <di:waypoint x="1380" y="80"/>
+  </bpmndi:BPMNEdge>
+  
+  <bpmndi:BPMNEdge id="Edge_Flow_12" bpmnElement="Flow_12">
+    <di:waypoint x="1500" y="80"/>
+    <di:waypoint x="1550" y="80"/>
+  </bpmndi:BPMNEdge>
+  
+  <!-- Reject path -->
+  <bpmndi:BPMNEdge id="Edge_Flow_14" bpmnElement="Flow_14">
+    <di:waypoint x="990" y="200"/>
+    <di:waypoint x="1040" y="200"/>
+  </bpmndi:BPMNEdge>
+  
+  <!-- Remote activation path -->
+  <bpmndi:BPMNEdge id="Edge_Flow_13" bpmnElement="Flow_13">
+    <di:waypoint x="750" y="320"/>
+    <di:waypoint x="800" y="320"/>
+  </bpmndi:BPMNEdge>
+  
+</bpmndi:BPMNPlane>
+</bpmndi:BPMNDiagram>
 </bpmn:definitions>
 BPMN_PROCESS_XML_END
+Important BPMN Layout Notes:
 
-### Important BPMN Notes:
-- **MANDATORY**: ALWAYS use BOTH BPMN_PROCESS_XML_START and BPMN_PROCESS_XML_END markers
-- **CRITICAL**: The BPMN_PROCESS_XML_END marker is REQUIRED - without it the diagram won't render
-- Ensure all element IDs match between process elements and diagram shapes
-- Every sequenceFlow MUST have valid sourceRef and targetRef
-- Include ALL BPMNEdge elements in the diagram - every sequenceFlow must have a corresponding BPMNEdge
-- Include meaningful names for all elements
-- For complex processes, organize layout in swim lanes or multiple rows
-- Use appropriate task types: userTask for human activities, serviceTask for system activities
-- Gateway conditions should be reflected in sequence flow names (e.g., name="Yes" or name="No")
-- NEVER omit edges or use comments like "Edges omitted for brevity" - always include complete edge definitions
-- **Keep XML concise to avoid token limits - use rounded coordinates (e.g., x="150" not x="150.5")**
+MANDATORY: ALWAYS use BOTH BPMN_PROCESS_XML_START and BPMN_PROCESS_XML_END markers
+CRITICAL: The BPMN_PROCESS_XML_END marker is REQUIRED - without it the diagram won't render
+Element alignment: Ensure all element IDs match between process elements and diagram shapes
+Flow completeness: Every sequenceFlow MUST have valid sourceRef and targetRef
+Edge requirements: Include ALL BPMNEdge elements in the diagram - every sequenceFlow must have a corresponding BPMNEdge
+Meaningful names: Include meaningful names for all elements to improve readability
+Multi-level organization: For complex processes, organize layout in multiple horizontal rows with proper vertical spacing
+Task type accuracy: Use appropriate task types: userTask for human activities, serviceTask for system activities
+Gateway conditions: Gateway conditions should be reflected in sequence flow names (e.g., name="Yes" or name="No")
+Complete definitions: NEVER omit edges or use comments like "Edges omitted for brevity" - always include complete edge definitions
+Professional spacing priorities:
+
+Use generous spacing to prevent overlapping - better to have a wide diagram than overlapping elements
+Position gateway branches with clear vertical separation (minimum 150-200px apart)
+Ensure waypoints create clean, non-crossing flow lines
+Maintain consistent horizontal progression with 250-300px gaps between element centers
+
+
+Three-level branch organization:
+
+Upper level (y=40-120): Success/Valid/Positive outcome paths
+Main level (y=160-240): Primary flow and neutral outcomes
+Lower level (y=280-360): Exception/Invalid/Negative outcome paths
+
+
+Gateway routing rules:
+
+Positive branches (Yes/Valid/Success) route UP from gateways
+Negative branches (No/Invalid/Reject) route DOWN from gateways
+Use vertical-then-horizontal routing for clean connections
 
 {% elif artifact_type == "change_strategy" %}
 {% include "./BA_Folder/Change_Strategy_Prompt.md" %}
