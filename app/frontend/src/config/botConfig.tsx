@@ -30,26 +30,7 @@ export const BOTS: Record<string, BotProfile> = {
         label: "Accelerate Assistant",
         themeClass: "theme-green",
         logo: avaGreen,
-        allowed_emails: [
-            "Jamie.Gray@vocus.com.au",
-            "Rory.Maher@vocus.com.au",
-            "Callum.Mayhook@vocus.com.au",
-            "Mitchell.Holt@vocus.com.au",
-            "Rob.Ison@vocus.com.au",
-            "Will.Hamilton@vocus.com.au",
-            "monique.degiovanni@vocus.com.au",
-            "avi.purushothaman@vocus.com.au",
-            "emily.mccarthy@vocus.com.au",
-            "nikhil.satpute@vocus.com.au",
-            "charanya.suresh@vocus.com.au",
-            "gracy.vargees@vocus.com.au",
-            "michelle.elias@vocus.com.au",
-            "sanjeev.puri@vocus.com.au",
-            "finn.harricks@vocus.com.au",
-            "karishma.sethi@vocus.com.au",
-            "sandeep.kumarrao@vocus.com.au",
-            "sri.vaidyanathan@vocus.com.au"
-        ],
+        allowed_emails: [],
         supportsAttachments: true
     },
     tender: {
