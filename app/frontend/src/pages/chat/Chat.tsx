@@ -928,6 +928,13 @@ const Chat = () => {
             <div className={styles.commandsSplitContainer}>
                 <div className={styles.commandsContainer}>{showUserUpload && <UploadFile className={styles.commandButton} disabled={!loggedIn} />}</div>
             </div>
+
+            {/* Beta Release Message */}
+            {botId === "ba" && (
+                <div className={styles.betaMessage}>
+                    This application is in Beta Release
+                </div>
+            )}
             <div
                 className={styles.chatRoot}
                 style={{
