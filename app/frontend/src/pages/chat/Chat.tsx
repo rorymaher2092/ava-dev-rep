@@ -430,37 +430,21 @@ const Chat = () => {
             } catch (authError) {
                 console.error("Auth failed:", authError);
 
-                // Only force re-authentication for interaction required errors
-                if (authError instanceof Error && authError.message === "INTERACTION_REQUIRED") {
-                    const confirmLogin = window.confirm("Your session has expired. Please sign in again to continue.");
+                // Force MSAL popup login for any authentication error
+                try {
+                    await clearAllMsalCache();
+                    await loginToMicrosoft();
 
-                    if (!confirmLogin) {
-                        setError(new Error("Authentication required to continue"));
-                        setIsLoading(false);
-                        return;
+                    // Get fresh tokens after login
+                    authToken = await getToken();
+                    graphToken = await getGraphToken();
+
+                    if (!authToken || !graphToken) {
+                        throw new Error("Failed to obtain token after authentication");
                     }
-
-                    try {
-                        // Clear cache and force fresh login only for interaction required
-                        await clearAllMsalCache();
-                        await loginToMicrosoft();
-
-                        // Get fresh tokens after login
-                        authToken = await getToken();
-                        graphToken = await getGraphToken();
-
-                        if (!authToken || !graphToken) {
-                            throw new Error("Failed to obtain token after re-authentication");
-                        }
-                    } catch (loginError) {
-                        console.error("Re-authentication failed:", loginError);
-                        setError(new Error("Failed to authenticate. Please refresh the page and try again."));
-                        setIsLoading(false);
-                        return;
-                    }
-                } else {
-                    // For other auth errors, just show error without forcing re-auth
-                    setError(new Error("Authentication error. Please try again or refresh the page."));
+                } catch (loginError) {
+                    console.error("Authentication failed:", loginError);
+                    setError(new Error("Authentication failed. Please try again."));
                     setIsLoading(false);
                     return;
                 }
