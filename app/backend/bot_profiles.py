@@ -62,8 +62,8 @@ BOTS: Dict[str, BotProfile] = {
     "ba": BotProfile(
     id="ba",
     label="BA Buddy",
-    model="o4-mini",
-    deployment="o4-mini",
+    model="gpt-5",
+    deployment="gpt-5",
     api_version="2025-04-16",
     allowed_emails=[],
     use_confluence_search=False,

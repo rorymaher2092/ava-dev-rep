@@ -12,13 +12,13 @@ from attachments.direct_attachment_storage import attachment_storage
 # Configuration from environment variables
 JIRA_CONFIG = {
     "base_url": os.getenv("JIRA_BASE_URL", "https://vocus.atlassian.net"),
-    "api_token": os.getenv("JIRA_API_TOKEN"),
-    "email": os.getenv("JIRA_EMAIL")
+    "api_token": os.getenv("CONFLUENCE_TOKEN"),
+    "email": os.getenv("CONFLUENCE_EMAIL")
 }
 
 CONFLUENCE_CONFIG = {
     "base_url": os.getenv("CONFLUENCE_BASE_URL", "https://vocus.atlassian.net/wiki"),
-    "api_token": os.getenv("CONFLUENCE_API_TOKEN"),
+    "api_token": os.getenv("CONFLUENCE_TOKEN"),
     "email": os.getenv("CONFLUENCE_EMAIL")
 }
 

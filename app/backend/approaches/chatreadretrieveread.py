@@ -665,7 +665,7 @@ class ChatReadRetrieveReadApproach(ChatApproach):
                     ),
                     temperature=0.0,
                     tools=tools,
-                    reasoning_effort="high",
+                    reasoning_effort="medium",
                 ),
             )
         finally:
